@@ -1,0 +1,144 @@
+package link.rdcn.operation
+
+import link.rdcn.struct.{DataFrame, Row}
+import org.json.{JSONArray, JSONObject}
+
+import scala.collection.JavaConverters.{asScalaBufferConverter, seqAsJavaListConverter}
+import scala.collection.mutable.ListBuffer
+
+/**
+ * @Author renhao
+ * @Description:
+ * @Data 2025/7/1 17:02
+ * @Modified By:
+ */
+trait ExecutionContext {
+  def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame]
+}
+
+sealed trait Operation {
+
+  var inputs: Seq[Operation]
+
+  def operationType: String
+
+  def toJson: JSONObject
+
+  def toJsonString: String = toJson.toString
+
+  def execute(ctx: ExecutionContext): DataFrame
+}
+
+object Operation {
+  def fromJsonString(json: String, sourceList: ListBuffer[String]): Operation = {
+    val parsed: JSONObject = new JSONObject(json)
+    val opType = parsed.getString("type")
+    if (opType == "SourceOp") {
+      sourceList.append(parsed.getString("dataFrameName"))
+      SourceOp(parsed.getString("dataFrameName"))
+    } else {
+      val ja: JSONArray = parsed.getJSONArray("input")
+      val inputs = (0 until ja.length).map(ja.getJSONObject(_).toString()).map(fromJsonString(_, sourceList))
+      opType match {
+        case "Map" => MapOp(FunctionWrapper(parsed.getJSONObject("function")), inputs: _*)
+        case "Filter" => FilterOp(FunctionWrapper(parsed.getJSONObject("function")), inputs: _*)
+        case "Limit" => LimitOp(parsed.getJSONArray("args").getInt(0), inputs: _*)
+        case "Select" => SelectOp(inputs.head, parsed.getJSONArray("args").toList.asScala.map(_.toString): _*)
+      }
+    }
+  }
+}
+
+case class SourceOp(dataFrameUrl: String) extends Operation {
+
+  override var inputs: Seq[Operation] = Seq.empty
+
+  override def operationType: String = "SourceOp"
+
+  override def toJson: JSONObject = new JSONObject().put("type", operationType).put("dataFrameName", dataFrameUrl)
+
+  override def execute(ctx: ExecutionContext): DataFrame = ctx.loadSourceDataFrame(dataFrameUrl)
+    .getOrElse(throw new Exception(s"dataFrame $dataFrameUrl not found"))
+}
+
+case class MapOp(functionWrapper: FunctionWrapper, inputOperations: Operation*) extends Operation {
+
+  override var inputs = inputOperations
+
+  override def operationType: String = "Map"
+
+  override def toJson: JSONObject = {
+    val ja = new JSONArray()
+    inputs.foreach(op => ja.put(op.toJson))
+    new JSONObject().put("type", operationType)
+      .put("function", functionWrapper.toJson)
+      .put("input", ja)
+  }
+
+  override def execute(ctx: ExecutionContext): DataFrame = {
+    val jep = JepInterpreterManager.getInterpreter
+    val in = inputs.head.execute(ctx)
+    in.map(functionWrapper.applyToInput(_, Some(jep)).asInstanceOf[Row])
+  }
+}
+
+case class FilterOp(functionWrapper: FunctionWrapper, inputOperations: Operation*) extends Operation {
+
+  override var inputs = inputOperations
+
+  override def operationType: String = "Filter"
+
+  override def toJson: JSONObject = {
+    val ja = new JSONArray()
+    inputs.foreach(op => ja.put(op.toJson))
+    new JSONObject().put("type", operationType)
+      .put("function", functionWrapper.toJson)
+      .put("input", ja)
+  }
+
+  override def execute(ctx: ExecutionContext): DataFrame = {
+    val interp = JepInterpreterManager.getInterpreter
+    val in = inputs.head.execute(ctx)
+    in.filter(functionWrapper.applyToInput(_, Some(interp)).asInstanceOf[Boolean])
+  }
+}
+
+case class LimitOp(n: Int, inputOperations: Operation*) extends Operation {
+
+  override var inputs = inputOperations
+
+  override def operationType: String = "Limit"
+
+  override def toJson: JSONObject = {
+    val ja = new JSONArray()
+    inputs.foreach(op => ja.put(op.toJson))
+    new JSONObject().put("type", operationType)
+      .put("args", new JSONArray(Seq(n).asJava))
+      .put("input", ja)
+  }
+
+  override def execute(ctx: ExecutionContext): DataFrame = {
+    val in = inputs.head.execute(ctx)
+    in.limit(n)
+  }
+}
+
+case class SelectOp(input: Operation, columns: String*) extends Operation {
+
+  override var inputs: Seq[Operation] = Seq(input)
+
+  override def operationType: String = "Select"
+
+  override def toJson: JSONObject = {
+    val ja = new JSONArray()
+    inputs.foreach(op => ja.put(op.toJson))
+    new JSONObject().put("type", operationType)
+      .put("args", new JSONArray(columns.asJava))
+      .put("input", ja)
+  }
+
+  override def execute(ctx: ExecutionContext): DataFrame = {
+    val in = input.execute(ctx)
+    in.select(columns: _*)
+  }
+}
