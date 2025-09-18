@@ -194,7 +194,7 @@ class DftpServer {
 
     if (useTls) {
       flightServer = FlightServer.builder(allocator, location, producer)
-        .useTls(dftpConfig.tlsCertFile, dftpConfig.tlsKeyFile)
+        .useTls(tlsCertFile, tlsKeyFile)
         .authHandler(new FlightServerAuthHandler)
         .build()
     } else {

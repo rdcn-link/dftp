@@ -19,10 +19,10 @@ object LoggingUtils {
     builder.setStatusLevel(Level.WARN)
     builder.setConfigurationName("FairdLogConfig")
 
-    val logFile = config.loggingFileName
-    val level = Level.toLevel(config.loggingLevelRoot)
-    val consolePattern = config.loggingPatternConsole
-    val filePattern = config.loggingPatternFile
+    val logFile = config.logFilePath
+    val level = Level.toLevel(config.rootLogLevel)
+    val consolePattern = config.consoleLogPattern
+    val filePattern = config.fileLogPattern
 
     val console = builder.newAppender("Console", "CONSOLE")
       .add(builder.newLayout("PatternLayout").addAttribute("pattern", consolePattern))
