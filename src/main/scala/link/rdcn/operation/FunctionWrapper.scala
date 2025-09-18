@@ -1,6 +1,5 @@
 package link.rdcn.operation
 
-import jep.Jep
 import link.rdcn.struct.{DataFrame, Row}
 import org.json.JSONObject
 
@@ -15,10 +14,10 @@ import scala.language.postfixOps
  * @Modified By:
  */
 
-sealed trait FunctionWrapper {
+trait FunctionWrapper {
   def toJson: JSONObject
 
-  def applyToInput(input: Any, interpOpt: Option[Jep] = None): Any
+  def applyToInput(input: Any, ctx: ExecutionContext): Any
 }
 
 object FunctionWrapper {
@@ -32,8 +31,8 @@ object FunctionWrapper {
 
     override def toString(): String = "PythonCodeNode Function"
 
-    override def applyToInput(input: Any, interpOpt: Option[Jep]): Any = {
-      val interp = interpOpt.getOrElse(throw new IllegalArgumentException("Python interpreter is required"))
+    override def applyToInput(input: Any, ctx: ExecutionContext): Any = {
+      val interp = ctx.getSharedInterpreter().getOrElse(throw new IllegalArgumentException("Python interpreter is required"))
       input match {
         case row: Row =>
           val lst = new java.util.ArrayList[AnyRef]()
@@ -103,7 +102,7 @@ object FunctionWrapper {
 
     override def toString(): String = "Java_bin Function"
 
-    override def applyToInput(input: Any, interpOpt: Option[Jep] = None): Any = {
+    override def applyToInput(input: Any, ctx: ExecutionContext): Any = {
       input match {
         case row: Row => genericFunctionCall.transform(row)
         case (r1: Row, r2: Row) => genericFunctionCall.transform((r1, r2))

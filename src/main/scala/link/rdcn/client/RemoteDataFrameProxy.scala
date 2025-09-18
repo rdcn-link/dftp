@@ -39,8 +39,6 @@ case class RemoteDataFrameProxy(operation: Operation, getRows: String => (Struct
 
   override def reduce(f: ((Row, Row)) => Row): DataFrame = ???
 
-  def groupBy(column: String): GroupedDataFrame = ???
-
   override def foreach(f: Row => Unit): Unit = records.foreach(f)
 
   override def collect(): List[Row] = records.toList
@@ -50,10 +48,6 @@ case class RemoteDataFrameProxy(operation: Operation, getRows: String => (Struct
   override def mapIterator[T](f: ClosableIterator[Row] => T): T = f(getRows(operation.toJsonString)._2)
 }
 
-case class GroupedDataFrame(remoteDataFrameImpl: RemoteDataFrameProxy) {
-  def max(column: String): RemoteDataFrameProxy = ???
-  //可自定义聚合函数
-}
 
 
 

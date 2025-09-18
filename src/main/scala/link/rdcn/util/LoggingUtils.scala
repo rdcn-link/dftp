@@ -13,7 +13,7 @@ import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration
  * @Modified By:
  */
 object LoggingUtils {
-  private def initLog4j(config: DftpConfig): Unit = {
+  def initLog4j(config: DftpConfig): Unit = {
     val builder: ConfigurationBuilder[BuiltConfiguration] = ConfigurationBuilderFactory.newConfigurationBuilder()
 
     builder.setStatusLevel(Level.WARN)

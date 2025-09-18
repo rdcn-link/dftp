@@ -1,5 +1,6 @@
 package link.rdcn.operation
 
+import jep.{Jep, SharedInterpreter}
 import link.rdcn.struct.{DataFrame, Row}
 import org.json.{JSONArray, JSONObject}
 
@@ -14,11 +15,18 @@ import scala.collection.mutable.ListBuffer
  */
 trait ExecutionContext {
   def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame]
+
+  def getSharedInterpreter(): Option[SharedInterpreter] = Some(SharedInterpreterManager.getInterpreter)
 }
 
-sealed trait Operation {
+trait Operation {
 
   var inputs: Seq[Operation]
+
+  def setInputs(operations: Operation*): Operation = {
+    inputs = operations
+    this
+  }
 
   def operationType: String
 
@@ -76,9 +84,8 @@ case class MapOp(functionWrapper: FunctionWrapper, inputOperations: Operation*) 
   }
 
   override def execute(ctx: ExecutionContext): DataFrame = {
-    val jep = JepInterpreterManager.getInterpreter
     val in = inputs.head.execute(ctx)
-    in.map(functionWrapper.applyToInput(_, Some(jep)).asInstanceOf[Row])
+    in.map(functionWrapper.applyToInput(_, ctx).asInstanceOf[Row])
   }
 }
 
@@ -97,9 +104,8 @@ case class FilterOp(functionWrapper: FunctionWrapper, inputOperations: Operation
   }
 
   override def execute(ctx: ExecutionContext): DataFrame = {
-    val interp = JepInterpreterManager.getInterpreter
     val in = inputs.head.execute(ctx)
-    in.filter(functionWrapper.applyToInput(_, Some(interp)).asInstanceOf[Boolean])
+    in.filter(functionWrapper.applyToInput(_, ctx).asInstanceOf[Boolean])
   }
 }
 

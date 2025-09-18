@@ -4,7 +4,7 @@ import link.rdcn.struct.ValueType.BinaryType
 import link.rdcn.struct.{DataFrame, DefaultDataFrame, Row, StructType}
 import link.rdcn.user.{AuthenticatedProvider, AuthenticatedUser, AuthenticatedUserWithCredentials, Credentials}
 import link.rdcn.server.ServerUtils.convertStructTypeToArrowSchema
-import link.rdcn.util.{CodecUtils, DataUtils}
+import link.rdcn.util.{CodecUtils, DataUtils, LoggingUtils}
 import link.rdcn.Logging
 import link.rdcn.DftpConfig
 import link.rdcn.operation.{ExecutionContext, Operation, SourceOp}
@@ -73,7 +73,7 @@ class DftpServer {
     this
   }
 
-  def buildStream(authenticatedUser: AuthenticatedUser, ticket: Array[Byte]): Either[DataFrame, (Int, String)] = {
+  protected def buildStream(authenticatedUser: AuthenticatedUser, ticket: Array[Byte]): Either[DataFrame, (Int, String)] = {
     val ticketInfo = CodecUtils.decodeTicket(ticket)
     if (ticketInfo._1 == BLOB_STREAM) {
       val blobId = ticketInfo._2.asInstanceOf[SourceOp].dataFrameUrl
@@ -115,7 +115,7 @@ class DftpServer {
     }
   }
 
-  def authenticate(credentials: Credentials): AuthenticatedUser = this.authenticatedProvider.authenticate(credentials)
+  protected def authenticate(credentials: Credentials): AuthenticatedUser = this.authenticatedProvider.authenticate(credentials)
 
   def start(dftpConfig: DftpConfig): Unit = synchronized {
     if (started) return
@@ -183,6 +183,7 @@ class DftpServer {
   @volatile private var started: Boolean = false
 
   private def buildServer(dftpConfig: DftpConfig): Unit = {
+    LoggingUtils.initLog4j(dftpConfig)
     location = if (useTls)
       Location.forGrpcTls(dftpConfig.host, dftpConfig.port)
     else

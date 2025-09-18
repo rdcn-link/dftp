@@ -10,7 +10,7 @@ import link.rdcn.Logging
  * @Modified By:
  */
 
-object JepInterpreterManager extends Logging {
+object SharedInterpreterManager extends Logging {
   // ThreadLocal stores each thread's SharedInterpreter instance
   private val threadLocalInterpreter: ThreadLocal[SharedInterpreter] = new ThreadLocal[SharedInterpreter] {
     override def initialValue(): SharedInterpreter = {

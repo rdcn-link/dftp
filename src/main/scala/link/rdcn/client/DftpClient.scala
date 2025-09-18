@@ -95,7 +95,7 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
     (schemaAndIter._1, ClosableIterator(stream)())
   }
 
-  private def getStream(flightClient: FlightClient, ticket: Ticket): (StructType, Iterator[Seq[Any]]) = {
+  protected def getStream(flightClient: FlightClient, ticket: Ticket): (StructType, Iterator[Seq[Any]]) = {
     val flightStream = flightClient.getStream(ticket)
     val vectorSchemaRootReceived = flightStream.getRoot
     val schema = ClientUtils.arrowSchemaToStructType(vectorSchemaRootReceived.getSchema)
@@ -149,8 +149,8 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
     (schema, iter)
   }
 
-  private val BLOB_STREAM: Byte = 1
-  private val GET_STREAM: Byte = 2
+  protected val BLOB_STREAM: Byte = 1
+  protected val GET_STREAM: Byte = 2
 
   private val location = {
     if (useTLS) {
@@ -164,7 +164,7 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
       Location.forGrpcInsecure(host, port)
   }
   private val allocator: BufferAllocator = new RootAllocator()
-  private val flightClient: FlightClient = FlightClient.builder(allocator, location).build()
+  protected val flightClient: FlightClient = FlightClient.builder(allocator, location).build()
 
   private class FlightClientAuthHandler(credentials: Credentials) extends ClientAuthHandler {
 
