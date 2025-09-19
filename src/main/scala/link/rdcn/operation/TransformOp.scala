@@ -19,14 +19,16 @@ trait ExecutionContext {
   def getSharedInterpreter(): Option[SharedInterpreter] = Some(SharedInterpreterManager.getInterpreter)
 }
 
-trait Operation {
+trait TransformOp {
 
-  var inputs: Seq[Operation]
+  var inputs: Seq[TransformOp]
 
-  def setInputs(operations: Operation*): Operation = {
+  def setInputs(operations: TransformOp*): TransformOp = {
     inputs = operations
     this
   }
+
+  def sourceUrlList: Set[String] = inputs.flatMap(_.inputs.flatMap(_.sourceUrlList)).toSet
 
   def operationType: String
 
@@ -37,20 +39,15 @@ trait Operation {
   def execute(ctx: ExecutionContext): DataFrame
 }
 
-/**
- * Linear operation pipeline with strict sequential execution
- * Example: op1 -> op2 -> op3 (ordered processing flow)
- */
-object OperationChain {
-  def fromJsonString(json: String, sourceList: ListBuffer[String]): Operation = {
+object TransformOp {
+  def fromJsonString(json: String): TransformOp = {
     val parsed: JSONObject = new JSONObject(json)
     val opType = parsed.getString("type")
     if (opType == "SourceOp") {
-      sourceList.append(parsed.getString("dataFrameName"))
       SourceOp(parsed.getString("dataFrameName"))
     } else {
       val ja: JSONArray = parsed.getJSONArray("input")
-      val inputs = (0 until ja.length).map(ja.getJSONObject(_).toString()).map(fromJsonString(_, sourceList))
+      val inputs = (0 until ja.length).map(ja.getJSONObject(_).toString()).map(fromJsonString(_))
       opType match {
         case "Map" => MapOp(FunctionWrapper(parsed.getJSONObject("function")), inputs: _*)
         case "Filter" => FilterOp(FunctionWrapper(parsed.getJSONObject("function")), inputs: _*)
@@ -61,11 +58,13 @@ object OperationChain {
   }
 }
 
-case class SourceOp(dataFrameUrl: String) extends Operation {
+case class SourceOp(dataFrameUrl: String) extends TransformOp {
 
-  override var inputs: Seq[Operation] = Seq.empty
+  override var inputs: Seq[TransformOp] = Seq.empty
 
   override def operationType: String = "SourceOp"
+
+  override def sourceUrlList: Set[String] = Set(dataFrameUrl)
 
   override def toJson: JSONObject = new JSONObject().put("type", operationType).put("dataFrameName", dataFrameUrl)
 
@@ -73,7 +72,7 @@ case class SourceOp(dataFrameUrl: String) extends Operation {
     .getOrElse(throw new Exception(s"dataFrame $dataFrameUrl not found"))
 }
 
-case class MapOp(functionWrapper: FunctionWrapper, inputOperations: Operation*) extends Operation {
+case class MapOp(functionWrapper: FunctionWrapper, inputOperations: TransformOp*) extends TransformOp {
 
   override var inputs = inputOperations
 
@@ -93,7 +92,7 @@ case class MapOp(functionWrapper: FunctionWrapper, inputOperations: Operation*) 
   }
 }
 
-case class FilterOp(functionWrapper: FunctionWrapper, inputOperations: Operation*) extends Operation {
+case class FilterOp(functionWrapper: FunctionWrapper, inputOperations: TransformOp*) extends TransformOp {
 
   override var inputs = inputOperations
 
@@ -113,7 +112,7 @@ case class FilterOp(functionWrapper: FunctionWrapper, inputOperations: Operation
   }
 }
 
-case class LimitOp(n: Int, inputOperations: Operation*) extends Operation {
+case class LimitOp(n: Int, inputOperations: TransformOp*) extends TransformOp {
 
   override var inputs = inputOperations
 
@@ -133,9 +132,9 @@ case class LimitOp(n: Int, inputOperations: Operation*) extends Operation {
   }
 }
 
-case class SelectOp(input: Operation, columns: String*) extends Operation {
+case class SelectOp(input: TransformOp, columns: String*) extends TransformOp {
 
-  override var inputs: Seq[Operation] = Seq(input)
+  override var inputs: Seq[TransformOp] = Seq(input)
 
   override def operationType: String = "Select"
 

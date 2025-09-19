@@ -1,7 +1,7 @@
 package link.rdcn.server
 
 import link.rdcn.struct.DataFrame
-import link.rdcn.user.AuthenticatedUser
+import link.rdcn.user.UserPrincipal
 
 /**
  * @Author renhao
@@ -12,7 +12,7 @@ import link.rdcn.user.AuthenticatedUser
 trait GetRequest {
   def getRequestedPath(): String
 
-  def getRequestAuthenticated(): AuthenticatedUser
+  def getRequestUserPrincipal(): UserPrincipal
 }
 
 trait GetResponse {
