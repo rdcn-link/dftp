@@ -7,7 +7,7 @@ import link.rdcn.server.ServerUtils.convertStructTypeToArrowSchema
 import link.rdcn.util.{CodecUtils, DataUtils, LoggingUtils}
 import link.rdcn.Logging
 import link.rdcn.DftpConfig
-import link.rdcn.operation.{ExecutionContext, Operation, SourceOp}
+import link.rdcn.operation.{ExecutionContext, OperationChain, SourceOp}
 import link.rdcn.server.{ActionRequest, ActionResponse, ArrowFlightStreamWriter, BlobRegistry, DataFrameWithArrowRoot, DftpServiceHandler, GetRequest, GetResponse, PutRequest, PutResponse, ServerUtils}
 import org.apache.arrow.flight.auth.ServerAuthHandler
 import org.apache.arrow.flight.{Action, CallStatus, Criteria, FlightDescriptor, FlightEndpoint, FlightInfo, FlightProducer, FlightServer, FlightStream, Location, NoOpFlightProducer, PutResult, Result, Ticket}
@@ -90,7 +90,7 @@ class DftpServer {
       }
     } else {
       val sourceList = new ListBuffer[String]
-      val operation = Operation.fromJsonString(ticketInfo._2, sourceList)
+      val operation = OperationChain.fromJsonString(ticketInfo._2, sourceList)
       var result: Option[Either[DataFrame, (Int, String)]] = None
       val resultDataFrame = operation.execute(new ExecutionContext{
         override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
