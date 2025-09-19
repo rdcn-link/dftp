@@ -19,11 +19,11 @@ trait ExecutionContext {
   def getSharedInterpreter(): Option[SharedInterpreter] = Some(SharedInterpreterManager.getInterpreter)
 }
 
-trait OperationChain {
+trait Operation {
 
-  var inputs: Seq[OperationChain]
+  var inputs: Seq[Operation]
 
-  def setInputs(operations: OperationChain*): OperationChain = {
+  def setInputs(operations: Operation*): Operation = {
     inputs = operations
     this
   }
@@ -42,7 +42,7 @@ trait OperationChain {
  * Example: op1 -> op2 -> op3 (ordered processing flow)
  */
 object OperationChain {
-  def fromJsonString(json: String, sourceList: ListBuffer[String]): OperationChain = {
+  def fromJsonString(json: String, sourceList: ListBuffer[String]): Operation = {
     val parsed: JSONObject = new JSONObject(json)
     val opType = parsed.getString("type")
     if (opType == "SourceOp") {
@@ -61,9 +61,9 @@ object OperationChain {
   }
 }
 
-case class SourceOp(dataFrameUrl: String) extends OperationChain {
+case class SourceOp(dataFrameUrl: String) extends Operation {
 
-  override var inputs: Seq[OperationChain] = Seq.empty
+  override var inputs: Seq[Operation] = Seq.empty
 
   override def operationType: String = "SourceOp"
 
@@ -73,7 +73,7 @@ case class SourceOp(dataFrameUrl: String) extends OperationChain {
     .getOrElse(throw new Exception(s"dataFrame $dataFrameUrl not found"))
 }
 
-case class MapOp(functionWrapper: FunctionWrapper, inputOperations: OperationChain*) extends OperationChain {
+case class MapOp(functionWrapper: FunctionWrapper, inputOperations: Operation*) extends Operation {
 
   override var inputs = inputOperations
 
@@ -93,7 +93,7 @@ case class MapOp(functionWrapper: FunctionWrapper, inputOperations: OperationCha
   }
 }
 
-case class FilterOp(functionWrapper: FunctionWrapper, inputOperations: OperationChain*) extends OperationChain {
+case class FilterOp(functionWrapper: FunctionWrapper, inputOperations: Operation*) extends Operation {
 
   override var inputs = inputOperations
 
@@ -113,7 +113,7 @@ case class FilterOp(functionWrapper: FunctionWrapper, inputOperations: Operation
   }
 }
 
-case class LimitOp(n: Int, inputOperations: OperationChain*) extends OperationChain {
+case class LimitOp(n: Int, inputOperations: Operation*) extends Operation {
 
   override var inputs = inputOperations
 
@@ -133,9 +133,9 @@ case class LimitOp(n: Int, inputOperations: OperationChain*) extends OperationCh
   }
 }
 
-case class SelectOp(input: OperationChain, columns: String*) extends OperationChain {
+case class SelectOp(input: Operation, columns: String*) extends Operation {
 
-  override var inputs: Seq[OperationChain] = Seq(input)
+  override var inputs: Seq[Operation] = Seq(input)
 
   override def operationType: String = "Select"
 
