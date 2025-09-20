@@ -1,6 +1,6 @@
 package link.rdcn.util
 
-import link.rdcn.Logging
+import link.rdcn.log.Logging
 import link.rdcn.struct.ValueType.{BinaryType, BlobType, BooleanType, DoubleType, FloatType, IntType, LongType, NullType, StringType}
 import link.rdcn.struct.{Blob, ClosableIterator, Column, DefaultDataFrame, Row, StructType, ValueType}
 import org.apache.poi.ss.usermodel.{Cell, CellType, DateUtil}

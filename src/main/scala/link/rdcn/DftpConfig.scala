@@ -18,6 +18,8 @@ trait DftpConfig {
 
   def privateKey: Option[PrivateKey] = None
 
+  def loggerType: String = "file"
+
   def logFilePath: String = "./dftp.log"
 
   def rootLogLevel: String = "INFO"

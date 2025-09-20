@@ -4,10 +4,10 @@ import link.rdcn.struct.ValueType.BinaryType
 import link.rdcn.struct.{DataFrame, DefaultDataFrame, Row, StructType}
 import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials}
 import link.rdcn.server.ServerUtils.convertStructTypeToArrowSchema
-import link.rdcn.util.{CodecUtils, DataUtils, LoggingUtils}
-import link.rdcn.Logging
+import link.rdcn.util.{CodecUtils, DataUtils}
 import link.rdcn.DftpConfig
 import link.rdcn.client.UrlValidator
+import link.rdcn.log.{LoggerFactory, Logging}
 import link.rdcn.operation.{ExecutionContext, TransformOp}
 import link.rdcn.server.{ActionRequest, ActionResponse, ArrowFlightStreamWriter, BlobRegistry, BlobTicket, DataFrameWithArrowRoot, DftpMethodService, DftpTicket, GetRequest, GetResponse, GetTicket, PutRequest, PutResponse, ServerUtils}
 import org.apache.arrow.flight.auth.ServerAuthHandler
@@ -87,7 +87,7 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
           blob.get.offerStream(inputStream => {
             val stream: Iterator[Row] = DataUtils.chunkedIterator(inputStream)
               .map(bytes => Row.fromSeq(Seq(bytes)))
-            val schema = StructType.empty.add("content", BinaryType)
+            val schema = StructType.blobStreamStructType
             response.sendDataFrame(DefaultDataFrame(schema, stream))
           })
         }
@@ -187,7 +187,7 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
   @volatile private var started: Boolean = false
 
   private def buildServer(dftpConfig: DftpConfig): Unit = {
-    LoggingUtils.initLog4j(dftpConfig)
+    LoggerFactory.setDftpConfig(dftpConfig)
     location = if (useTls)
       Location.forGrpcTls(dftpConfig.host, dftpConfig.port)
     else
