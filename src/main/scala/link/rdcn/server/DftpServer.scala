@@ -254,45 +254,52 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
     override def getStream(context: FlightProducer.CallContext,
                            ticket: Ticket,
                            listener: FlightProducer.ServerStreamListener): Unit =
-    {
-      val setDataBatchLen = 1000
-      val response = new GetResponse {
-        override def sendDataFrame(dataFrame: DataFrame): Unit = {
-          val schema = convertStructTypeToArrowSchema(dataFrame.schema)
-          val childAllocator = allocator.newChildAllocator("flight-session", 0, Long.MaxValue)
-          val root = VectorSchemaRoot.create(schema, childAllocator)
-          val loader = new VectorLoader(root)
-          listener.start(root)
-          dataFrame.mapIterator(iter => {
-            val arrowFlightStreamWriter = ArrowFlightStreamWriter(iter)
-            try {
-              arrowFlightStreamWriter.process(root, setDataBatchLen).foreach(batch => {
-                try {
-                  loader.load(batch)
-                  while (!listener.isReady()) {
-                    LockSupport.parkNanos(1)
-                  }
-                  listener.putNext()
-                } finally {
-                  batch.close()
-                }
-              })
-              listener.completed()
-            } catch {
-              case e: Throwable => listener.error(e)
-                e.printStackTrace()
-                throw e
-            } finally {
-              if (root != null) root.close()
-              if (childAllocator != null) childAllocator.close()
-            }
-          })
-        }
 
-        override def sendError(code: Int, message: String): Unit = sendErrorWithFlightStatus(code, message)
+    {
+      try{
+        val setDataBatchLen = 1000
+        val response = new GetResponse {
+          override def sendDataFrame(dataFrame: DataFrame): Unit = {
+            val schema = convertStructTypeToArrowSchema(dataFrame.schema)
+            val childAllocator = allocator.newChildAllocator("flight-session", 0, Long.MaxValue)
+            val root = VectorSchemaRoot.create(schema, childAllocator)
+            val loader = new VectorLoader(root)
+            listener.start(root)
+            dataFrame.mapIterator(iter => {
+              val arrowFlightStreamWriter = ArrowFlightStreamWriter(iter)
+              try {
+                arrowFlightStreamWriter.process(root, setDataBatchLen).foreach(batch => {
+                  try {
+                    loader.load(batch)
+                    while (!listener.isReady()) {
+                      LockSupport.parkNanos(1)
+                    }
+                    listener.putNext()
+                  } finally {
+                    batch.close()
+                  }
+                })
+                listener.completed()
+              } catch {
+                case e: Throwable => listener.error(e)
+                  e.printStackTrace()
+                  throw e
+              } finally {
+                if (root != null) root.close()
+                if (childAllocator != null) childAllocator.close()
+              }
+            })
+          }
+
+          override def sendError(code: Int, message: String): Unit = sendErrorWithFlightStatus(code, message)
+        }
+        val authenticatedUser = authenticatedUserMap.get(context.peerIdentity())
+        sendStream(authenticatedUser, ticket.getBytes, response)
+      }catch {
+        case e: Exception =>
+          logger.error(e)
+          sendErrorWithFlightStatus(500, e.getMessage)
       }
-      val authenticatedUser = authenticatedUserMap.get(context.peerIdentity())
-      sendStream(authenticatedUser, ticket.getBytes, response)
     }
 
     override def acceptPut(

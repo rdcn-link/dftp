@@ -28,7 +28,7 @@ trait TransformOp {
     this
   }
 
-  def sourceUrlList: Set[String] = inputs.flatMap(_.inputs.flatMap(_.sourceUrlList)).toSet
+  def sourceUrlList: Set[String] = inputs.flatMap(_.sourceUrlList).toSet
 
   def operationType: String
 

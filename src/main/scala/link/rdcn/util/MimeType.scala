@@ -33,6 +33,15 @@ object MimeTypeFactory {
 
   private def fromCode(code: Long) = MimeType(code, code2Types(code));
 
+  def guessMimeTypeWithPrefix(inputStream: InputStream): MimeType = {
+    val buffer = new Array[Byte](4096)  // 仅读取前 4KB
+    val bytesRead = inputStream.read(buffer)
+    val truncatedBuffer = if (bytesRead < 0) Array.emptyByteArray else buffer.take(bytesRead)
+    MimeUtil.getMimeTypes(truncatedBuffer)
+      .headOption.map(mt => fromText(mt.toString))
+      .getOrElse(fromCode(-1))
+  }
+
   def guessMimeType(inputStream: InputStream): MimeType =
     MimeUtil.getMimeTypes(IOUtils.toByteArray(inputStream))
       .headOption.map(mt => fromText(mt.toString)).getOrElse(fromCode(-1))

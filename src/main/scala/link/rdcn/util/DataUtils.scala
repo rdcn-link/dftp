@@ -86,7 +86,7 @@ object DataUtils extends Logging{
   def getFileType(file: File): String = {
     try {
       val inputStream = new FileInputStream(file)
-      MimeTypeFactory.guessMimeType(inputStream).text
+      MimeTypeFactory.guessMimeTypeWithPrefix(inputStream).text
     } catch {
       case _: Exception => "Unknown type"
     }
