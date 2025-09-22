@@ -154,11 +154,6 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
 
   private val location = {
     if (useTLS) {
-      val props = new Properties()
-      val confPathURI = this.getClass.getProtectionDomain().getCodeSource().getLocation().toURI
-      val fis = new InputStreamReader(new FileInputStream(Paths.get(confPathURI).resolve("user.conf").toString), "UTF-8")
-      try props.load(fis) finally fis.close()
-      System.setProperty("javax.net.ssl.trustStore", Paths.get(props.getProperty("tls.path")).toString())
       Location.forGrpcTls(host, port)
     } else
       Location.forGrpcInsecure(host, port)
