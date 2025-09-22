@@ -1,7 +1,7 @@
 package link.rdcn.client
 
-import link.rdcn.Logging
-import link.rdcn.operation.{FilterOp, FunctionWrapper, LimitOp, MapOp, Operation, SelectOp, SerializableFunction, SingleRowCall}
+import link.rdcn.log.Logging
+import link.rdcn.operation.{FilterOp, FunctionWrapper, LimitOp, MapOp, SelectOp, SerializableFunction, SingleRowCall, TransformOp}
 import link.rdcn.struct.{ClosableIterator, DataFrame, Row, StructType}
 
 /**
@@ -11,7 +11,7 @@ import link.rdcn.struct.{ClosableIterator, DataFrame, Row, StructType}
  * @Modified By:
  */
 
-case class RemoteDataFrameProxy(operation: Operation, getRows: String => (StructType, ClosableIterator[Row])) extends DataFrame with Logging {
+case class RemoteDataFrameProxy(operation: TransformOp, getRows: String => (StructType, ClosableIterator[Row])) extends DataFrame with Logging {
 
   override val schema: StructType = getRows(operation.toJsonString)._1
 

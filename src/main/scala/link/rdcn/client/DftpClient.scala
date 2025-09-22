@@ -2,7 +2,7 @@ package link.rdcn.client
 
 import link.rdcn.client.ClientUtils.convertStructTypeToArrowSchema
 import link.rdcn.operation._
-import link.rdcn.server.ArrowFlightStreamWriter
+import link.rdcn.server.{ArrowFlightStreamWriter, BlobTicket, GetTicket}
 import link.rdcn.struct._
 import link.rdcn.user.Credentials
 import link.rdcn.util.CodecUtils
@@ -11,9 +11,7 @@ import org.apache.arrow.flight._
 import org.apache.arrow.memory.{BufferAllocator, RootAllocator}
 import org.apache.arrow.vector.{VectorLoader, VectorSchemaRoot}
 
-import java.io.{FileInputStream, InputStream, InputStreamReader}
-import java.nio.file.Paths
-import java.util.Properties
+import java.io.{File, InputStream}
 import java.util.concurrent.locks.LockSupport
 import scala.collection.JavaConverters.asScalaBufferConverter
 import scala.collection.mutable
@@ -90,7 +88,7 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
   }
 
   protected def getRows(operationNode: String): (StructType, ClosableIterator[Row]) = {
-    val schemaAndIter = getStream(flightClient, new Ticket(CodecUtils.encodeTicket(GET_STREAM, operationNode)))
+    val schemaAndIter = getStream(flightClient, new Ticket(GetTicket(operationNode).encodeTicket()))
     val stream = schemaAndIter._2.map(seq => Row.fromSeq(seq))
     (schemaAndIter._1, ClosableIterator(stream)())
   }
@@ -121,7 +119,7 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
                 if (v.getField.getMetadata.isEmpty) (vec.getName, v.get(index))
                 else {
                   val blobId = CodecUtils.decodeString(v.get(index))
-                  val blobTicket = new Ticket(CodecUtils.encodeTicket(BLOB_STREAM, SourceOp(blobId).toJson.toString()))
+                  val blobTicket = new Ticket(BlobTicket(blobId).encodeTicket())
                   val blob = new Blob {
                     val iter = getStream(flightClient, blobTicket)._2
                     val chunkIterator = iter.map(value => {
@@ -148,9 +146,6 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
     }.flatMap(batchRows => batchRows)
     (schema, iter)
   }
-
-  protected val BLOB_STREAM: Byte = 1
-  protected val GET_STREAM: Byte = 2
 
   private val location = {
     if (useTLS) {
@@ -237,7 +232,8 @@ object DftpClient {
     }
   }
 
-  def connectTLS(url: String, credentials: Credentials = Credentials.ANONYMOUS): DftpClient = {
+  def connectTLS(url: String, tlsFile: File, credentials: Credentials = Credentials.ANONYMOUS): DftpClient = {
+    System.setProperty("javax.net.ssl.trustStore", tlsFile.getAbsolutePath)
     UrlValidator.extractBase(url) match {
       case Some(parsed) =>
         val client = new DftpClient(parsed._2, parsed._3, true)

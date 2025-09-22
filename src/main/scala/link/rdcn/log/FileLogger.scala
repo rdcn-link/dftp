@@ -1,7 +1,7 @@
-package link.rdcn.util
+package link.rdcn.log
 
 import link.rdcn.DftpConfig
-import org.apache.logging.log4j.Level
+import org.apache.logging.log4j.{Level, LogManager}
 import org.apache.logging.log4j.core.config.Configurator
 import org.apache.logging.log4j.core.config.builder.api.{ConfigurationBuilder, ConfigurationBuilderFactory}
 import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration
@@ -9,11 +9,12 @@ import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration
 /**
  * @Author renhao
  * @Description:
- * @Data 2025/9/17 10:27
+ * @Data 2025/9/20 23:20
  * @Modified By:
  */
-object LoggingUtils {
-  def initLog4j(config: DftpConfig): Unit = {
+class FileLogger(config: DftpConfig) extends Logger {
+
+  private val logger = {
     val builder: ConfigurationBuilder[BuiltConfiguration] = ConfigurationBuilderFactory.newConfigurationBuilder()
 
     builder.setStatusLevel(Level.WARN)
@@ -40,5 +41,18 @@ object LoggingUtils {
     )
 
     Configurator.initialize(builder.build())
+
+    val logger = LogManager.getLogger(getClass)
+    logger
   }
+
+  override def info(message: String): Unit =  logger.info(message)
+
+  override def warn(message: String): Unit = logger.warn(message)
+
+  override def error(message: String): Unit = logger.error(message)
+
+  override def debug(message: String): Unit = logger.debug(message)
+
+  override def error(message: String, e: Throwable): Unit = logger.error(message, e)
 }

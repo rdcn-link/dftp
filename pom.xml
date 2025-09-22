@@ -4,7 +4,7 @@
 
   <groupId>link.rdcn</groupId>
   <artifactId>dftp</artifactId>
-  <version>0.5.0-20250917</version>
+  <version>0.5.0-20250920</version>
   <packaging>jar</packaging>
 
   <name>dftp</name>
@@ -89,6 +89,20 @@
       <groupId>black.ninia</groupId>
       <artifactId>jep</artifactId>
       <version>4.2.2</version>
+    </dependency>
+    <dependency>
+      <groupId>eu.medsea.mimeutil</groupId>
+      <artifactId>mime-util</artifactId>
+      <version>2.1.3</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.slf4j</groupId>
+          <artifactId>slf4j-log4j12</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.slf4j</groupId>
+          <artifactId>slf4j-api</artifactId>                    </exclusion>
+      </exclusions>
     </dependency>
   </dependencies>
 

@@ -6,7 +6,7 @@ package link.rdcn.server
  * @Date 2025/8/26 17:14
  * @Modified By:
  */
-trait DftpServiceHandler {
+trait DftpMethodService {
 
   def doGet(request: GetRequest, response: GetResponse): Unit
 

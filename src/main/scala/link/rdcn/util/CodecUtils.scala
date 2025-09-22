@@ -84,24 +84,6 @@ object CodecUtils {
     (typeId, user, password)
   }
 
-  def encodeTicket(typeId: Byte, s: String): Array[Byte] = {
-    val b = s.getBytes("UTF-8")
-    val buffer = java.nio.ByteBuffer.allocate(1 + 4 + b.length)
-    buffer.put(typeId)
-    buffer.putInt(b.length)
-    buffer.put(b)
-    buffer.array()
-  }
-
-  def decodeTicket(bytes: Array[Byte]): (Byte, String) = {
-    val buffer = java.nio.ByteBuffer.wrap(bytes)
-    val typeId = buffer.get()
-    val len = buffer.getInt()
-    val b = new Array[Byte](len)
-    buffer.get(b)
-    (typeId, new String(b, "UTF-8"))
-  }
-
   def encodeCredentials(credentials: Credentials): Array[Byte] = {
     credentials match {
       case up: UsernamePassword => encodePairWithTypeId(NAME_PASSWORD, up.username, up.password)

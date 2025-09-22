@@ -1,6 +1,6 @@
 package link.rdcn.util
 
-import link.rdcn.Logging
+import link.rdcn.log.Logging
 import link.rdcn.struct.ValueType.{BinaryType, BlobType, BooleanType, DoubleType, FloatType, IntType, LongType, NullType, StringType}
 import link.rdcn.struct.{Blob, ClosableIterator, Column, DefaultDataFrame, Row, StructType, ValueType}
 import org.apache.poi.ss.usermodel.{Cell, CellType, DateUtil}
@@ -31,7 +31,8 @@ object DataUtils extends Logging{
     val row = stream.next()
     val structType = inferSchemaFromRow(row)
     stream match {
-      case iter: ClosableIterator[Row] => DefaultDataFrame(structType, ClosableIterator(Seq(row).iterator ++ stream)(iter.close))
+      case iter: ClosableIterator[Row] => DefaultDataFrame(structType,
+        ClosableIterator(Seq(row).iterator ++ stream)(iter.close))
       case _ => DefaultDataFrame(structType, ClosableIterator(Seq(row).iterator ++ stream)(() => ()))
     }
   }
@@ -82,15 +83,12 @@ object DataUtils extends Logging{
     }
   }
 
-  def getFileTypeByExtension(file: File): String = {
-    val fileName = file.getName
-    fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase match {
-      case "txt" => "Text File"
-      case "jpg" => "Image File"
-      case "png" => "Image File"
-      case "pdf" => "PDF Document"
-      case "csv" => "CSV File"
-      case _ => "Unknown Type"
+  def getFileType(file: File): String = {
+    try {
+      val inputStream = new FileInputStream(file)
+      MimeTypeFactory.guessMimeTypeWithPrefix(inputStream).text
+    } catch {
+      case _: Exception => "Unknown type"
     }
   }
 
