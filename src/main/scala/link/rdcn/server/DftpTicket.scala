@@ -24,35 +24,15 @@ trait DftpTicket
   }
 }
 
-object DftpTicket
-{
-  val BLOB_TICKET: Byte = 1
-  val GET_TICKET: Byte = 2
-
-  def decodeTicket(bytes: Array[Byte]): DftpTicket =
-  {
-    val buffer = java.nio.ByteBuffer.wrap(bytes)
-    val typeId: Byte = buffer.get()
-    val len = buffer.getInt()
-    val b = new Array[Byte](len)
-    buffer.get(b)
-    val ticketContent = new String(b, StandardCharsets.UTF_8)
-    typeId match {
-      case BLOB_TICKET => BlobTicket(ticketContent)
-      case GET_TICKET => GetTicket(ticketContent)
-    }
-  }
-}
-
 case class BlobTicket(blobId: String) extends DftpTicket
 {
-  override val typeId: Byte = DftpTicket.BLOB_TICKET
+  override val typeId: Byte = 1
   override val ticketContent: String = blobId
 }
 
 case class GetTicket(url: String) extends DftpTicket
 {
-  override val typeId: Byte = DftpTicket.GET_TICKET
+  override val typeId: Byte = 2
   override val ticketContent: String = url
 }
 

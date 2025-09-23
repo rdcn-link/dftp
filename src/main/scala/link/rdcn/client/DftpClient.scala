@@ -2,7 +2,7 @@ package link.rdcn.client
 
 import link.rdcn.client.ClientUtils.convertStructTypeToArrowSchema
 import link.rdcn.operation._
-import link.rdcn.server.{ArrowFlightStreamWriter, BlobTicket, GetTicket}
+import link.rdcn.server.{ActionBody, ArrowFlightStreamWriter, BlobTicket, GetTicket}
 import link.rdcn.struct._
 import link.rdcn.user.Credentials
 import link.rdcn.util.CodecUtils
@@ -31,7 +31,7 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
   }
 
   def doAction(actionName: String, params: Array[Byte] = Array.emptyByteArray, paramMap: Map[String, Any] = Map.empty): Array[Byte] = {
-    val body = CodecUtils.encodeWithMap(params, paramMap)
+    val body = ActionBody(params, paramMap).encode()
     val actionResultIter = flightClient.doAction(new Action(actionName, body))
     try{
       actionResultIter.next().getBody

@@ -1,6 +1,5 @@
 package link.rdcn.server.dftp
 
-import link.rdcn.struct.ValueType.BinaryType
 import link.rdcn.struct.{DataFrame, DefaultDataFrame, Row, StructType}
 import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials}
 import link.rdcn.server.ServerUtils.convertStructTypeToArrowSchema
@@ -9,7 +8,7 @@ import link.rdcn.DftpConfig
 import link.rdcn.client.UrlValidator
 import link.rdcn.log.{LoggerFactory, Logging}
 import link.rdcn.operation.{ExecutionContext, TransformOp}
-import link.rdcn.server.{ActionRequest, ActionResponse, ArrowFlightStreamWriter, BlobRegistry, BlobTicket, DataFrameWithArrowRoot, DftpMethodService, DftpTicket, GetRequest, GetResponse, GetTicket, PutRequest, PutResponse, ServerUtils}
+import link.rdcn.server.{ActionBody, ActionRequest, ActionResponse, ArrowFlightStreamWriter, BlobRegistry, BlobTicket, DataFrameWithArrowRoot, DftpMethodService, DftpTicket, GetRequest, GetResponse, GetTicket, PutRequest, PutResponse, ServerUtils}
 import org.apache.arrow.flight.auth.ServerAuthHandler
 import org.apache.arrow.flight.{Action, CallStatus, Criteria, FlightDescriptor, FlightEndpoint, FlightInfo, FlightProducer, FlightServer, FlightStream, Location, NoOpFlightProducer, PutResult, Result, Ticket}
 import org.apache.arrow.memory.{ArrowBuf, BufferAllocator, RootAllocator}
@@ -30,26 +29,6 @@ import scala.collection.JavaConverters._
  * @Date 2025/8/17 14:31
  * @Modified By:
  */
-
-class NullDftpMethodService extends DftpMethodService {
-  override def doGet(request: GetRequest, response: GetResponse): Unit = {
-    response.sendError(404, s"resource ${request.getRequestURI()} not found")
-  }
-
-  override def doPut(request: PutRequest, putResponse: PutResponse): Unit = {
-    putResponse.sendError(200, s"success")
-  }
-
-  override def doAction(request: ActionRequest, response: ActionResponse): Unit = {
-    response.sendError(404, s"Action ${request.getActionName()} not found")
-  }
-}
-
-class CredentialsProvider extends AuthenticationService {
-  override def authenticate(credentials: Credentials): UserPrincipal =
-    UserPrincipalWithCredentials(credentials)
-}
-
 class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodService: DftpMethodService) extends Logging
 {
 
@@ -70,12 +49,28 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
     this
   }
 
-  protected def sendStream(userPrincipal: UserPrincipal,
-                           ticket: Array[Byte],
-                           response: GetResponse): Unit =
+  protected def parseTicket(bytes: Array[Byte]): DftpTicket = {
+    val BLOB_TICKET: Byte = 1
+    val GET_TICKET: Byte = 2
+
+    val buffer = java.nio.ByteBuffer.wrap(bytes)
+    val typeId: Byte = buffer.get()
+    val len = buffer.getInt()
+    val b = new Array[Byte](len)
+    buffer.get(b)
+    val ticketContent = new String(b, StandardCharsets.UTF_8)
+    typeId match {
+      case BLOB_TICKET => BlobTicket(ticketContent)
+      case GET_TICKET => GetTicket(ticketContent)
+      case _ => throw new Exception("parse fail")
+    }
+  }
+
+  protected def getStreamByTicket(userPrincipal: UserPrincipal,
+                                  ticket: Array[Byte],
+                                  response: GetResponse): Unit =
   {
-    val dftpTicket = DftpTicket.decodeTicket(ticket)
-    dftpTicket match {
+    parseTicket(ticket) match {
       case BlobTicket(ticketContent) =>
         val blobId = ticketContent
         val blob = BlobRegistry.getBlob(blobId)
@@ -91,7 +86,7 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
             response.sendDataFrame(DefaultDataFrame(schema, stream))
           })
         }
-      case GetTicket(ticketContent) =>
+      case  GetTicket(ticketContent) =>
         val transformOp = TransformOp.fromJsonString(ticketContent)
         require(transformOp.sourceUrlList.size == 1)
         val dataFrameUrl = transformOp.sourceUrlList.head
@@ -120,7 +115,7 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
             response.sendError(code, message)
         }
         dftpMethodService.doGet(getRequest, getResponse)
-      case _ => response.sendError(400, s"illegal ticket $dftpTicket")
+      case other => response.sendError(400, s"illegal ticket $other")
     }
   }
 
@@ -245,7 +240,7 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
 
         override def sendError(code: Int, message: String): Unit = sendErrorWithFlightStatus(code, message)
       }
-      val body = CodecUtils.decodeWithMap(action.getBody)
+      val body = ActionBody.decode(action.getBody)
       val actionRequest = new ActionRequest {
         override def getActionName(): String = action.getType
 
@@ -298,7 +293,7 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
         override def sendError(code: Int, message: String): Unit = sendErrorWithFlightStatus(code, message)
       }
       val authenticatedUser = authenticatedUserMap.get(context.peerIdentity())
-      sendStream(authenticatedUser, ticket.getBytes, response)
+      getStreamByTicket(authenticatedUser, ticket.getBytes, response)
     }
 
     override def acceptPut(
@@ -390,5 +385,24 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
       throw status.withDescription(message).toRuntimeException
     }
   }
+}
+
+class NullDftpMethodService extends DftpMethodService {
+  override def doGet(request: GetRequest, response: GetResponse): Unit = {
+    response.sendError(404, s"resource ${request.getRequestURI()} not found")
+  }
+
+  override def doPut(request: PutRequest, putResponse: PutResponse): Unit = {
+    putResponse.sendError(200, s"success")
+  }
+
+  override def doAction(request: ActionRequest, response: ActionResponse): Unit = {
+    response.sendError(404, s"Action ${request.getActionName()} not found")
+  }
+}
+
+class CredentialsProvider extends AuthenticationService {
+  override def authenticate(credentials: Credentials): UserPrincipal =
+    UserPrincipalWithCredentials(credentials)
 }
 
