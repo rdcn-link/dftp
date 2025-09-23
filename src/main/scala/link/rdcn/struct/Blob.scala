@@ -2,7 +2,7 @@ package link.rdcn.struct
 
 import java.io.{File, FileInputStream, InputStream}
 
-trait Blob extends FairdValue {
+trait Blob extends DFValue {
 
   def offerStream[T](consume: InputStream => T): T
 

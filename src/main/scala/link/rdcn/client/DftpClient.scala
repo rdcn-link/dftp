@@ -6,6 +6,7 @@ import link.rdcn.server.{ArrowFlightStreamWriter, BlobTicket, GetTicket}
 import link.rdcn.struct._
 import link.rdcn.user.Credentials
 import link.rdcn.util.CodecUtils
+import org.apache.arrow.flight.FlightClient.PutListener
 import org.apache.arrow.flight.auth.ClientAuthHandler
 import org.apache.arrow.flight._
 import org.apache.arrow.memory.{BufferAllocator, RootAllocator}
@@ -29,10 +30,14 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
     flightClient.authenticate(new FlightClientAuthHandler(credentials))
   }
 
-  def doAction(actionName: String, params: Array[Byte] = Array.emptyByteArray, paramMap: Map[String, Any] = Map.empty): DataFrame = {
+  def doAction(actionName: String, params: Array[Byte] = Array.emptyByteArray, paramMap: Map[String, Any] = Map.empty): Array[Byte] = {
     val body = CodecUtils.encodeWithMap(params, paramMap)
-    val actionResult = flightClient.doAction(new Action(actionName, body))
-    ClientUtils.parseFlightActionResults(actionResult, allocator)
+    val actionResultIter = flightClient.doAction(new Action(actionName, body))
+    try{
+      actionResultIter.next().getBody
+    }catch {
+      case e: Exception => Array.empty
+    }
   }
 
   def get(url: String): DataFrame = {
@@ -49,7 +54,7 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
     }
   }
 
-  def put(dataFrame: DataFrame, setDataBatchLen: Int = 100): String = {
+  def put(dataFrame: DataFrame, dataBatchLen: Int = 100): Array[Byte] = {
     val arrowSchema = convertStructTypeToArrowSchema(dataFrame.schema)
     val childAllocator = allocator.newChildAllocator("put-data-session", 0, Long.MaxValue)
     val root = VectorSchemaRoot.create(arrowSchema, childAllocator)
@@ -59,7 +64,7 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
     dataFrame.mapIterator(iter => {
       val arrowFlightStreamWriter = ArrowFlightStreamWriter(iter)
       try {
-        arrowFlightStreamWriter.process(root, setDataBatchLen).foreach(batch => {
+        arrowFlightStreamWriter.process(root, dataBatchLen).foreach(batch => {
           try {
             loader.load(batch)
             while (!writer.isReady()) {
@@ -71,7 +76,7 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
           }
         })
         writer.completed()
-        ClientUtils.parsePutListenerToJson(putListener).getOrElse("")
+        ClientUtils.parsePutListener(putListener).getOrElse(Array.empty)
       } catch {
         case e: Throwable => writer.error(e)
           throw e

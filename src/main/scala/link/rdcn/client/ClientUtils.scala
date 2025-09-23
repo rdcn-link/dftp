@@ -83,7 +83,7 @@ object ClientUtils {
     new Schema(fields.asJava)
   }
 
-  def parsePutListenerToJson(putListener: SyncPutListener): Option[String] = {
+  def parsePutListener(putListener: SyncPutListener): Option[Array[Byte]] = {
     val ack: PutResult = putListener.read()
     if (ack == null) {
       putListener.getResult()
@@ -93,45 +93,11 @@ object ClientUtils {
         val metadataBuf = ack.getApplicationMetadata
         val bytes = new Array[Byte](metadataBuf.readableBytes().toInt)
         metadataBuf.readBytes(bytes)
-        Some(CodecUtils.decodeString(bytes))
+        Some(bytes)
       } finally {
         ack.close()
       }
     }
-  }
-
-  def parsePutListener(putListener: SyncPutListener): DataFrame = {
-    val iter = new Iterator[String] {
-      private var nextElem: Option[String] = fetchNext()
-
-      override def hasNext: Boolean = nextElem.isDefined
-
-      override def next(): String = {
-        if (!hasNext) throw new NoSuchElementException("No more elements")
-        val res = nextElem.get
-        nextElem = fetchNext()
-        res
-      }
-
-      private def fetchNext(): Option[String] = {
-        val ack: PutResult = putListener.read()
-        if (ack == null) {
-          putListener.getResult()
-          None
-        } else {
-          try {
-            val metadataBuf = ack.getApplicationMetadata
-            val bytes = new Array[Byte](metadataBuf.readableBytes().toInt)
-            metadataBuf.readBytes(bytes)
-            Some(CodecUtils.decodeString(bytes))
-          } finally {
-            ack.close()
-          }
-        }
-      }
-    }
-    val schemaAndStream = DataUtils.getStructTypeStreamFromJson(iter)
-    DefaultDataFrame(schemaAndStream._2, schemaAndStream._1)
   }
 
   def parseFlightActionResults(resultIterator: java.util.Iterator[Result], allocator: BufferAllocator): DataFrame = {

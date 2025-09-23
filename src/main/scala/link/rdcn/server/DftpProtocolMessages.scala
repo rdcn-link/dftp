@@ -10,9 +10,11 @@ import link.rdcn.user.UserPrincipal
  * @Modified By:
  */
 trait GetRequest {
-  def getRequestedPath(): String
+  def getRequestURI(): String
 
-  def getRequestUserPrincipal(): UserPrincipal
+  def getRequestURL(): String
+
+  def getUserPrincipal(): UserPrincipal
 }
 
 trait GetResponse {
@@ -24,13 +26,13 @@ trait GetResponse {
 trait ActionRequest {
   def getActionName(): String
 
-  def getActionParameters(): Array[Byte]
+  def getParameter(): Array[Byte]
 
-  def getActionParameterMap(): Map[String, Any]
+  def getParameterAsMap(): Map[String, Any]
 }
 
 trait ActionResponse {
-  def sendMessage(message: String): Unit
+  def send(data: Array[Byte]): Unit
 
   def sendError(code: Int, message: String): Unit
 }
@@ -40,7 +42,7 @@ trait PutRequest {
 }
 
 trait PutResponse {
-  def sendMessage(message: String): Unit
+  def send(data: Array[Byte]): Unit
 
   def sendError(code: Int, message: String): Unit
 }
