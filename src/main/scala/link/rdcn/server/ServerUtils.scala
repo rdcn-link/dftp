@@ -112,12 +112,6 @@ object ServerUtils {
     }
   }
 
-  //doAction send jsonStr by FlightProducer.StreamListener[Result]
-  def sendJsonString(jsonStr: String, listener: FlightProducer.StreamListener[Result], allocator: BufferAllocator): Unit = {
-    val dfInfo = DataUtils.getStructTypeStreamFromJson(Seq(jsonStr).toIterator)
-    sendDataFrame(DefaultDataFrame(dfInfo._2, dfInfo._1), listener, allocator)
-  }
-
   //convert action result to dataFrame
   def sendDataFrame(df: DataFrame, listener: FlightProducer.StreamListener[Result], allocator: BufferAllocator): Unit = {
     val structType = df.schema

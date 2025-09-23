@@ -8,11 +8,13 @@ import java.nio.charset.StandardCharsets
  * @Data 2025/9/19 16:54
  * @Modified By:
  */
-trait DftpTicket{
+trait DftpTicket
+{
   val typeId: Byte
   val ticketContent: String
 
-  def encodeTicket(): Array[Byte] = {
+  def encodeTicket(): Array[Byte] =
+  {
     val b = ticketContent.getBytes(StandardCharsets.UTF_8)
     val buffer = java.nio.ByteBuffer.allocate(1 + 4 + b.length)
     buffer.put(typeId)
@@ -22,11 +24,13 @@ trait DftpTicket{
   }
 }
 
-object DftpTicket{
+object DftpTicket
+{
   val BLOB_TICKET: Byte = 1
-  val Get_TICKET: Byte = 2
+  val GET_TICKET: Byte = 2
 
-  def decodeTicket(bytes: Array[Byte]): DftpTicket = {
+  def decodeTicket(bytes: Array[Byte]): DftpTicket =
+  {
     val buffer = java.nio.ByteBuffer.wrap(bytes)
     val typeId: Byte = buffer.get()
     val len = buffer.getInt()
@@ -35,17 +39,21 @@ object DftpTicket{
     val ticketContent = new String(b, StandardCharsets.UTF_8)
     typeId match {
       case BLOB_TICKET => BlobTicket(ticketContent)
-      case Get_TICKET => GetTicket(ticketContent)
+      case GET_TICKET => GetTicket(ticketContent)
     }
   }
 }
 
-case class BlobTicket(ticketContent: String) extends DftpTicket {
+case class BlobTicket(blobId: String) extends DftpTicket
+{
   override val typeId: Byte = DftpTicket.BLOB_TICKET
+  override val ticketContent: String = blobId
 }
 
-case class GetTicket(ticketContent: String) extends DftpTicket {
-  override val typeId: Byte = DftpTicket.Get_TICKET
+case class GetTicket(url: String) extends DftpTicket
+{
+  override val typeId: Byte = DftpTicket.GET_TICKET
+  override val ticketContent: String = url
 }
 
 

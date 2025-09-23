@@ -33,7 +33,7 @@ import scala.collection.JavaConverters._
 
 class NullDftpMethodService extends DftpMethodService {
   override def doGet(request: GetRequest, response: GetResponse): Unit = {
-    response.sendError(404, s"resource ${request.getRequestedPath()} not found")
+    response.sendError(404, s"resource ${request.getRequestURI()} not found")
   }
 
   override def doPut(request: PutRequest, putResponse: PutResponse): Unit = {
@@ -54,7 +54,7 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
 {
 
   def setProtocolSchema(protocolSchema: String): DftpServer = {
-    this.protocolSchema = protocolSchema
+    this.protocolScheme = protocolSchema
     this
   }
 
@@ -96,17 +96,16 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
         require(transformOp.sourceUrlList.size == 1)
         val dataFrameUrl = transformOp.sourceUrlList.head
         val getRequest = new GetRequest {
-          override def getRequestedPath(): String = {
-            val urlValidator = UrlValidator(protocolSchema)
-            if(urlValidator.isPath(dataFrameUrl)) dataFrameUrl
-            else urlValidator.extractPath(dataFrameUrl) match {
-              case Right(path) => path
-              case Left(message) =>
-                response.sendError(400, message)
-                throw new IllegalArgumentException(message)
-             }
+          val urlValidator = UrlValidator(protocolScheme)
+          val urlAndPath = urlValidator.validate(dataFrameUrl) match {
+            case Right(v) => (dataFrameUrl, v._3)
+            case Left(message) => (s"$protocolScheme://${dftpConfig.host}:${dftpConfig.port}${dataFrameUrl}", dataFrameUrl)
           }
-          override def getRequestUserPrincipal(): UserPrincipal = userPrincipal
+          override def getRequestURI(): String = urlAndPath._2
+
+          override def getRequestURL(): String = urlAndPath._1
+
+          override def getUserPrincipal(): UserPrincipal = userPrincipal
         }
         val getResponse = new GetResponse {
           override def sendDataFrame(inDataFrame: DataFrame): Unit = {
@@ -174,12 +173,14 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
 
   private val authenticatedUserMap = new ConcurrentHashMap[String, UserPrincipal]()
 
-  private var protocolSchema: String = "dftp"
+  private var protocolScheme: String = "dftp"
   private var location: Location = _
 
   private var useTls: Boolean = false
   private var tlsCertFile: File = _
   private var tlsKeyFile: File = _
+
+  private var dftpConfig: DftpConfig = _
 
   @volatile private var allocator: BufferAllocator = _
   @volatile private var flightServer: FlightServer = _
@@ -187,6 +188,7 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
   @volatile private var started: Boolean = false
 
   private def buildServer(dftpConfig: DftpConfig): Unit = {
+    this.dftpConfig = dftpConfig
     LoggerFactory.setDftpConfig(dftpConfig)
     location = if (useTls)
       Location.forGrpcTls(dftpConfig.host, dftpConfig.port)
@@ -236,7 +238,10 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
                           listener: FlightProducer.StreamListener[Result]): Unit =
     {
       val actionResponse = new ActionResponse {
-        override def sendMessage(jsonStr: String): Unit = ServerUtils.sendJsonString(jsonStr, listener, allocator)
+        override def send(data: Array[Byte]): Unit = {
+          listener.onNext(new Result(data))
+          listener.onCompleted()
+        }
 
         override def sendError(code: Int, message: String): Unit = sendErrorWithFlightStatus(code, message)
       }
@@ -244,9 +249,9 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
       val actionRequest = new ActionRequest {
         override def getActionName(): String = action.getType
 
-        override def getActionParameters(): Array[Byte] = body._1
+        override def getParameter(): Array[Byte] = body._1
 
-        override def getActionParameterMap(): Map[String, Any] = body._2
+        override def getParameterAsMap(): Map[String, Any] = body._2
       }
       dftpMethodService.doAction(actionRequest, actionResponse)
     }
@@ -256,50 +261,44 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
                            listener: FlightProducer.ServerStreamListener): Unit =
 
     {
-      try{
-        val setDataBatchLen = 1000
-        val response = new GetResponse {
-          override def sendDataFrame(dataFrame: DataFrame): Unit = {
-            val schema = convertStructTypeToArrowSchema(dataFrame.schema)
-            val childAllocator = allocator.newChildAllocator("flight-session", 0, Long.MaxValue)
-            val root = VectorSchemaRoot.create(schema, childAllocator)
-            val loader = new VectorLoader(root)
-            listener.start(root)
-            dataFrame.mapIterator(iter => {
-              val arrowFlightStreamWriter = ArrowFlightStreamWriter(iter)
-              try {
-                arrowFlightStreamWriter.process(root, setDataBatchLen).foreach(batch => {
-                  try {
-                    loader.load(batch)
-                    while (!listener.isReady()) {
-                      LockSupport.parkNanos(1)
-                    }
-                    listener.putNext()
-                  } finally {
-                    batch.close()
+      val dataBatchLen = 1000
+      val response = new GetResponse {
+        override def sendDataFrame(dataFrame: DataFrame): Unit = {
+          val schema = convertStructTypeToArrowSchema(dataFrame.schema)
+          val childAllocator = allocator.newChildAllocator("flight-session", 0, Long.MaxValue)
+          val root = VectorSchemaRoot.create(schema, childAllocator)
+          val loader = new VectorLoader(root)
+          listener.start(root)
+          dataFrame.mapIterator(iter => {
+            val arrowFlightStreamWriter = ArrowFlightStreamWriter(iter)
+            try {
+              arrowFlightStreamWriter.process(root, dataBatchLen).foreach(batch => {
+                try {
+                  loader.load(batch)
+                  while (!listener.isReady()) {
+                    LockSupport.parkNanos(1)
                   }
-                })
-                listener.completed()
-              } catch {
-                case e: Throwable => listener.error(e)
-                  e.printStackTrace()
-                  throw e
-              } finally {
-                if (root != null) root.close()
-                if (childAllocator != null) childAllocator.close()
-              }
-            })
-          }
-
-          override def sendError(code: Int, message: String): Unit = sendErrorWithFlightStatus(code, message)
+                  listener.putNext()
+                } finally {
+                  batch.close()
+                }
+              })
+              listener.completed()
+            } catch {
+              case e: Throwable => listener.error(e)
+                e.printStackTrace()
+                throw e
+            } finally {
+              if (root != null) root.close()
+              if (childAllocator != null) childAllocator.close()
+            }
+          })
         }
-        val authenticatedUser = authenticatedUserMap.get(context.peerIdentity())
-        sendStream(authenticatedUser, ticket.getBytes, response)
-      }catch {
-        case e: Exception =>
-          logger.error(e)
-          sendErrorWithFlightStatus(500, e.getMessage)
+
+        override def sendError(code: Int, message: String): Unit = sendErrorWithFlightStatus(code, message)
       }
+      val authenticatedUser = authenticatedUserMap.get(context.peerIdentity())
+      sendStream(authenticatedUser, ticket.getBytes, response)
     }
 
     override def acceptPut(
@@ -324,12 +323,11 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
             }
           }
           val response = new PutResponse {
-            override def sendMessage(jsonStr: String): Unit = {
+            override def send(data: Array[Byte]): Unit = {
               try {
-                val bytes = CodecUtils.encodeString(jsonStr)
-                val buf: ArrowBuf = allocator.buffer(bytes.length)
+                val buf: ArrowBuf = allocator.buffer(data.length)
                 try {
-                  buf.writeBytes(bytes)
+                  buf.writeBytes(data)
                   ackStream.onNext(PutResult.metadata(buf))
                 } finally {
                   buf.close()

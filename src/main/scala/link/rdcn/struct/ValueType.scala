@@ -15,13 +15,13 @@ sealed trait ValueType {
   override def toString: String = name
 }
 
-trait FairdValue {
+trait DFValue {
   def value: Any
 
   def valueType: ValueType
 }
 
-case class DFRef(url: String) extends FairdValue {
+case class DFRef(url: String) extends DFValue {
 
   override def value: Any = url
 
