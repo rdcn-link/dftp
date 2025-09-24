@@ -10,6 +10,7 @@ import link.rdcn.ConfigLoader
 import link.rdcn.ConfigLoader.dftpConfig
 import link.rdcn.log.LoggerFactory
 import link.rdcn.operation.SharedInterpreterManager
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class JepInterpreterManagerTest {
@@ -18,6 +19,7 @@ class JepInterpreterManagerTest {
     ConfigLoader.init()
     LoggerFactory.setDftpConfig(dftpConfig)
     val jep = SharedInterpreterManager.getInterpreter
+    assertTrue(jep != null, "jep doesn't exit!")
     jep.close()
   }
 }
