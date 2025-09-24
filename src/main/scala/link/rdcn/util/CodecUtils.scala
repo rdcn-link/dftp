@@ -26,34 +26,6 @@ object CodecUtils {
     else new String(bytes, StandardCharsets.UTF_8)
   }
 
-  def encodeWithMap(data: Array[Byte], params: Map[String, Any]): Array[Byte] = {
-    val mapBytes = mapper.writeValueAsBytes(params) // Map -> JSON Bytes
-    val buffer = ByteBuffer.allocate(4 + data.length + 4 + mapBytes.length)
-
-    buffer.putInt(data.length)
-    buffer.put(data)
-    buffer.putInt(mapBytes.length)
-    buffer.put(mapBytes)
-
-    buffer.array()
-  }
-
-
-  def decodeWithMap(bytes: Array[Byte]): (Array[Byte], Map[String, Any]) = {
-    val buffer = ByteBuffer.wrap(bytes)
-
-    val dataLen = buffer.getInt()
-    val dataBytes = new Array[Byte](dataLen)
-    buffer.get(dataBytes)
-
-    val mapLen = buffer.getInt()
-    val mapBytes = new Array[Byte](mapLen)
-    buffer.get(mapBytes)
-
-    val params = mapper.readValue(mapBytes, classOf[Map[String, Any]])
-    (dataBytes, params)
-  }
-
   def encodePairWithTypeId(typeId: Byte, user: String, password: String): Array[Byte] = {
     val userBytes = user.getBytes(StandardCharsets.UTF_8)
     val passwordBytes = password.getBytes(StandardCharsets.UTF_8)
@@ -102,9 +74,6 @@ object CodecUtils {
       case _ => throw new IllegalArgumentException(s"${result._1} not supported")
     }
   }
-
-  private val mapper = new ObjectMapper()
-  mapper.registerModule(DefaultScalaModule)
 
   private val NAME_PASSWORD: Byte = 1
   private val TOKEN: Byte = 2
