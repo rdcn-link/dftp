@@ -4,16 +4,15 @@
  * @Data 2025/8/27 09:40
  * @Modified By:
  */
-package link.rdcn.server
+package link.rdcn.operation
 
 import link.rdcn.ConfigLoader
 import link.rdcn.ConfigLoader.dftpConfig
 import link.rdcn.log.LoggerFactory
-import link.rdcn.operation.SharedInterpreterManager
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
-class JepInterpreterManagerTest {
+class SharedInterpreterManagerTest {
   @Test
   def getJepTest(): Unit = {
     ConfigLoader.init()

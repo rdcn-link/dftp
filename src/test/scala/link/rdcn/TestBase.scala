@@ -1,14 +1,18 @@
 package link.rdcn
 
 
-import link.rdcn.struct.ValueType.{BinaryType, BlobType, BooleanType, DoubleType, FloatType, IntType, LongType, RefType, StringType}
+
+import com.sun.management.OperatingSystemMXBean
+import link.rdcn.struct.ValueType._
 import link.rdcn.struct._
 import link.rdcn.user.UserPrincipal
 import org.apache.arrow.flight.CallStatus
 import org.apache.arrow.vector.types.FloatingPointPrecision
 import org.apache.arrow.vector.types.pojo.{ArrowType, Field, FieldType, Schema}
+import org.json.JSONObject
 
 import java.io.{File, FileInputStream, InputStreamReader}
+import java.lang.management.ManagementFactory
 import java.net.URI
 import java.nio.file.{Files, Path, Paths}
 import java.util.{Collections, Properties, UUID}
@@ -38,7 +42,7 @@ object TestBase {
   val genToken = () => UUID.randomUUID().toString
   val resourceUrl = getClass.getProtectionDomain.getCodeSource.getLocation
   val testClassesDir = new File(resourceUrl.toURI)
-  val demoBaseDir = Paths.get( "src", "test", "demo").toString
+  val demoBaseDir = Paths.get( "src", "test", "resources").toString
 
 
   def getOutputDir(subDirs: String*): String = {
@@ -120,8 +124,77 @@ object TestBase {
     throw status.withDescription(message).toRuntimeException
   }
 
+  def doListHostInfo(): DataFrame = {
+    val schema = StructType.empty.add("name", StringType).add("resourceInfo", StringType)
+    val hostName = "hostName"
+    val stream = Seq((hostName, getHostResourceString()))
+      .map(Row.fromTuple(_)).toIterator
+    DefaultDataFrame(schema, stream)
+  }
+
+  def getHostResourceString(): String = {
+    val jo = new JSONObject()
+    getResourceStatusString.foreach(kv => jo.put(kv._1, kv._2))
+    jo.toString()
+  }
+
+  def getResourceStatusString(): Map[String, String] = {
+    val osBean = ManagementFactory.getOperatingSystemMXBean
+      .asInstanceOf[OperatingSystemMXBean]
+    val runtime = Runtime.getRuntime
+
+    val cpuLoadPercent = (osBean.getSystemCpuLoad * 100).formatted("%.2f")
+    val availableProcessors = osBean.getAvailableProcessors
+
+    val totalMemory = runtime.totalMemory() / 1024 / 1024 // MB
+    val freeMemory = runtime.freeMemory() / 1024 / 1024 // MB
+    val maxMemory = runtime.maxMemory() / 1024 / 1024 // MB
+    val usedMemory = totalMemory - freeMemory
+
+    val systemMemoryTotal = osBean.getTotalPhysicalMemorySize / 1024 / 1024 // MB
+    val systemMemoryFree = osBean.getFreePhysicalMemorySize / 1024 / 1024 // MB
+    val systemMemoryUsed = systemMemoryTotal - systemMemoryFree
+    Map(
+      "cpu.cores" -> s"$availableProcessors",
+      "cpu.usage.percent" -> s"$cpuLoadPercent%",
+      "jvm.memory.max.mb" -> s"$maxMemory MB",
+      "jvm.memory.total.mb" -> s"$totalMemory MB",
+      "jvm.memory.used.mb" -> s"$usedMemory MB",
+      "jvm.memory.free.mb" -> s"$freeMemory MB",
+      "system.memory.total.mb" -> s"$systemMemoryTotal MB",
+      "system.memory.used.mb" -> s"$systemMemoryUsed MB",
+      "system.memory.free.mb" -> s"$systemMemoryFree MB"
+    )
+  }
+
+
+
 }
 
+
+case class DataFrameInfo(
+                          name: String,
+                          path: URI,
+                          inputSource: InputSource,
+                          schema: StructType
+                        ) {
+}
+
+case class DataSet(
+                    dataSetName: String,
+                    dataSetId: String,
+                    dataFrames: List[DataFrameInfo]
+                  ) {
+  /** 生成 RDF 元数据模型 */
+  def getMetadata(): Unit = {}
+
+  def getDataFrameInfo(dataFrameName: String): Option[DataFrameInfo] = {
+    dataFrames.find { dfInfo =>
+      val normalizedDfPath: String = dfInfo.path.toString
+      normalizedDfPath.contains(dataFrameName)
+    }
+  }
+}
 
 sealed trait InputSource
 
@@ -161,7 +234,7 @@ object ConfigLoader {
   def load(): DftpConfig = {
     new DftpConfig() {
       override def host: String =
-        "0.0.0.0"
+        "localhost"
 
       override def port: Int =
         3101
