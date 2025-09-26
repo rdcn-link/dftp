@@ -1,19 +1,18 @@
 package link.rdcn.client
 
+import link.rdcn.TestBase.getLine
 import link.rdcn.TestProvider
 import link.rdcn.TestProvider._
 import link.rdcn.struct.{DataFrame, DataStreamSource, DefaultDataFrame}
 import link.rdcn.util.CodecUtils
 import org.apache.arrow.flight.{CallStatus, FlightRuntimeException}
-import org.apache.arrow.vector.types.Types
 import org.json.JSONObject
-import org.junit.jupiter.api.Assertions.{assertEquals, assertThrows, assertTrue}
+import org.junit.jupiter.api.Assertions.{assertEquals, assertThrows}
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.ValueSource
 
-import java.io.File
-import java.lang.invoke.CallSite
+import java.io.{File, PrintWriter, StringWriter}
+import java.nio.file.Paths
+import scala.io.Source
 
 /**
  * @Author renhao
@@ -27,10 +26,16 @@ class DftpClientTest extends TestProvider {
 
   @Test
   def testGet(): Unit = {
-    val exception = assertThrows(
-      classOf[FlightRuntimeException], () => dc.get("dftp://localhost:3101/csv/data_1.csv"))
-    assertEquals(CallStatus.UNIMPLEMENTED.code(), exception.status().code())
-    assertEquals("doGet Not Implemented", exception.status().description())
+    val expectedOutput = Source.fromFile(Paths.get(csvDir, "data_1.csv").toString).getLines().toSeq.tail.mkString("\n") + "\n"
+    val dataFrame = dc.get("dftp://localhost:3101/csv/data_1.csv")
+    val stringWriter = new StringWriter()
+    val printWriter = new PrintWriter(stringWriter)
+    dataFrame.foreach { row =>
+      printWriter.write(getLine(row))
+    }
+    printWriter.flush()
+    val actualOutput = stringWriter.toString
+    assertEquals(expectedOutput, actualOutput)
   }
 
   @Test

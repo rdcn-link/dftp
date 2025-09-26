@@ -73,6 +73,11 @@ object TestBase {
     }
   }
 
+  def getLine(row: Row): String = {
+    val delimiter = ","
+    row.toSeq.map(_.toString).mkString(delimiter) + '\n'
+  }
+
   def convertStructTypeToArrowSchema(structType: StructType): Schema = {
     val fields: List[Field] = structType.columns.map { column =>
       val arrowFieldType = column.colType match {
@@ -240,4 +245,36 @@ object ConfigLoader {
         3101
     }
   }
+}
+
+abstract class DataProviderImpl {
+  val dataSetsScalaList: List[DataSet]
+  val dataFramePaths: (String => String)
+
+  def getDataStreamSource(dataFrameName: String): DataStreamSource = {
+    val dataFrameInfo: DataFrameInfo = getDataFrameInfo(dataFrameName).getOrElse(return new DataStreamSource {
+      override def rowCount: Long = -1
+
+      override def schema: StructType = StructType.empty
+
+      override def iterator: ClosableIterator[Row] = ClosableIterator(Iterator.empty)()
+    })
+    dataFrameInfo.inputSource match {
+      case _: CSVSource => DataStreamSource.csv(new File(dataFrameInfo.path))
+      case _: DirectorySource => DataStreamSource.filePath(new File(dataFrameInfo.path))
+      case _: ExcelSource => DataStreamSource.excel(dataFrameInfo.path.toString)
+      case _: InputSource => ???
+    }
+
+  }
+
+
+  private def getDataFrameInfo(dataFrameName: String): Option[DataFrameInfo] = {
+    dataSetsScalaList.foreach(ds => {
+      val dfInfo = ds.getDataFrameInfo(dataFrameName)
+      if (dfInfo.nonEmpty) return dfInfo
+    })
+    None
+  }
+
 }

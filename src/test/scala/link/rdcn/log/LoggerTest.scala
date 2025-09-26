@@ -46,6 +46,7 @@ class LoggerTest extends Logging {
     assertEquals(mockLogger.capturedThrowable, testException, "Captured throwable should be the input exception")
   }
 
+  //LoggerFactory创建FileLogger测试
   @Test
   def testLoggerFactoryCreateFileLogger(): Unit = {
     val config = TestDftpConfig("file")
@@ -64,7 +65,7 @@ class LoggerTest extends Logging {
     assertEquals(exception.getMessage, "Unsupported logger type")
   }
 
-  //FileLogger测试
+  //FileLogger日志生成测试
   @Test
   def testFileLoggerAllMethodsCallLog4j(): Unit = {
     val config = TestDftpConfig("file")

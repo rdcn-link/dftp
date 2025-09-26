@@ -7,10 +7,11 @@
 package link.rdcn
 
 import link.rdcn.TestBase._
+import link.rdcn.TestDemoProvider.{baseDir, dataSetBin, dataSetCsv}
 import link.rdcn.client.DftpClient
 import link.rdcn.server.dftp.DftpServer
 import link.rdcn.server._
-import link.rdcn.struct.StructType
+import link.rdcn.struct.{DataFrame, DataStreamSource, DefaultDataFrame, StructType}
 import link.rdcn.struct.ValueType.{DoubleType, LongType}
 import link.rdcn.user.{Credentials, UserPrincipal, UsernamePassword}
 import link.rdcn.util.CodecUtils
@@ -99,7 +100,20 @@ object TestProvider {
 
   val dftpMethodService: DftpMethodService = new DftpMethodService {
     override def doGet(request: GetRequest, response: GetResponse): Unit = {
-      response.sendError(501, s"doGet Not Implemented")
+      request.getRequestURI() match {
+        case otherPath =>
+          //数据请求实现
+          val userPrincipal = request.getUserPrincipal()
+          //实现authProvider用于数据鉴权
+          if(authProvider.checkPermission(userPrincipal, otherPath)){
+            //实现dataProvider用于从url中解析DataStreamSource
+            val dataStreamSource: DataStreamSource = dataProvider.getDataStreamSource(otherPath)
+            val dataFrame: DataFrame = DefaultDataFrame(dataStreamSource.schema, dataStreamSource.iterator)
+            response.sendDataFrame(dataFrame)
+          }else{
+            response.sendError(403, s"access dataFrame $otherPath Forbidden")
+          }
+      }
     }
 
     override def doPut(request: PutRequest, response: PutResponse): Unit = {
@@ -109,13 +123,6 @@ object TestProvider {
     override def doAction(request: ActionRequest, response: ActionResponse): Unit =
       response.send(CodecUtils.encodeString(new JSONObject().put("status","success").toString))
   }
-
-//  val dataProvider: DataProviderImpl = new DataProviderImpl() {
-//    override val dataSetsScalaList: List[DataSet] = List(dataSetCsv, dataSetBin)
-//    override val dataFramePaths: (String => String) = (relativePath: String) => {
-//      Paths.get(baseDir, relativePath).toString
-//    }
-//  }
 
   private var server: Option[DftpServer] = None
   var dc: DftpClient = _
@@ -157,15 +164,14 @@ object TestProvider {
     server = None
   }
 
-//  def getExpectedDataFrameSize(dataFrameName: String): Long = {
-//    dataProvider.dataSetsScalaList.foreach(ds => {
-//      val dfInfo = ds.getDataFrameInfo(dataFrameName)
-//      if (dfInfo.nonEmpty) return DataUtils.countLinesFast(new File(dfInfo.get.path))
-//    })
-//    -1L
-//  }
-
+  val dataProvider: DataProviderImpl = new DataProviderImpl() {
+    override val dataSetsScalaList: List[DataSet] = List(dataSetCsv, dataSetBin)
+    override val dataFramePaths: (String => String) = (relativePath: String) => {
+      Paths.get(baseDir, relativePath).toString
+    }
+  }
 }
+
 
 
 

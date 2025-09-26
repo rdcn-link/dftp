@@ -141,37 +141,28 @@ class ClientUtilsJunitTest {
     val arrowSchema = ClientUtils.convertStructTypeToArrowSchema(structType)
     val fields = arrowSchema.getFields.asScala.toList
 
-    // 断言 IntType
     assertEquals(Types.MinorType.INT.getType, fields(0).getType)
     assertTrue(!fields(0).isNullable)
 
-    // 断言 LongType
     assertEquals(Types.MinorType.BIGINT.getType, fields(1).getType)
 
-    // 断言 FloatType
     assertTrue(fields(2).getType.isInstanceOf[ArrowType.FloatingPoint])
     assertEquals(FloatingPointPrecision.SINGLE, fields(2).getType.asInstanceOf[ArrowType.FloatingPoint].getPrecision)
 
-    // 断言 DoubleType
     assertTrue(fields(3).getType.isInstanceOf[ArrowType.FloatingPoint])
     assertEquals(FloatingPointPrecision.DOUBLE, fields(3).getType.asInstanceOf[ArrowType.FloatingPoint].getPrecision)
 
-    // 断言 StringType
     assertEquals(ArrowType.Utf8.INSTANCE, fields(4).getType)
     assertTrue(fields(4).getMetadata.isEmpty)
 
-    // 断言 BooleanType
     assertEquals(ArrowType.Bool.INSTANCE, fields(5).getType)
 
-    // 断言 BinaryType
     assertEquals(new ArrowType.Binary(), fields(6).getType)
     assertTrue(fields(6).getMetadata.isEmpty)
 
-    // 断言 RefType (检查元数据)
     assertEquals(ArrowType.Utf8.INSTANCE, fields(7).getType)
     assertEquals("Url", fields(7).getMetadata.get("logicalType"))
 
-    // 断言 BlobType (检查类型和元数据)
     assertEquals(new ArrowType.Binary(), fields(8).getType)
     assertEquals("blob", fields(8).getMetadata.get("logicalType"))
   }
@@ -195,7 +186,6 @@ class ClientUtilsJunitTest {
     thread.interrupt()
     thread.join(500)
     assertTrue(!thread.isAlive, "Test thread should have stopped after interrupt")
-    // 验证结果：中断应该导致 read() 返回 null，从而使 parsePutListener 返回 None
     assertTrue(result.isEmpty, "Result should be None or handle the interruption gracefully")
   }
 
