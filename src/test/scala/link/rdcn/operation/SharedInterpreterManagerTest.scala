@@ -19,6 +19,5 @@ class SharedInterpreterManagerTest {
     LoggerFactory.setDftpConfig(dftpConfig)
     val jep = SharedInterpreterManager.getInterpreter
     assertTrue(jep != null, "jep doesn't exit!")
-    jep.close()
   }
 }

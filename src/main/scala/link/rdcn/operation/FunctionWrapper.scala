@@ -45,7 +45,10 @@ object FunctionWrapper {
           val lst2 = new util.ArrayList[AnyRef]()
           r1.toSeq.foreach(x => lst1.add(x.asInstanceOf[AnyRef]))
           r2.toSeq.foreach(x => lst2.add(x.asInstanceOf[AnyRef]))
-          interp.set("input_data", (lst1, lst2))
+          val inputList = new java.util.ArrayList[AnyRef]()
+          inputList.add(lst1)
+          inputList.add(lst2)
+          interp.set("input_data", inputList)
           interp.exec(code)
           interp.getValue("output_data", classOf[Object])
         case iter: Iterator[Row] =>

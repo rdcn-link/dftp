@@ -6,7 +6,6 @@
  */
 package link.rdcn.operation
 
-import link.rdcn.client.ClientUtils
 import org.junit.jupiter.api.Assertions.{assertEquals, assertThrows, assertTrue}
 import org.junit.jupiter.api.Test
 
@@ -35,7 +34,7 @@ class FunctionSerializerTest {
   }
 
   @Test()
-  def testSerialize_NotSerializable(): Unit = {
+  def testSerializeNotSerializable(): Unit = {
     class NonSerializableClass(val value: Int)
     val nonSerializableObject = new NonSerializableClass(42)
 
@@ -44,7 +43,7 @@ class FunctionSerializerTest {
   }
 
   @Test()
-  def testDeserialize_CorruptedData(): Unit = {
+  def testDeserializeCorruptedData(): Unit = {
     val corruptedBytes = Array[Byte](1, 2, 3, 4, 5)
 
     val exception = assertThrows(
