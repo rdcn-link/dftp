@@ -1,7 +1,7 @@
 package link.rdcn.operation
 
 import jep._
-import link.rdcn.log.Logging
+import link.rdcn.Logging
 
 /**
  * @Author renhao

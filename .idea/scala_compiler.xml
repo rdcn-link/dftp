@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ScalaCompilerConfiguration">
-    <profile name="Maven 1" modules="dftp" />
+    <profile name="Maven 1" modules="dftp,dftp-client,dftp-common,dftp-server" />
   </component>
 </project>
