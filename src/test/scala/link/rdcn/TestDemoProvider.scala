@@ -45,6 +45,7 @@ object TestDemoProvider {
   val dataSetCsv = DataSet("csv", "1", csvDfInfos.toList)
   val dataSetBin = DataSet("bin", "2", binDfInfos.toList)
   val dataSetExcel = DataSet("excel", "3", excelDfInfos.toList)
+
   class TestAuthenticatedUser(userName: String, token: String) extends UserPrincipal {
     def getUserName: String = userName
   }

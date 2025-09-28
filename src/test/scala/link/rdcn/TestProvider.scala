@@ -7,17 +7,18 @@
 package link.rdcn
 
 import link.rdcn.TestBase._
-import link.rdcn.TestDemoProvider.{baseDir, dataSetBin, dataSetCsv}
+import link.rdcn.TestDemoProvider.{baseDirString, excelDfInfos, excelDir, subDirString}
 import link.rdcn.client.DftpClient
 import link.rdcn.server.dftp.DftpServer
 import link.rdcn.server._
 import link.rdcn.struct.{DataFrame, DataStreamSource, DefaultDataFrame, StructType}
-import link.rdcn.struct.ValueType.{DoubleType, LongType}
+import link.rdcn.struct.ValueType.{DoubleType, IntType, LongType}
 import link.rdcn.user.{Credentials, UserPrincipal, UsernamePassword}
 import link.rdcn.util.CodecUtils
 import org.json.JSONObject
 import org.junit.jupiter.api.{AfterAll, BeforeAll}
 
+import java.io.File
 import java.nio.file.Paths
 
 trait TestProvider {
@@ -38,6 +39,8 @@ object TestProvider {
   // 生成的临时目录结构
   val binDir = Paths.get(baseDir, "bin").toString
   val csvDir = Paths.get(baseDir, "csv").toString
+  val excelDir = getOutputDir(baseDirString, Seq(subDirString, "excel").mkString(File.separator))
+
 
   //必须在DfInfos前执行一次
   TestDataGenerator.generateTestData(binDir, csvDir, baseDir)
@@ -48,9 +51,13 @@ object TestProvider {
   })
   lazy val binDfInfos = Seq(
     DataFrameInfo(Paths.get("/").resolve(Paths.get(binDir).getFileName).toString.replace("\\", "/"), Paths.get(binDir).toUri, DirectorySource(false), StructType.binaryStructType))
+  lazy val excelDfInfos = listFiles(excelDir).map(file => {
+    DataFrameInfo(Paths.get("/excel").resolve(file.getName).toString.replace("\\", "/"), Paths.get(file.getAbsolutePath).toUri, ExcelSource(), StructType.empty.add("id", IntType).add("value", IntType))
+  })
 
   val dataSetCsv = DataSet("csv", "1", csvDfInfos.toList)
   val dataSetBin = DataSet("bin", "2", binDfInfos.toList)
+  val dataSetExcel = DataSet("excel", "3", excelDfInfos.toList)
 
   class TestAuthenticatedUser(userName: String, token: String) extends UserPrincipal {
     def getUserName: String = userName
@@ -165,7 +172,7 @@ object TestProvider {
   }
 
   val dataProvider: DataProviderImpl = new DataProviderImpl() {
-    override val dataSetsScalaList: List[DataSet] = List(dataSetCsv, dataSetBin)
+    override val dataSetsScalaList: List[DataSet] = List(dataSetCsv, dataSetBin, dataSetExcel)
     override val dataFramePaths: (String => String) = (relativePath: String) => {
       Paths.get(baseDir, relativePath).toString
     }

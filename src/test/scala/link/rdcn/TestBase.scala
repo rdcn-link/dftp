@@ -269,7 +269,7 @@ abstract class DataProviderImpl {
   }
 
 
-  private def getDataFrameInfo(dataFrameName: String): Option[DataFrameInfo] = {
+  def getDataFrameInfo(dataFrameName: String): Option[DataFrameInfo] = {
     dataSetsScalaList.foreach(ds => {
       val dfInfo = ds.getDataFrameInfo(dataFrameName)
       if (dfInfo.nonEmpty) return dfInfo
