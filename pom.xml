@@ -4,11 +4,16 @@
 
   <groupId>link.rdcn</groupId>
   <artifactId>dftp</artifactId>
-  <version>0.5.0-20250920</version>
-  <packaging>jar</packaging>
+  <version>0.5.0-20250928</version>
+  <packaging>pom</packaging>
 
   <name>dftp</name>
   <url>http://maven.apache.org</url>
+  <modules>
+    <module>dftp-client</module>
+    <module>dftp-server</module>
+    <module>dftp-common</module>
+  </modules>
 
   <properties>
     <maven.compiler.source>1.8</maven.compiler.source>

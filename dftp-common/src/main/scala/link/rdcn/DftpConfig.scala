@@ -1,6 +1,5 @@
 package link.rdcn
 
-import java.io.File
 import java.security.{PrivateKey, PublicKey}
 
 /**

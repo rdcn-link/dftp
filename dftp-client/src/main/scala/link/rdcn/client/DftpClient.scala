@@ -2,11 +2,10 @@ package link.rdcn.client
 
 import link.rdcn.client.ClientUtils.convertStructTypeToArrowSchema
 import link.rdcn.operation._
-import link.rdcn.server.{ActionBody, ArrowFlightStreamWriter, BlobTicket, GetTicket}
+import link.rdcn.server.{ActionBody, BlobTicket, GetTicket}
 import link.rdcn.struct._
 import link.rdcn.user.Credentials
 import link.rdcn.util.CodecUtils
-import org.apache.arrow.flight.FlightClient.PutListener
 import org.apache.arrow.flight.auth.ClientAuthHandler
 import org.apache.arrow.flight._
 import org.apache.arrow.memory.{BufferAllocator, RootAllocator}

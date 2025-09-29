@@ -2,7 +2,6 @@ package link.rdcn.client
 
 import link.rdcn.struct.ValueType.{BinaryType, BlobType, BooleanType, DoubleType, FloatType, IntType, LongType, RefType, StringType}
 import link.rdcn.struct.{ClosableIterator, Column, DFRef, DataFrame, DefaultDataFrame, Row, StructType, ValueType}
-import link.rdcn.util.{CodecUtils, DataUtils}
 import org.apache.arrow.flight.{PutResult, Result, SyncPutListener}
 import org.apache.arrow.memory.BufferAllocator
 import org.apache.arrow.vector.ipc.ArrowStreamReader

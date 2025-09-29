@@ -1,6 +1,4 @@
-package link.rdcn.server
-
-import link.rdcn.struct.Blob
+package link.rdcn.struct
 
 import java.io.InputStream
 import java.util.UUID
