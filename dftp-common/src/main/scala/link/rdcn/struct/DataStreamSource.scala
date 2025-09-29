@@ -74,7 +74,7 @@ object DataStreamSource {
 
       override def schema: StructType = StructType.binaryStructType
 
-      override def iterator: ClosableIterator[Row] = new ClosableIterator(stream, () => {}, true)
+      override def iterator: ClosableIterator[Row] = new ClosableIterator(stream, ()=>iterFiles.map(file=>file._1.deleteOnExit()), false)
     }
   }
 
