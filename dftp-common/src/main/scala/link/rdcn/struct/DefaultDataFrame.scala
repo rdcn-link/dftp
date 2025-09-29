@@ -35,11 +35,11 @@ case class DefaultDataFrame(
       }
       Row.fromSeq(selectedValues)
     }
-    DefaultDataFrame(selectedSchema, ClosableIterator(selectedStream)(stream.onClose))
+    DefaultDataFrame(selectedSchema, ClosableIterator(selectedStream)(stream.close()))
   }
 
   override def limit(n: Int): DataFrame = {
-    DefaultDataFrame(schema, ClosableIterator(stream.take(n))(stream.onClose))
+    DefaultDataFrame(schema, ClosableIterator(stream.take(n))(stream.close()))
   }
 
   override def reduce(f: ((Row, Row)) => Row): DataFrame = ???
