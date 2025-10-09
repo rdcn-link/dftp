@@ -157,7 +157,7 @@ class ArrowFlightStreamWriterTest {
 
       val exception = assertThrows(
         classOf[UnsupportedOperationException], () => writer.process(unsupportedRoot, 1).next().close())
-      assertEquals(exception.getMessage, "Type not supported")
+      assertEquals("Type not supported", exception.getMessage)
 
     } finally {
       unsupportedRoot.close()

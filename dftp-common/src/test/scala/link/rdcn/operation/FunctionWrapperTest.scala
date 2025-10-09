@@ -222,7 +222,7 @@ class FunctionWrapperJunitTest {
 
     val exception = assertThrows(
       classOf[IllegalArgumentException], () => javaBin.applyToInput("unsupported_type", ctx))
-    assertEquals(exception.getMessage, s"Unsupported input: unsupported_type")
+    assertEquals(s"Unsupported input: unsupported_type", exception.getMessage)
 
   }
 

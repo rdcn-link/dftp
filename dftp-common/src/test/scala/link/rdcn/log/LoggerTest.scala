@@ -63,7 +63,7 @@ class LoggerTest extends Logging {
     LoggerFactory.setDftpConfig(config)
     val exception = assertThrows(
       classOf[IllegalArgumentException], () => LoggerFactory.createLogger())
-    assertEquals(exception.getMessage, "Unsupported logger type")
+    assertEquals("Unsupported logger type", exception.getMessage)
   }
 
   //FileLogger日志生成测试
