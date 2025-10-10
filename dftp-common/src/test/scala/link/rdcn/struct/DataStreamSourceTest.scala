@@ -73,8 +73,6 @@ class DataStreamSourceTest extends CommonTestProvider {
     // 验证迭代器内容 (Row.fromTuple(_))
     val iter = source.iterator
     val row = iter.next()
-
     assertEquals(7, row.values.size, "Row must contain 7 file attributes and Blob")
-    iter.close()
   }
 }
