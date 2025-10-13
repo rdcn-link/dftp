@@ -6,7 +6,7 @@ import ServerUtils.convertStructTypeToArrowSchema
 import link.rdcn.util.{CodecUtils, DataUtils}
 import link.rdcn.{DftpConfig, Logging}
 import link.rdcn.client.UrlValidator
-import link.rdcn.log.LoggerFactory
+import link.rdcn.log.{AccessLogger, FileAccessLogger}
 import link.rdcn.operation.{ExecutionContext, TransformOp}
 import org.apache.arrow.flight.auth.ServerAuthHandler
 import org.apache.arrow.flight.{Action, CallStatus, Criteria, FlightDescriptor, FlightEndpoint, FlightInfo, FlightProducer, FlightServer, FlightStream, Location, NoOpFlightProducer, PutResult, Result, Ticket}
@@ -69,15 +69,20 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
                                   ticket: Array[Byte],
                                   response: GetResponse): Unit =
   {
+    val startTime = System.currentTimeMillis()
     parseTicket(ticket) match {
       case BlobTicket(ticketContent) =>
         val blobId = ticketContent
         val blob = BlobRegistry.getBlob(blobId)
         if (blob.isEmpty)
         {
+          accessLogger.logError("-", "-", startTime.toString, "STREAM", s"blob-$blobId"
+            , 404, s"blob ${blobId} resource closed", System.currentTimeMillis() - startTime)
           response.sendError(404, s"blob ${blobId} resource closed")
         } else
         {
+          accessLogger.logAccess("-", "_", startTime.toString, "STREAM", s"blob-$blobId"
+            , 200, -1, System.currentTimeMillis() - startTime)
           blob.get.offerStream(inputStream => {
             val stream: Iterator[Row] = DataUtils.chunkedIterator(inputStream)
               .map(bytes => Row.fromSeq(Seq(bytes)))
@@ -89,12 +94,12 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
         val transformOp = TransformOp.fromJsonString(ticketContent)
         require(transformOp.sourceUrlList.size == 1)
         val dataFrameUrl = transformOp.sourceUrlList.head
+        val urlValidator = UrlValidator(protocolScheme)
+        val urlAndPath = urlValidator.validate(dataFrameUrl) match {
+          case Right(v) => (dataFrameUrl, v._3)
+          case Left(message) => (s"$protocolScheme://${dftpConfig.host}:${dftpConfig.port}${dataFrameUrl}", dataFrameUrl)
+        }
         val getRequest = new GetRequest {
-          val urlValidator = UrlValidator(protocolScheme)
-          val urlAndPath = urlValidator.validate(dataFrameUrl) match {
-            case Right(v) => (dataFrameUrl, v._3)
-            case Left(message) => (s"$protocolScheme://${dftpConfig.host}:${dftpConfig.port}${dataFrameUrl}", dataFrameUrl)
-          }
           override def getRequestURI(): String = urlAndPath._2
 
           override def getRequestURL(): String = urlAndPath._1
@@ -103,6 +108,8 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
         }
         val getResponse = new GetResponse {
           override def sendDataFrame(inDataFrame: DataFrame): Unit = {
+            accessLogger.logAccess("-", "_", startTime.toString, "STREAM", urlAndPath._2
+              , 200, -1, System.currentTimeMillis() - startTime)
             val outDataFrame = transformOp.execute(new ExecutionContext {
               override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] =
                 Some(inDataFrame)
@@ -110,8 +117,11 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
             response.sendDataFrame(outDataFrame)
           }
 
-          override def sendError(code: Int, message: String): Unit =
+          override def sendError(code: Int, message: String): Unit = {
+            accessLogger.logError("-", "-", startTime.toString, "STREAM", urlAndPath._2
+              ,code , message, System.currentTimeMillis() - startTime)
             response.sendError(code, message)
+          }
         }
         dftpMethodService.doGet(getRequest, getResponse)
       case other => response.sendError(400, s"illegal ticket $other")
@@ -176,6 +186,8 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
 
   private var dftpConfig: DftpConfig = _
 
+  private var accessLogger: AccessLogger = _
+
   @volatile private var allocator: BufferAllocator = _
   @volatile private var flightServer: FlightServer = _
   @volatile private var serverThread: Thread = _
@@ -183,7 +195,8 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
 
   private def buildServer(dftpConfig: DftpConfig): Unit = {
     this.dftpConfig = dftpConfig
-    LoggerFactory.setDftpConfig(dftpConfig)
+    if(dftpConfig.accessLoggerType == "file")
+      accessLogger = new FileAccessLogger(dftpConfig)
     location = if (useTls)
       Location.forGrpcTls(dftpConfig.host, dftpConfig.port)
     else
@@ -231,13 +244,20 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
                           action: Action,
                           listener: FlightProducer.StreamListener[Result]): Unit =
     {
+      val startTime = System.currentTimeMillis()
       val actionResponse = new ActionResponse {
         override def send(data: Array[Byte]): Unit = {
+          accessLogger.logAccess("-", "_", startTime.toString, "ACTION", action.getType
+            , 200, data.length, System.currentTimeMillis() - startTime)
           listener.onNext(new Result(data))
           listener.onCompleted()
         }
 
-        override def sendError(code: Int, message: String): Unit = sendErrorWithFlightStatus(code, message)
+        override def sendError(code: Int, message: String): Unit = {
+          accessLogger.logError("-", "-", startTime.toString, "ACTION", action.getType
+          , code, message, System.currentTimeMillis() - startTime)
+          sendErrorWithFlightStatus(code, message)
+        }
       }
       val body = ActionBody.decode(action.getBody)
       val actionRequest = new ActionRequest {
@@ -255,6 +275,7 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
                            listener: FlightProducer.ServerStreamListener): Unit =
 
     {
+      val startTime = System.currentTimeMillis()
       val dataBatchLen = 1000
       val response = new GetResponse {
         override def sendDataFrame(dataFrame: DataFrame): Unit = {
@@ -289,7 +310,9 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
           })
         }
 
-        override def sendError(code: Int, message: String): Unit = sendErrorWithFlightStatus(code, message)
+        override def sendError(code: Int, message: String): Unit = {
+          sendErrorWithFlightStatus(code, message)
+        }
       }
       val authenticatedUser = authenticatedUserMap.get(context.peerIdentity())
       getStreamByTicket(authenticatedUser, ticket.getBytes, response)

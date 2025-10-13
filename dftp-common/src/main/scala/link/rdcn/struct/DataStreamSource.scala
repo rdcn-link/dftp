@@ -2,9 +2,12 @@ package link.rdcn.struct
 
 import link.rdcn.util.{DataUtils, JdbcUtils}
 
-import java.io.File
+import java.io.{BufferedReader, File, FileReader}
 import java.nio.file.attribute.BasicFileAttributes
 import java.sql.{Connection, DriverManager, ResultSet}
+import org.apache.commons.csv.{CSVFormat, CSVParser, CSVRecord}
+
+import scala.collection.JavaConverters.{asScalaBufferConverter, asScalaIteratorConverter}
 import scala.collection.mutable.ArrayBuffer
 
 /**

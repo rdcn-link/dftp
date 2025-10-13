@@ -9,7 +9,6 @@ package link.rdcn.operation
 import jep.SharedInterpreter
 import link.rdcn.CommonTestBase.ConfigLoader.dftpConfig
 import link.rdcn.CommonTestBase._
-import link.rdcn.log.LoggerFactory
 import link.rdcn.struct.{DataFrame, DefaultDataFrame, Row}
 import org.json.JSONObject
 import org.junit.jupiter.api.Assertions.{assertEquals, assertThrows, assertTrue}
@@ -19,7 +18,6 @@ import java.util.Base64
 
 class FunctionWrapperJunitTest {
   ConfigLoader.init()
-  LoggerFactory.setDftpConfig(dftpConfig)
   SharedInterpreterManager.getInterpreter
 
   // 基础数据

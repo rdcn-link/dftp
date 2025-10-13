@@ -22,9 +22,7 @@ object ServerDemo {
      * 至少给出host和port
      */
     val dftpConfig = new DftpConfig() {
-      override val loggerType: String = "file"
       override val rootLogLevel: String = "debug"
-      override val logFilePath: String = "test.log"
       override val consoleLogPattern: String = "%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"
       override val fileLogPattern: String = "%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"
 

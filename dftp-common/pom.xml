@@ -79,6 +79,11 @@
             <artifactId>poi-ooxml</artifactId>
             <version>5.4.1</version>
         </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-csv</artifactId>
+            <version>1.10.0</version>  <!-- 使用最新稳定版 -->
+        </dependency>
     </dependencies>
     <build>
         <plugins>
