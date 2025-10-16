@@ -3,13 +3,14 @@ package link.rdcn.server
 import link.rdcn.struct.{ArrowFlightStreamWriter, BlobRegistry, DataFrame, DefaultDataFrame, Row, StructType}
 import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials}
 import ServerUtils.convertStructTypeToArrowSchema
+import io.grpc.ManagedChannelBuilder
 import link.rdcn.util.{CodecUtils, DataUtils}
 import link.rdcn.{DftpConfig, Logging}
 import link.rdcn.client.UrlValidator
 import link.rdcn.log.LoggerFactory
 import link.rdcn.operation.{ExecutionContext, TransformOp}
 import org.apache.arrow.flight.auth.ServerAuthHandler
-import org.apache.arrow.flight.{Action, CallStatus, Criteria, FlightDescriptor, FlightEndpoint, FlightInfo, FlightProducer, FlightServer, FlightStream, Location, NoOpFlightProducer, PutResult, Result, Ticket}
+import org.apache.arrow.flight.{Action, CallStatus, Criteria, FlightClient, FlightDescriptor, FlightEndpoint, FlightGrpcUtils, FlightInfo, FlightProducer, FlightServer, FlightStream, Location, NoOpFlightProducer, PutResult, Result, Ticket}
 import org.apache.arrow.memory.{ArrowBuf, BufferAllocator, RootAllocator}
 import org.apache.arrow.vector.types.pojo.Schema
 import org.apache.arrow.vector.{VectorLoader, VectorSchemaRoot}
@@ -21,6 +22,7 @@ import java.util.{Optional, UUID}
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.LockSupport
 import scala.collection.JavaConverters._
+import scala.concurrent.{ExecutionContext, Future}
 
 /**
  * @Author renhao
@@ -103,7 +105,7 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
         }
         val getResponse = new GetResponse {
           override def sendDataFrame(inDataFrame: DataFrame): Unit = {
-            val outDataFrame = transformOp.execute(new ExecutionContext {
+            val outDataFrame = transformOp.execute(new link.rdcn.operation.ExecutionContext {
               override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] =
                 Some(inDataFrame)
             })
@@ -264,6 +266,7 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
           val loader = new VectorLoader(root)
           listener.start(root)
           dataFrame.mapIterator(iter => {
+            println(s"[${System.currentTimeMillis()}] DEBUG: Server A - mapIterator started. Preparing to send data to Client.")
             val arrowFlightStreamWriter = ArrowFlightStreamWriter(iter)
             try {
               arrowFlightStreamWriter.process(root, dataBatchLen).foreach(batch => {
@@ -285,6 +288,7 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
             } finally {
               if (root != null) root.close()
               if (childAllocator != null) childAllocator.close()
+              println(s"[${System.currentTimeMillis()}] DEBUG: Server A - mapIterator finished. sendDataFrame is about to exit. Connection 1 context will be cleaned up soon.")
             }
           })
         }

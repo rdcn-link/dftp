@@ -1,5 +1,7 @@
 package link.rdcn.client
 
+
+import io.grpc.ManagedChannelBuilder
 import link.rdcn.client.ClientUtils.convertStructTypeToArrowSchema
 import link.rdcn.operation._
 import link.rdcn.server.{ActionBody, BlobTicket, GetTicket}
@@ -12,6 +14,7 @@ import org.apache.arrow.memory.{BufferAllocator, RootAllocator}
 import org.apache.arrow.vector.{VectorLoader, VectorSchemaRoot}
 
 import java.io.{File, InputStream}
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.LockSupport
 import scala.collection.JavaConverters.asScalaBufferConverter
 import scala.collection.mutable
@@ -125,6 +128,7 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
                   val blobId = CodecUtils.decodeString(v.get(index))
                   val blobTicket = new Ticket(BlobTicket(blobId).encodeTicket())
                   val blob = new Blob {
+                    println(s"[${System.currentTimeMillis()}] DEBUG: Server A - Blob created. Connection 2 (to Server B) is now established but LAZY.")
                     val iter = getStream(flightClient, blobTicket)._2
                     val chunkIterator = iter.map(value => {
                       value.head match {
@@ -134,6 +138,7 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
                     })
 
                     override def offerStream[T](consume: InputStream => T): T = {
+                      println(s"[${System.currentTimeMillis()}] DEBUG: Server A - Blob.offerStream CALLED. Attempting to pull data from Connection 2 NOW.")
                       val stream = new IteratorInputStream(chunkIterator)
                       try consume(stream)
                       finally stream.close()
@@ -157,8 +162,9 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
     } else
       Location.forGrpcInsecure(host, port)
   }
-  private val allocator: BufferAllocator = new RootAllocator()
-  protected val flightClient: FlightClient = FlightClient.builder(allocator, location).build()
+  private val allocator: BufferAllocator = SharedFlightClient.getAllocator()
+//  private val channel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().asInstanceOf[ManagedChannelBuilder[_]].build()
+  protected val flightClient: FlightClient = SharedFlightClient.get()
 
   private class FlightClientAuthHandler(credentials: Credentials) extends ClientAuthHandler {
 
@@ -247,4 +253,22 @@ object DftpClient {
         throw new IllegalArgumentException(s"Invalid DFTP URL: $url")
     }
   }
+}
+
+object SharedFlightClient {
+  private val allocator = new RootAllocator(Long.MaxValue)
+
+  // 配置上游 Server B 的地址和端口
+  private val serverBHost = "0.0.0.0"
+  private val serverBPort = 3102
+
+  private val channel = ManagedChannelBuilder.forAddress(serverBHost, serverBPort).usePlaintext().asInstanceOf[ManagedChannelBuilder[_]].build()
+
+  private val client: FlightClient = FlightGrpcUtils.createFlightClientWithSharedChannel(allocator,channel)
+
+  // 提供一个公共的获取方法
+  def get(): FlightClient = client
+
+  def getAllocator(): RootAllocator = allocator
+
 }
