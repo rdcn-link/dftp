@@ -1,20 +1,20 @@
 package link.rdcn.client
 
 
-import io.grpc.ManagedChannelBuilder
+import io.grpc.{ManagedChannel, ManagedChannelBuilder}
 import link.rdcn.client.ClientUtils.convertStructTypeToArrowSchema
 import link.rdcn.operation._
 import link.rdcn.server.{ActionBody, BlobTicket, GetTicket}
 import link.rdcn.struct._
 import link.rdcn.user.Credentials
 import link.rdcn.util.CodecUtils
-import org.apache.arrow.flight.auth.ClientAuthHandler
 import org.apache.arrow.flight._
+import org.apache.arrow.flight.auth.ClientAuthHandler
 import org.apache.arrow.memory.{BufferAllocator, RootAllocator}
 import org.apache.arrow.vector.{VectorLoader, VectorSchemaRoot}
 
 import java.io.{File, InputStream}
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.LockSupport
 import scala.collection.JavaConverters.asScalaBufferConverter
 import scala.collection.mutable
@@ -100,7 +100,7 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
     (schemaAndIter._1, ClosableIterator(stream)())
   }
 
-  protected def getStream(flightClient: FlightClient, ticket: Ticket): (StructType, Iterator[Seq[Any]]) = {
+  def getStream(flightClient: FlightClient, ticket: Ticket): (StructType, Iterator[Seq[Any]]) = {
     val flightStream = flightClient.getStream(ticket)
     val vectorSchemaRootReceived = flightStream.getRoot
     val schema = ClientUtils.arrowSchemaToStructType(vectorSchemaRootReceived.getSchema)
@@ -141,7 +141,9 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
                       println(s"[${System.currentTimeMillis()}] DEBUG: Server A - Blob.offerStream CALLED. Attempting to pull data from Connection 2 NOW.")
                       val stream = new IteratorInputStream(chunkIterator)
                       try consume(stream)
-                      finally stream.close()
+                      finally {
+                        stream.close()
+                      }
                     }
                   }
                   (vec.getName, blob)
@@ -164,7 +166,7 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
   }
   private val allocator: BufferAllocator = SharedFlightClient.getAllocator()
 //  private val channel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().asInstanceOf[ManagedChannelBuilder[_]].build()
-  protected val flightClient: FlightClient = SharedFlightClient.get()
+  protected val flightClient: FlightClient = SharedFlightClient.get(host, port)
 
   private class FlightClientAuthHandler(credentials: Credentials) extends ClientAuthHandler {
 
@@ -182,7 +184,7 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
     override def getCallToken: Array[Byte] = callToken
   }
 
-  private class IteratorInputStream(it: Iterator[Array[Byte]]) extends InputStream {
+  class IteratorInputStream(it: Iterator[Array[Byte]]) extends InputStream {
     private var currentChunk: Array[Byte] = Array.emptyByteArray
     private var index: Int = 0
 
@@ -257,17 +259,18 @@ object DftpClient {
 
 object SharedFlightClient {
   private val allocator = new RootAllocator(Long.MaxValue)
+  private val clients = new ConcurrentHashMap[String, ManagedChannel]()
 
   // 配置上游 Server B 的地址和端口
   private val serverBHost = "0.0.0.0"
   private val serverBPort = 3102
 
-  private val channel = ManagedChannelBuilder.forAddress(serverBHost, serverBPort).usePlaintext().asInstanceOf[ManagedChannelBuilder[_]].build()
-
-  private val client: FlightClient = FlightGrpcUtils.createFlightClientWithSharedChannel(allocator,channel)
 
   // 提供一个公共的获取方法
-  def get(): FlightClient = client
+  def get(host: String, port: Int): FlightClient = {
+    val channel = ManagedChannelBuilder.forAddress(host,port).usePlaintext().asInstanceOf[ManagedChannelBuilder[_]].build()
+    FlightGrpcUtils.createFlightClientWithSharedChannel(allocator,channel)
+  }
 
   def getAllocator(): RootAllocator = allocator
 

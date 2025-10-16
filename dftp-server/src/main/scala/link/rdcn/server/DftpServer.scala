@@ -1,16 +1,15 @@
 package link.rdcn.server
 
-import link.rdcn.struct.{ArrowFlightStreamWriter, BlobRegistry, DataFrame, DefaultDataFrame, Row, StructType}
-import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials}
-import ServerUtils.convertStructTypeToArrowSchema
-import io.grpc.ManagedChannelBuilder
-import link.rdcn.util.{CodecUtils, DataUtils}
-import link.rdcn.{DftpConfig, Logging}
 import link.rdcn.client.UrlValidator
 import link.rdcn.log.LoggerFactory
-import link.rdcn.operation.{ExecutionContext, TransformOp}
+import link.rdcn.operation.TransformOp
+import link.rdcn.server.ServerUtils.convertStructTypeToArrowSchema
+import link.rdcn.struct._
+import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials}
+import link.rdcn.util.CodecUtils
+import link.rdcn.{DftpConfig, Logging}
+import org.apache.arrow.flight._
 import org.apache.arrow.flight.auth.ServerAuthHandler
-import org.apache.arrow.flight.{Action, CallStatus, Criteria, FlightClient, FlightDescriptor, FlightEndpoint, FlightGrpcUtils, FlightInfo, FlightProducer, FlightServer, FlightStream, Location, NoOpFlightProducer, PutResult, Result, Ticket}
 import org.apache.arrow.memory.{ArrowBuf, BufferAllocator, RootAllocator}
 import org.apache.arrow.vector.types.pojo.Schema
 import org.apache.arrow.vector.{VectorLoader, VectorSchemaRoot}
@@ -18,11 +17,10 @@ import org.apache.arrow.vector.{VectorLoader, VectorSchemaRoot}
 import java.io.File
 import java.nio.charset.StandardCharsets
 import java.util
-import java.util.{Optional, UUID}
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.LockSupport
+import java.util.{Optional, UUID}
 import scala.collection.JavaConverters._
-import scala.concurrent.{ExecutionContext, Future}
 
 /**
  * @Author renhao
@@ -73,20 +71,39 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
   {
     parseTicket(ticket) match {
       case BlobTicket(ticketContent) =>
-        val blobId = ticketContent
-        val blob = BlobRegistry.getBlob(blobId)
-        if (blob.isEmpty)
-        {
-          response.sendError(404, s"blob ${blobId} resource closed")
-        } else
-        {
-          blob.get.offerStream(inputStream => {
-            val stream: Iterator[Row] = DataUtils.chunkedIterator(inputStream)
-              .map(bytes => Row.fromSeq(Seq(bytes)))
-            val schema = StructType.blobStreamStructType
-            response.sendDataFrame(DefaultDataFrame(schema, stream))
-          })
-        }
+        BlobTransferRegistry.consumeTransfer(ticketContent) { dataQueue =>
+
+              val iter = new Iterator[Row] {
+                private var nextChunk: Array[Byte] = null
+                override def hasNext: Boolean = {
+                  if (nextChunk == null) { nextChunk = dataQueue.take() }
+                  nextChunk != BlobTransferRegistry.END_OF_STREAM
+                }
+                override def next(): Row = {
+                  if (!hasNext) throw new NoSuchElementException("next on empty iterator")
+                  val chunkToReturn = nextChunk
+                  nextChunk = null
+                  Row.fromSeq(Seq(chunkToReturn))
+                }
+              }
+          val schema = StructType.blobStreamStructType
+              response.sendDataFrame(DefaultDataFrame(schema, iter))
+          }
+
+//        val blobId = ticketContent
+//        val blob = BlobRegistry.getBlob(blobId)
+//        if (blob.isEmpty)
+//        {
+//          response.sendError(404, s"blob ${blobId} resource closed")
+//        } else
+//        {
+//          blob.get.offerStream(inputStream => {
+//            val stream: Iterator[Row] = DataUtils.chunkedIterator(inputStream)
+//              .map(bytes => Row.fromSeq(Seq(bytes)))
+//            val schema = StructType.blobStreamStructType
+//            response.sendDataFrame(DefaultDataFrame(schema, stream))
+//          })
+//        }
       case  GetTicket(ticketContent) =>
         val transformOp = TransformOp.fromJsonString(ticketContent)
         require(transformOp.sourceUrlList.size == 1)
@@ -408,4 +425,3 @@ class CredentialsProvider extends AuthenticationService {
   override def authenticate(credentials: Credentials): UserPrincipal =
     UserPrincipalWithCredentials(credentials)
 }
-
