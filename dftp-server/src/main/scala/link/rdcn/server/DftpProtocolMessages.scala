@@ -29,6 +29,8 @@ trait ActionRequest {
   def getParameter(): Array[Byte]
 
   def getParameterAsMap(): Map[String, Any]
+
+  def getUserPrincipal(): UserPrincipal
 }
 
 trait ActionResponse {

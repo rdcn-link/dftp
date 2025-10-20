@@ -186,7 +186,7 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
 
   private var dftpConfig: DftpConfig = _
 
-  private var accessLogger: AccessLogger = _
+  protected var accessLogger: AccessLogger = _
 
   @volatile private var allocator: BufferAllocator = _
   @volatile private var flightServer: FlightServer = _
@@ -266,6 +266,9 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
         override def getParameter(): Array[Byte] = body._1
 
         override def getParameterAsMap(): Map[String, Any] = body._2
+
+        override def getUserPrincipal(): UserPrincipal =
+          authenticatedUserMap.get(context.peerIdentity())
       }
       dftpMethodService.doAction(actionRequest, actionResponse)
     }
@@ -304,6 +307,7 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
                 e.printStackTrace()
                 throw e
             } finally {
+              iter.close()
               if (root != null) root.close()
               if (childAllocator != null) childAllocator.close()
             }
@@ -311,6 +315,8 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
         }
 
         override def sendError(code: Int, message: String): Unit = {
+          accessLogger.logError("-", "-", startTime.toString, "PUT", "put"
+            , code, message, System.currentTimeMillis() - startTime)
           sendErrorWithFlightStatus(code, message)
         }
       }
@@ -326,8 +332,11 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
     {
       new Runnable {
         override def run(): Unit = {
+          val startTime = System.currentTimeMillis()
           val request = new PutRequest {
             override def getDataFrame(): DataFrame = {
+              accessLogger.logAccess("-", "_", startTime.toString, "PUT", "put"
+                , 200, -1, System.currentTimeMillis() - startTime)
               var schema = StructType.empty
               if (flightStream.next()) {
                 val root = flightStream.getRoot

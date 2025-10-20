@@ -92,12 +92,12 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
   }
 
   protected def getRows(operationNode: String): (StructType, ClosableIterator[Row]) = {
-    val schemaAndIter = getStream(flightClient, new Ticket(GetTicket(operationNode).encodeTicket()))
+    val schemaAndIter = getStream(new Ticket(GetTicket(operationNode).encodeTicket()))
     val stream = schemaAndIter._2.map(seq => Row.fromSeq(seq))
     (schemaAndIter._1, ClosableIterator(stream)())
   }
 
-  protected def getStream(flightClient: FlightClient, ticket: Ticket): (StructType, Iterator[Seq[Any]]) = {
+  protected def getStream(ticket: Ticket): (StructType, Iterator[Seq[Any]]) = {
     val flightStream = flightClient.getStream(ticket)
     val vectorSchemaRootReceived = flightStream.getRoot
     val schema = ClientUtils.arrowSchemaToStructType(vectorSchemaRootReceived.getSchema)
@@ -125,15 +125,14 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
                   val blobId = CodecUtils.decodeString(v.get(index))
                   val blobTicket = new Ticket(BlobTicket(blobId).encodeTicket())
                   val blob = new Blob {
-                    val iter = getStream(flightClient, blobTicket)._2
-                    val chunkIterator = iter.map(value => {
-                      value.head match {
-                        case v: Array[Byte] => v
-                        case other => throw new Exception(s"Blob parsing failed: expected Array[Byte], but got ${other}")
-                      }
-                    })
-
                     override def offerStream[T](consume: InputStream => T): T = {
+                      val iter = getStream(blobTicket)._2
+                      val chunkIterator = iter.map(value => {
+                        value.head match {
+                          case v: Array[Byte] => v
+                          case other => throw new Exception(s"Blob parsing failed: expected Array[Byte], but got ${other}")
+                        }
+                      })
                       val stream = new IteratorInputStream(chunkIterator)
                       try consume(stream)
                       finally stream.close()
@@ -164,7 +163,8 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
 
     private var callToken: Array[Byte] = _
 
-    override def authenticate(clientAuthSender: ClientAuthHandler.ClientAuthSender, iterator: java.util.Iterator[Array[Byte]]): Unit = {
+    override def authenticate(clientAuthSender: ClientAuthHandler.ClientAuthSender,
+                              iterator: java.util.Iterator[Array[Byte]]): Unit = {
       clientAuthSender.send(CodecUtils.encodeCredentials(credentials))
       try {
         callToken = iterator.next()

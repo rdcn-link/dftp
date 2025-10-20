@@ -13,7 +13,7 @@ import link.rdcn.struct.{ClosableIterator, DataFrame, Row, StructType}
 
 case class RemoteDataFrameProxy(operation: TransformOp, getRows: String => (StructType, ClosableIterator[Row])) extends DataFrame with Logging {
 
-  override val schema: StructType = getRows(operation.toJsonString)._1
+  override lazy val schema: StructType = schemaAndRows._1
 
   override def filter(f: Row => Boolean): DataFrame = {
     val genericFunctionCall = SingleRowCall(new SerializableFunction[Row, Boolean] {
@@ -43,7 +43,9 @@ case class RemoteDataFrameProxy(operation: TransformOp, getRows: String => (Stru
 
   override def collect(): List[Row] = records.toList
 
-  private def records(): Iterator[Row] = getRows(operation.toJsonString)._2
+  private def records(): Iterator[Row] = schemaAndRows._2
+
+  private lazy val schemaAndRows = getRows(operation.toJsonString)
 
   override def mapIterator[T](f: ClosableIterator[Row] => T): T = f(getRows(operation.toJsonString)._2)
 }
