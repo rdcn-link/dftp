@@ -11,7 +11,8 @@ import link.rdcn.struct.{ClosableIterator, DataFrame, Row, StructType}
  * @Modified By:
  */
 
-case class RemoteDataFrameProxy(operation: TransformOp, getRows: String => (StructType, ClosableIterator[Row])) extends DataFrame with Logging {
+case class RemoteDataFrameProxy(operation: TransformOp,
+                                getRows: String => (StructType, ClosableIterator[Row])) extends DataFrame with Logging {
 
   override lazy val schema: StructType = schemaAndRows._1
 
@@ -36,8 +37,6 @@ case class RemoteDataFrameProxy(operation: TransformOp, getRows: String => (Stru
     val mapOperationNode = MapOp(FunctionWrapper.getJavaSerialized(genericFunctionCall), operation)
     copy(operation = mapOperationNode)
   }
-
-  override def reduce(f: ((Row, Row)) => Row): DataFrame = ???
 
   override def foreach(f: Row => Unit): Unit = records.foreach(f)
 

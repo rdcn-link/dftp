@@ -77,9 +77,7 @@ class FileAccessLogger(config: DftpConfig) extends AccessLogger {
                         ): Unit = {
     val ua = userAgent.getOrElse("-")
     val logEntry =
-      s"""
-         |$clientIp - $user [$timestamp] "$method $path" $status $responseSize "$ua" ${durationMs}ms
-         |""".stripMargin
+      s"""$clientIp - $user [$timestamp] "$method $path" $status $responseSize "$ua" ${durationMs}ms""".stripMargin
     writeLogEntry(logEntry)
   }
 
@@ -96,9 +94,7 @@ class FileAccessLogger(config: DftpConfig) extends AccessLogger {
                        ): Unit = {
     val ua = userAgent.getOrElse("-")
     val logEntry =
-      s"""
-         |$clientIp - $user [$timestamp] "$method $path" $status 0 "$ua" ${durationMs}ms error="$errorMessage
-         |"""".stripMargin
+      s"""$clientIp - $user [$timestamp] "$method $path" $status 0 "$ua" ${durationMs}ms error="$errorMessage""".stripMargin
     writeLogEntry(logEntry)
   }
 

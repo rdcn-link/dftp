@@ -81,7 +81,7 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
           response.sendError(404, s"blob ${blobId} resource closed")
         } else
         {
-          accessLogger.logAccess("-", "_", startTime.toString, "STREAM", s"blob-$blobId"
+          accessLogger.logAccess("-", "-", startTime.toString, "STREAM", s"blob-$blobId"
             , 200, -1, System.currentTimeMillis() - startTime)
           blob.get.offerStream(inputStream => {
             val stream: Iterator[Row] = DataUtils.chunkedIterator(inputStream)
@@ -247,7 +247,7 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
       val startTime = System.currentTimeMillis()
       val actionResponse = new ActionResponse {
         override def send(data: Array[Byte]): Unit = {
-          accessLogger.logAccess("-", "_", startTime.toString, "ACTION", action.getType
+          accessLogger.logAccess("-", "-", startTime.toString, "ACTION", action.getType
             , 200, data.length, System.currentTimeMillis() - startTime)
           listener.onNext(new Result(data))
           listener.onCompleted()

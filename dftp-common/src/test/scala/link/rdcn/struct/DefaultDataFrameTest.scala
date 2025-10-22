@@ -129,13 +129,4 @@ class DefaultDataFrameTest {
 
     assertEquals(mockRows.size, result, "MapIterator should receive and count the stream size")
   }
-
-  @Test()
-  def testReduceNotImplemented(): Unit = {
-    // 覆盖 reduce 方法
-    val exception = assertThrows(
-      classOf[NotImplementedError],
-      () => df.reduce(_ => throw new NotImplementedError)
-    )
-  }
 }
