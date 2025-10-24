@@ -8,6 +8,7 @@ import link.rdcn.{DftpConfig, Logging}
 import link.rdcn.client.UrlValidator
 import link.rdcn.log.{AccessLogger, FileAccessLogger}
 import link.rdcn.operation.{ExecutionContext, TransformOp}
+import link.rdcn.server.module.Module
 import org.apache.arrow.flight.auth.ServerAuthHandler
 import org.apache.arrow.flight.{Action, CallStatus, Criteria, FlightDescriptor, FlightEndpoint, FlightInfo, FlightProducer, FlightServer, FlightStream, Location, NoOpFlightProducer, PutResult, Result, Ticket}
 import org.apache.arrow.memory.{ArrowBuf, BufferAllocator, RootAllocator}
@@ -28,7 +29,7 @@ import scala.collection.JavaConverters._
  * @Date 2025/8/17 14:31
  * @Modified By:
  */
-class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodService: DftpMethodService) extends Logging
+class DftpServer(userAuthenticationService: AuthenticationService, module: DftpMethodService) extends Logging
 {
 
   def setProtocolSchema(protocolSchema: String): DftpServer = {
@@ -123,7 +124,7 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
             response.sendError(code, message)
           }
         }
-        dftpMethodService.doGet(getRequest, getResponse)
+        module.doGet(getRequest, getResponse)
       case other => response.sendError(400, s"illegal ticket $other")
     }
   }
@@ -270,7 +271,7 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
         override def getUserPrincipal(): UserPrincipal =
           authenticatedUserMap.get(context.peerIdentity())
       }
-      dftpMethodService.doAction(actionRequest, actionResponse)
+      module.doAction(actionRequest, actionResponse)
     }
 
     override def getStream(context: FlightProducer.CallContext,
@@ -368,7 +369,7 @@ class DftpServer(userAuthenticationService: AuthenticationService, dftpMethodSer
 
             override def sendError(code: Int, message: String): Unit = sendErrorWithFlightStatus(code, message)
           }
-          dftpMethodService.doPut(request, response)
+          module.doPut(request, response)
         }
       }
     }

@@ -9,7 +9,11 @@ import link.rdcn.user.UserPrincipal
  * @Date 2025/8/27 09:43
  * @Modified By:
  */
-trait GetRequest {
+trait DftpRequest
+
+trait DftpResponse
+
+trait GetRequest extends DftpRequest{
   def getRequestURI(): String
 
   def getRequestURL(): String
@@ -17,13 +21,13 @@ trait GetRequest {
   def getUserPrincipal(): UserPrincipal
 }
 
-trait GetResponse {
+trait GetResponse extends DftpResponse {
   def sendDataFrame(dataFrame: DataFrame): Unit
 
   def sendError(code: Int, message: String): Unit
 }
 
-trait ActionRequest {
+trait ActionRequest extends DftpRequest {
   def getActionName(): String
 
   def getParameter(): Array[Byte]
@@ -33,17 +37,17 @@ trait ActionRequest {
   def getUserPrincipal(): UserPrincipal
 }
 
-trait ActionResponse {
+trait ActionResponse extends DftpResponse {
   def send(data: Array[Byte]): Unit
 
   def sendError(code: Int, message: String): Unit
 }
 
-trait PutRequest {
+trait PutRequest extends DftpRequest {
   def getDataFrame(): DataFrame
 }
 
-trait PutResponse {
+trait PutResponse extends DftpResponse {
   def send(data: Array[Byte]): Unit
 
   def sendError(code: Int, message: String): Unit
