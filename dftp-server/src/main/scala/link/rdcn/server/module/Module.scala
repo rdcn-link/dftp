@@ -129,7 +129,7 @@ trait DftpResponse {
 }
 
 
-case class DftGetRequest(url: String) extends DftpRequest {
+case class DftpGetRequest(url: String) extends DftpRequest {
 
 }
 
@@ -166,7 +166,7 @@ case class FileDataSourceModule(prefix: String) extends Module {
 
   override def service(request: DftpRequest, response: DftpResponse, next: Next): Unit = {
     request match {
-      case DftGetRequest(url) if url.startsWith(s"/$prefix") =>
+      case DftpGetRequest(url) if url.startsWith(s"/$prefix") =>
         response.sendDataFrame(DataFrame.fromSeq(Seq(s"${prefix}1", s"${prefix}2", s"${prefix}3")))
       case _ => next.service(request, response)
     }
@@ -182,7 +182,7 @@ case class CatalogModule() extends Module {
 
   override def service(request: DftpRequest, response: DftpResponse, next: Next): Unit = {
     request match {
-      case DftGetRequest("/listDatasets") =>
+      case DftpGetRequest("/listDatasets") =>
         response.sendDataFrame(DataFrame.fromSeq(Seq("ds1", "ds2", "ds3")))
       case _ => next.service(request, response)
     }
@@ -221,9 +221,9 @@ object MainTest {
   }
 
   def main(args: Array[String]): Unit = {
-    request(new DftGetRequest("/abc"))
-    request(new DftGetRequest("/listDatasets"))
-    request(new DftGetRequest("/404"))
-    request(new DftGetRequest("/xyz"))
+    request(new DftpGetRequest("/abc"))
+    request(new DftpGetRequest("/listDatasets"))
+    request(new DftpGetRequest("/404"))
+    request(new DftpGetRequest("/xyz"))
   }
 }
