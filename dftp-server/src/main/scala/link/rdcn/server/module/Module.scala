@@ -39,10 +39,6 @@ trait Next {
   def service(request: DftpRequest, response: DftpResponse)
 }
 
-object Module {
-  def add(module: Module): Module = null
-}
-
 class ChainedModule(module: Module) {
   private var next: ChainedModule = null
 
