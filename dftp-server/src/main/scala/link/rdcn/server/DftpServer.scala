@@ -32,6 +32,9 @@ import scala.collection.JavaConverters._
  */
 
 trait ServerContext {
+  def getHost(): String
+  def getPort(): Int
+  def getProtocolScheme(): String
 }
 
 class DftpServer(config: DftpServerConfig) extends Logging {
@@ -42,7 +45,14 @@ class DftpServer(config: DftpServerConfig) extends Logging {
     Location.forGrpcInsecure(config.host, config.port)
   }
 
-  val modules = new Modules()
+  val modules = new Modules(new ServerContext() {
+
+    override def getHost(): String = config.host
+
+    override def getPort(): Int = config.port
+
+    override def getProtocolScheme(): String = config.protocolScheme
+  })
 
   def addModule(module: DftpModule) = modules.addModule(module)
 
@@ -117,19 +127,16 @@ class DftpServer(config: DftpServerConfig) extends Logging {
         .build()
     }
 
-    modules.init(new ServerContext() {
-
-    })
+    modules.init()
   }
 
   protected def getStreamByTicket(userPrincipal: UserPrincipal,
                                   ticket: Array[Byte],
                                   response: DftpGetResponse): Unit = {
-    val startTime = System.currentTimeMillis()
-    parseTicket(ticket) match {
+    modules.parseGetStreamRequest(ticket, userPrincipal) match {
       //get blob as data frame
-      case BlobTicket(ticketContent) =>
-        val blobId = ticketContent
+      case x: DacpGetBlobStreamRequest =>
+        val blobId = x.getBlobId()
         val blob = BlobRegistry.getBlob(blobId)
         if (blob.isEmpty) {
           response.sendError(404, s"blob ${blobId} resource closed")
@@ -142,32 +149,17 @@ class DftpServer(config: DftpServerConfig) extends Logging {
           })
         }
 
+      case null => response.sendError(400, s"illegal ticket: $ticket")
+
       //get data frame by id
-      case GetTicket(ticketContent) =>
-        val transformOp = TransformOp.fromJsonString(ticketContent)
-        require(transformOp.sourceUrlList.size == 1)
-        val dataFrameUrl = transformOp.sourceUrlList.head
-        val urlValidator = UrlValidator(config.protocolScheme)
-        val urlAndPath = urlValidator.validate(dataFrameUrl) match {
-          case Right(v) => (dataFrameUrl, v._3)
-          case Left(message) => (s"${config.protocolScheme}://${config.host}:${config.port}${dataFrameUrl}", dataFrameUrl)
-        }
-
-        val getRequest = new DftpGetRequest {
-          override def getRequestURI(): String = urlAndPath._2
-
-          override def getRequestURL(): String = urlAndPath._1
-
-          override def getUserPrincipal(): UserPrincipal = userPrincipal
-        }
-
+      case x: DftpGetStreamRequest =>
         val getResponse = new DftpGetResponse {
           override def sendError(code: Int, message: String): Unit = {
             response.sendError(code, message)
           }
 
           override def sendDataFrame(data: DataFrame): Unit = {
-            val outDataFrame = transformOp.execute(new ExecutionContext {
+            val outDataFrame = x.getTransformOp().execute(new ExecutionContext {
               override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] =
                 Some(data)
             })
@@ -176,26 +168,9 @@ class DftpServer(config: DftpServerConfig) extends Logging {
           }
         }
 
-        modules.doGet(getRequest, getResponse)
+        modules.doGet(x, getResponse)
 
       case other => response.sendError(400, s"illegal ticket $other")
-    }
-  }
-
-  protected def parseTicket(bytes: Array[Byte]): DftpTicket = {
-    val BLOB_TICKET: Byte = 1
-    val GET_TICKET: Byte = 2
-
-    val buffer = java.nio.ByteBuffer.wrap(bytes)
-    val typeId: Byte = buffer.get()
-    val len = buffer.getInt()
-    val b = new Array[Byte](len)
-    buffer.get(b)
-    val ticketContent = new String(b, StandardCharsets.UTF_8)
-    typeId match {
-      case BLOB_TICKET => BlobTicket(ticketContent)
-      case GET_TICKET => GetTicket(ticketContent)
-      case _ => throw new Exception("parse fail")
     }
   }
 
@@ -400,6 +375,7 @@ object DftpServer {
     val reader: XmlBeanDefinitionReader = new XmlBeanDefinitionReader(context);
     reader.loadBeanDefinitions(new FileUrlResource(configXmlFile.getAbsolutePath));
     context.refresh();
+    //TODO: convert bean to DftpServerConfig
     val config: DftpServerConfig = context.getBean(classOf[DftpServerConfig])
     val modules = context.getBean("modules").asInstanceOf[Array[DftpModule]]
     start(config, modules)

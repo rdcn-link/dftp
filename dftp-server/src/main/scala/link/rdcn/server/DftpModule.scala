@@ -1,8 +1,12 @@
 package link.rdcn.server
 
 import link.rdcn.Logging
+import link.rdcn.client.UrlValidator
+import link.rdcn.operation.TransformOp
 import link.rdcn.struct.DataFrame
 import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal}
+
+import java.nio.charset.StandardCharsets
 import scala.collection.mutable.ArrayBuffer
 
 /**
@@ -17,6 +21,7 @@ trait DftpModule {
 }
 
 trait Anchor {
+  def hook(service: GetRequestParseService): Unit
   def hook(service: AuthenticationService): Unit
   def hook(service: ActionMethodService): Unit
   def hook(service: GetMethodService): Unit
@@ -29,14 +34,19 @@ trait ActionMethodService {
   def doAction(request: DftpActionRequest, response: DftpActionResponse): Unit
 }
 
+trait GetRequestParseService {
+  def accepts(token: Array[Byte]): Boolean
+  def parse(token: Array[Byte], principal: UserPrincipal): DftpGetStreamRequest
+}
+
 trait LogService {
   def accepts(request: DftpRequest): Boolean
   def doLog(request: DftpRequest, response: DftpResponse): Unit
 }
 
 trait GetMethodService {
-  def accepts(request: DftpGetRequest): Boolean
-  def doGet(request: DftpGetRequest, response: DftpGetResponse): Unit
+  def accepts(request: DftpGetStreamRequest): Boolean
+  def doGet(request: DftpGetStreamRequest, response: DftpGetResponse): Unit
 }
 
 trait PutMethodService {
@@ -44,13 +54,13 @@ trait PutMethodService {
   def doPut(request: DftpPutRequest, response: DftpPutResponse): Unit
 }
 
-class Modules extends Logging {
+class Modules(serverContext: ServerContext) extends Logging {
   val modules = ArrayBuffer[DftpModule]()
 
-  val authMethod = new AuthenticationService {
+  private val authMethod = new AuthenticationService {
     val services = ArrayBuffer[AuthenticationService]()
 
-    def add(authenticator: AuthenticationService): Unit = services += authenticator
+    def add(service: AuthenticationService): Unit = services += service
 
     override def authenticate(credentials: Credentials): UserPrincipal = {
       services.find(_.accepts(credentials)).map(_.authenticate(credentials)).find(_ != null).head
@@ -59,14 +69,26 @@ class Modules extends Logging {
     override def accepts(credentials: Credentials): Boolean = services.exists(_.accepts(credentials))
   }
 
-  val getMethod = new GetMethodService {
+  private val parseMethod = new GetRequestParseService {
+    val services = ArrayBuffer[GetRequestParseService](new DftpGetRequestParseService(serverContext))
+
+    override def accepts(token: Array[Byte]): Boolean = services.exists(_.accepts(token))
+
+    override def parse(token: Array[Byte], principal: UserPrincipal): DftpGetStreamRequest = {
+      services.find(_.accepts(token)).map(_.parse(token, principal)).find(_ != null).head
+    }
+
+    def add(service: GetRequestParseService): Unit = services += service
+  }
+
+  private val getMethod = new GetMethodService {
     val services = ArrayBuffer[GetMethodService]()
 
     def add(service: GetMethodService): Unit = services += service
 
-    override def accepts(request: DftpGetRequest): Boolean = services.exists(_.accepts(request))
+    override def accepts(request: DftpGetStreamRequest): Boolean = services.exists(_.accepts(request))
 
-    override def doGet(request: DftpGetRequest, response: DftpGetResponse): Unit = {
+    override def doGet(request: DftpGetStreamRequest, response: DftpGetResponse): Unit = {
       services.filter(_.accepts(request)).find(x => {
         var bingo = false
         val responseObserved = new DftpGetResponse {
@@ -83,7 +105,7 @@ class Modules extends Logging {
     }
   }
 
-  val actionMethod = new ActionMethodService {
+  private val actionMethod = new ActionMethodService {
     val services = ArrayBuffer[ActionMethodService]()
 
     def add(service: ActionMethodService): Unit = services += service
@@ -107,7 +129,7 @@ class Modules extends Logging {
     }
   }
 
-  val putMethod = new PutMethodService {
+  private val putMethod = new PutMethodService {
     val services = ArrayBuffer[PutMethodService]()
 
     def add(service: PutMethodService): Unit = services += service
@@ -131,7 +153,7 @@ class Modules extends Logging {
     }
   }
 
-  val logMethod = new LogService {
+  private val logMethod = new LogService {
     val services = ArrayBuffer[LogService]()
 
     def add(service: LogService): Unit = services += service
@@ -168,9 +190,13 @@ class Modules extends Logging {
     override def hook(service: LogService): Unit = {
       logMethod.add(service)
     }
+
+    override def hook(service: GetRequestParseService): Unit = {
+      parseMethod.add(service)
+    }
   }
 
-  def init(serverContext: ServerContext): Unit = {
+  def init(): Unit = {
     modules.foreach(x => {
       x.init(anchor, serverContext)
       logger.info(s"loaded module: $x")
@@ -183,7 +209,11 @@ class Modules extends Logging {
     })
   }
 
-  def doGet(request: DftpGetRequest, response: DftpGetResponse): Unit = {
+  def parseGetStreamRequest(token: Array[Byte], principal: UserPrincipal): DftpGetStreamRequest = {
+    parseMethod.parse(token, principal)
+  }
+
+  def doGet(request: DftpGetStreamRequest, response: DftpGetResponse): Unit = {
     getMethod.doGet(request, response)
   }
 
@@ -201,4 +231,56 @@ class Modules extends Logging {
 
   def authenticate(credentials: Credentials): UserPrincipal =
     authMethod.authenticate(credentials)
+}
+
+class DftpGetRequestParseService(serverContext: ServerContext) extends GetRequestParseService {
+  val BLOB_TICKET: Byte = 1
+  val URL_GET_TICKET: Byte = 2
+
+  override def accepts(token: Array[Byte]): Boolean = {
+    val typeId = token(0)
+    typeId == BLOB_TICKET || typeId == URL_GET_TICKET
+  }
+
+  override def parse(bytes: Array[Byte], principal: UserPrincipal): DftpGetStreamRequest = {
+    val buffer = java.nio.ByteBuffer.wrap(bytes)
+    val typeId: Byte = buffer.get()
+    val len = buffer.getInt()
+    val b = new Array[Byte](len)
+    buffer.get(b)
+    val ticketContent = new String(b, StandardCharsets.UTF_8)
+    typeId match {
+      case BLOB_TICKET => {
+        new DacpGetBlobStreamRequest {
+          override def getBlobId(): String = ticketContent
+
+          override def getUserPrincipal(): UserPrincipal = principal
+
+          override def getTransformOp(): TransformOp = null
+        }
+      }
+
+      case URL_GET_TICKET => {
+        val transformOp = TransformOp.fromJsonString(ticketContent)
+        val dataFrameUrl = transformOp.sourceUrlList.head
+        val urlValidator = UrlValidator(serverContext.getProtocolScheme)
+        val urlAndPath = urlValidator.validate(dataFrameUrl) match {
+          case Right(v) => (dataFrameUrl, v._3)
+          case Left(message) => (s"${serverContext.getProtocolScheme}://${serverContext.getHost}:${serverContext.getPort}${dataFrameUrl}", dataFrameUrl)
+        }
+
+        new DftpGetPathStreamRequest {
+          override def getRequestPath(): String = urlAndPath._2
+
+          override def getRequestURL(): String = urlAndPath._1
+
+          override def getUserPrincipal(): UserPrincipal = principal
+
+          override def getTransformOp(): TransformOp = transformOp
+        }
+      }
+
+      case _ => null
+    }
+  }
 }

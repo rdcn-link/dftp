@@ -1,5 +1,6 @@
 package link.rdcn.server
 
+import link.rdcn.operation.TransformOp
 import link.rdcn.struct.DataFrame
 import link.rdcn.user.UserPrincipal
 
@@ -17,10 +18,18 @@ trait DftpRequest {
   def getUserPrincipal(): UserPrincipal
 }
 
-trait DftpGetRequest extends DftpRequest {
-  def getRequestURI(): String
+trait DftpGetStreamRequest extends DftpRequest {
+  //FIXME
+  def getTransformOp(): TransformOp
+}
 
+trait DftpGetPathStreamRequest extends DftpGetStreamRequest {
+  def getRequestPath(): String
   def getRequestURL(): String
+}
+
+trait DacpGetBlobStreamRequest extends DftpGetStreamRequest {
+  def getBlobId(): String
 }
 
 trait DftpActionRequest extends DftpRequest {
