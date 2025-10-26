@@ -8,7 +8,7 @@ package link.rdcn
  */
 import link.rdcn.ClientTestBase._
 import link.rdcn.client.DftpClient
-import link.rdcn.server.{ActionRequest, ActionResponse, DftpMethodService, DftpServer, GetRequest, GetResponse, PutRequest, PutResponse}
+import link.rdcn.server.{ActionRequest, ActionResponse, DftpServer, GetRequest, GetResponse, PutRequest, PutResponse}
 import link.rdcn.struct._
 import link.rdcn.struct.ValueType._
 import link.rdcn.user.{Credentials, UserPrincipal, UsernamePassword}

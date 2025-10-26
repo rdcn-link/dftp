@@ -1,6 +1,7 @@
 package link.rdcn
 
 import com.sun.management.OperatingSystemMXBean
+import link.rdcn.server.DftpServerConfig
 import link.rdcn.struct.ValueType._
 import link.rdcn.struct._
 import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal}
@@ -215,7 +216,7 @@ object ServerTestBase {
   case class ExcelSource() extends InputSource
 
   object ConfigLoader {
-    var dftpConfig: DftpConfig = _
+    var dftpConfig: DftpServerConfig = _
 
     def init(): Unit = synchronized {
       dftpConfig = load()
@@ -228,10 +229,10 @@ object ServerTestBase {
       props
     }
 
-    def getConfig(): DftpConfig = dftpConfig
+    def getConfig(): DftpServerConfig = dftpConfig
 
-    def load(): DftpConfig = {
-      new DftpConfig() {
+    def load(): DftpServerConfig = {
+      new DftpServerConfig() {
         override def host: String =
           "localhost"
 

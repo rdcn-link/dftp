@@ -6,7 +6,7 @@
  */
 package link.rdcn.message
 
-import link.rdcn.server.ActionBody
+import link.rdcn.server.MapSerializer
 import org.junit.jupiter.api.Assertions.{assertArrayEquals, assertEquals, assertTrue}
 import org.junit.jupiter.api.Test
 
@@ -23,13 +23,13 @@ class ActionBodyTest {
       "query" -> "SELECT * FROM table",
       "isAdmin" -> true
     )
-    val originalActionBody = ActionBody(expectedData, expectedParams)
+    val originalActionBody = MapSerializer(expectedData, expectedParams)
 
     val encodedBytes = originalActionBody.encode()
 
     assertTrue(encodedBytes.length > 0, "Encoded bytes should not be empty")
 
-    val (actualData, actualParams) = ActionBody.decode(encodedBytes)
+    val (actualData, actualParams) = MapSerializer.decode(encodedBytes)
 
     assertArrayEquals(expectedData, actualData, "Decoded data bytes should match original data")
 
@@ -47,11 +47,11 @@ class ActionBodyTest {
     val expectedParams: Map[String, Any] = Map(
       "status" -> "ok"
     )
-    val originalActionBody = ActionBody(expectedData, expectedParams)
+    val originalActionBody = MapSerializer(expectedData, expectedParams)
 
     val encodedBytes = originalActionBody.encode()
 
-    val (actualData, actualParams) = ActionBody.decode(encodedBytes)
+    val (actualData, actualParams) = MapSerializer.decode(encodedBytes)
 
     assertArrayEquals(expectedData, actualData, "Decoded data bytes should be empty")
     assertEquals(expectedParams, actualParams, "Decoded map should match original map")
@@ -62,11 +62,11 @@ class ActionBodyTest {
     // 预期数据
     val expectedData = "data".getBytes(StandardCharsets.UTF_8)
     val expectedParams: Map[String, Any] = Map.empty
-    val originalActionBody = ActionBody(expectedData, expectedParams)
+    val originalActionBody = MapSerializer(expectedData, expectedParams)
 
     val encodedBytes = originalActionBody.encode()
 
-    val (actualData, actualParams) = ActionBody.decode(encodedBytes)
+    val (actualData, actualParams) = MapSerializer.decode(encodedBytes)
 
     assertArrayEquals(expectedData, actualData, "Decoded data bytes should match original data")
     assertEquals(expectedParams, actualParams, "Decoded map should be empty")

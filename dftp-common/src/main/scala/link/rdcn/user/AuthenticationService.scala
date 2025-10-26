@@ -7,9 +7,9 @@ package link.rdcn.user
  * @Modified By:
  */
 trait AuthenticationService {
+  def accepts(credentials: Credentials): Boolean
   /**
    * 用户认证，成功返回认证后的保持用户登录状态的凭证
-   *
    */
   def authenticate(credentials: Credentials): UserPrincipal
 }

@@ -2,7 +2,7 @@ package link.rdcn.client
 
 import link.rdcn.client.ClientUtils.convertStructTypeToArrowSchema
 import link.rdcn.operation._
-import link.rdcn.server.{ActionBody, BlobTicket, GetTicket}
+import link.rdcn.server.{MapSerializer, BlobTicket, GetTicket}
 import link.rdcn.struct._
 import link.rdcn.user.Credentials
 import link.rdcn.util.CodecUtils
@@ -29,19 +29,21 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
     flightClient.authenticate(new FlightClientAuthHandler(credentials))
   }
 
-  def doAction(actionName: String, params: Array[Byte] = Array.emptyByteArray, paramMap: Map[String, Any] = Map.empty): Array[Byte] = {
-    val body = ActionBody(params, paramMap).encode()
+  def doAction(actionName: String, paramMap: Map[String, Any] = Map.empty): Array[Byte] = {
+    val body = MapSerializer.encodeMap(paramMap)
     val actionResultIter = flightClient.doAction(new Action(actionName, body))
-    try{
+    try {
       actionResultIter.next().getBody
-    }catch {
+    } catch {
       case e: Exception => Array.empty
     }
   }
 
   def get(url: String): DataFrame = {
     val urlValidator = new UrlValidator(prefixSchema)
-    if (urlValidator.isPath(url)) RemoteDataFrameProxy(SourceOp(url), getRows) else {
+    if (urlValidator.isPath(url)) {
+      RemoteDataFrameProxy(SourceOp(url), getRows)
+    } else {
       urlValidator.validate(url) match {
         case Right((host, port, path)) => {
           if (host == this.host && port.getOrElse(3101) == this.port)
@@ -156,6 +158,7 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
     } else
       Location.forGrpcInsecure(host, port)
   }
+
   private val allocator: BufferAllocator = new RootAllocator()
   protected val flightClient: FlightClient = FlightClient.builder(allocator, location).build()
 
@@ -224,7 +227,6 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
 
 
 object DftpClient {
-
   def connect(url: String, credentials: Credentials = Credentials.ANONYMOUS): DftpClient = {
     UrlValidator.extractBase(url) match {
       case Some(parsed) =>

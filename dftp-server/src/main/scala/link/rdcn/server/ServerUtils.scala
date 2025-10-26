@@ -152,12 +152,12 @@ object ServerUtils {
 
       listener.onNext(new Result(ServerUtils.getBytesFromVectorSchemaRoot(root)))
       listener.onCompleted()
-
     } finally {
       root.close()
       allocator.close()
     }
   }
+
   def getBytesFromVectorSchemaRoot(root: VectorSchemaRoot): Array[Byte] = {
     val outputStream = new ByteArrayOutputStream()
     val writer = new ArrowStreamWriter(root, null, outputStream)

@@ -6,10 +6,9 @@
  */
 package link.rdcn.demo
 
-import link.rdcn.DftpConfig
 import link.rdcn.ClientTestBase.doListHostInfo
 import link.rdcn.ClientTestDemoProvider.{authProvider, dataProvider}
-import link.rdcn.server.{ActionRequest, ActionResponse, DftpMethodService, DftpServer, GetRequest, GetResponse, PutRequest, PutResponse}
+import link.rdcn.server.{ActionRequest, ActionResponse, DftpServer, DftpServerConfig, GetRequest, GetResponse, PutRequest, PutResponse}
 import link.rdcn.struct.{DataFrame, DataStreamSource, DefaultDataFrame}
 import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal}
 import link.rdcn.util.CodecUtils
@@ -21,7 +20,7 @@ object ServerDemo {
      * server配置
      * 至少给出host和port
      */
-    val dftpConfig = new DftpConfig() {
+    val dftpConfig = new DftpServerConfig() {
       override val rootLogLevel: String = "debug"
       override val consoleLogPattern: String = "%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"
       override val fileLogPattern: String = "%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"

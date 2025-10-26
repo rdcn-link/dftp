@@ -7,7 +7,7 @@ package link.rdcn
  * @Modified By:
  */
 import link.rdcn.ServerTestBase._
-import link.rdcn.server.{ActionRequest, ActionResponse, DftpMethodService, DftpServer, GetRequest, GetResponse, PutRequest, PutResponse}
+import link.rdcn.server.{ActionRequest, ActionResponse, DftpServer, GetRequest, GetResponse, PutRequest, PutResponse}
 import link.rdcn.struct.ValueType._
 import link.rdcn.struct.{BlobRegistry, DataFrame, DataStreamSource, DefaultDataFrame, StructType}
 import link.rdcn.user.{Credentials, UserPrincipal, UsernamePassword}
