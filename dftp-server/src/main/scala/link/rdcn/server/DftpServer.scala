@@ -152,7 +152,8 @@ class DftpServer(config: DftpServerConfig) extends Logging {
       case null => response.sendError(400, s"illegal ticket: $ticket")
 
       //get data frame by id
-      case x: DftpGetStreamRequest =>
+      case x: DftpGetPathStreamRequest =>
+        //FIXME: register data frame sources?
         val getResponse = new DftpGetResponse {
           override def sendError(code: Int, message: String): Unit = {
             response.sendError(code, message)
@@ -170,7 +171,7 @@ class DftpServer(config: DftpServerConfig) extends Logging {
 
         modules.doGet(x, getResponse)
 
-      case other => response.sendError(400, s"illegal ticket $other")
+      case x => modules.doGet(x, response)
     }
   }
 

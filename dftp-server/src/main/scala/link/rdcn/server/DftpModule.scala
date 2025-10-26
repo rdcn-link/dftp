@@ -24,6 +24,7 @@ trait Anchor {
   def hook(service: GetRequestParseService): Unit
   def hook(service: AuthenticationService): Unit
   def hook(service: ActionMethodService): Unit
+  //FIXME: register data sources? for reuse of getDocument()
   def hook(service: GetMethodService): Unit
   def hook(service: PutMethodService): Unit
   def hook(service: LogService): Unit
@@ -255,8 +256,6 @@ class DftpGetRequestParseService(serverContext: ServerContext) extends GetReques
           override def getBlobId(): String = ticketContent
 
           override def getUserPrincipal(): UserPrincipal = principal
-
-          override def getTransformOp(): TransformOp = null
         }
       }
 

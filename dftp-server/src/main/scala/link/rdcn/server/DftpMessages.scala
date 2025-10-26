@@ -19,13 +19,12 @@ trait DftpRequest {
 }
 
 trait DftpGetStreamRequest extends DftpRequest {
-  //FIXME
-  def getTransformOp(): TransformOp
 }
 
 trait DftpGetPathStreamRequest extends DftpGetStreamRequest {
   def getRequestPath(): String
   def getRequestURL(): String
+  def getTransformOp(): TransformOp
 }
 
 trait DacpGetBlobStreamRequest extends DftpGetStreamRequest {
