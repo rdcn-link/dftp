@@ -7,7 +7,6 @@ import link.rdcn.struct.DataFrame
 import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal}
 
 import java.nio.charset.StandardCharsets
-import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 /**
@@ -22,7 +21,7 @@ trait DftpModule {
 }
 
 trait Anchor {
-  def hook(service: GetRequestParseService): Unit
+  def hook(service: GetStreamRequestParseService): Unit
   def hook(service: AuthenticationService): Unit
   def hook(service: ActionMethodService): Unit
   def hook(service: GetMethodService): Unit
@@ -32,15 +31,15 @@ trait Anchor {
   def hook(service: EventSourceService): Unit
 }
 
-trait Event
+trait CrossModuleEvent
 
 trait EventHandleService {
-  def accepts(event: Event): Boolean
-  def doHandleEvent(event: Event): Unit
+  def accepts(event: CrossModuleEvent): Boolean
+  def doHandleEvent(event: CrossModuleEvent): Unit
 }
 
 trait EventSourceService {
-  def create(): Event
+  def create(): CrossModuleEvent
 }
 
 trait ActionMethodService {
@@ -48,7 +47,7 @@ trait ActionMethodService {
   def doAction(request: DftpActionRequest, response: DftpActionResponse): Unit
 }
 
-trait GetRequestParseService {
+trait GetStreamRequestParseService {
   def accepts(token: Array[Byte]): Boolean
   def parse(token: Array[Byte], principal: UserPrincipal): DftpGetStreamRequest
 }
@@ -60,16 +59,16 @@ trait LogService {
 
 trait GetMethodService {
   def accepts(request: DftpGetStreamRequest): Boolean
-  def doGet(request: DftpGetStreamRequest, response: DftpGetResponse): Unit
+  def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit
 }
 
 trait PutMethodService {
-  def accepts(request: DftpPutRequest): Boolean
-  def doPut(request: DftpPutRequest, response: DftpPutResponse): Unit
+  def accepts(request: DftpPutStreamRequest): Boolean
+  def doPutStream(request: DftpPutStreamRequest, response: DftpPutStreamResponse): Unit
 }
 
 class Modules(serverContext: ServerContext) extends Logging {
-  val modules = ArrayBuffer[DftpModule]()
+  private val modules = ArrayBuffer[DftpModule]()
 
   private val authMethod = new AuthenticationService {
     val services = ArrayBuffer[AuthenticationService]()
@@ -77,22 +76,22 @@ class Modules(serverContext: ServerContext) extends Logging {
     def add(service: AuthenticationService): Unit = services += service
 
     override def authenticate(credentials: Credentials): UserPrincipal = {
-      services.find(_.accepts(credentials)).map(_.authenticate(credentials)).find(_ != null).head
+      services.find(_.accepts(credentials)).map(_.authenticate(credentials)).find(_ != null).getOrElse(null)
     }
 
     override def accepts(credentials: Credentials): Boolean = services.exists(_.accepts(credentials))
   }
 
-  private val parseMethod = new GetRequestParseService {
-    val services = ArrayBuffer[GetRequestParseService](new DftpGetRequestParseService(serverContext))
+  private val parseMethod = new GetStreamRequestParseService {
+    val services = ArrayBuffer[GetStreamRequestParseService]()
 
     override def accepts(token: Array[Byte]): Boolean = services.exists(_.accepts(token))
 
     override def parse(token: Array[Byte], principal: UserPrincipal): DftpGetStreamRequest = {
-      services.find(_.accepts(token)).map(_.parse(token, principal)).find(_ != null).head
+      services.find(_.accepts(token)).map(_.parse(token, principal)).find(_ != null).getOrElse(null)
     }
 
-    def add(service: GetRequestParseService): Unit = services += service
+    def add(service: GetStreamRequestParseService): Unit = services += service
   }
 
   private val getMethod = new GetMethodService {
@@ -102,10 +101,10 @@ class Modules(serverContext: ServerContext) extends Logging {
 
     override def accepts(request: DftpGetStreamRequest): Boolean = services.exists(_.accepts(request))
 
-    override def doGet(request: DftpGetStreamRequest, response: DftpGetResponse): Unit = {
+    override def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
       services.filter(_.accepts(request)).find(x => {
         var bingo = false
-        val responseObserved = new DftpGetResponse {
+        val responseObserved = new DftpGetStreamResponse {
           override def sendDataFrame(data: DataFrame): Unit = {
             response.sendDataFrame(data)
             bingo = true
@@ -113,7 +112,8 @@ class Modules(serverContext: ServerContext) extends Logging {
 
           override def sendError(errorCode: Int, message: String): Unit = response.sendError(errorCode, message)
         }
-        x.doGet(request, responseObserved)
+
+        x.doGetStream(request, responseObserved)
         bingo
       })
     }
@@ -137,6 +137,7 @@ class Modules(serverContext: ServerContext) extends Logging {
 
           override def sendError(errorCode: Int, message: String): Unit = response.sendError(errorCode, message)
         }
+
         x.doAction(request, responseObserved)
         bingo
       })
@@ -148,12 +149,12 @@ class Modules(serverContext: ServerContext) extends Logging {
 
     def add(service: PutMethodService): Unit = services += service
 
-    override def accepts(request: DftpPutRequest): Boolean = services.exists(_.accepts(request))
+    override def accepts(request: DftpPutStreamRequest): Boolean = services.exists(_.accepts(request))
 
-    override def doPut(request: DftpPutRequest, response: DftpPutResponse): Unit = {
+    override def doPutStream(request: DftpPutStreamRequest, response: DftpPutStreamResponse): Unit = {
       services.filter(_.accepts(request)).find(x => {
         var bingo = false
-        val responseObserved = new DftpPutResponse {
+        val responseObserved = new DftpPutStreamResponse {
           override def sendData(data: Array[Byte]): Unit = {
             response.sendData(data)
             bingo = true
@@ -161,7 +162,8 @@ class Modules(serverContext: ServerContext) extends Logging {
 
           override def sendError(errorCode: Int, message: String): Unit = response.sendError(errorCode, message)
         }
-        x.doPut(request, responseObserved)
+
+        x.doPutStream(request, responseObserved)
         bingo
       })
     }
@@ -180,14 +182,15 @@ class Modules(serverContext: ServerContext) extends Logging {
     }
   }
 
-  def addModule(module: DftpModule) {
+  def addModule(module: DftpModule): Modules = {
     modules += module
+    this
   }
 
-  val eventHandlers = ArrayBuffer[EventHandleService]()
-  val eventSources = ArrayBuffer[EventSourceService]()
+  private val eventHandlers = ArrayBuffer[EventHandleService]()
+  private val eventSources = ArrayBuffer[EventSourceService]()
 
-  val anchor = new Anchor {
+  private val anchor = new Anchor {
 
     override def hook(service: AuthenticationService): Unit = {
       authMethod.add(service)
@@ -209,7 +212,7 @@ class Modules(serverContext: ServerContext) extends Logging {
       logMethod.add(service)
     }
 
-    override def hook(service: GetRequestParseService): Unit = {
+    override def hook(service: GetStreamRequestParseService): Unit = {
       parseMethod.add(service)
     }
 
@@ -222,7 +225,7 @@ class Modules(serverContext: ServerContext) extends Logging {
     }
   }
 
-  private def fireEvent(event: Event): Unit = {
+  private def fireEvent(event: CrossModuleEvent): Unit = {
     eventHandlers.filter(_.accepts(event)).foreach(_.doHandleEvent(event))
   }
 
@@ -232,6 +235,7 @@ class Modules(serverContext: ServerContext) extends Logging {
       logger.info(s"loaded module: $x")
     })
 
+    //publish events(CollectDataSourcesEvent, ...)
     eventSources.foreach(source => fireEvent(source.create()))
   }
 
@@ -245,12 +249,12 @@ class Modules(serverContext: ServerContext) extends Logging {
     parseMethod.parse(token, principal)
   }
 
-  def doGet(request: DftpGetStreamRequest, response: DftpGetResponse): Unit = {
-    getMethod.doGet(request, response)
+  def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
+    getMethod.doGetStream(request, response)
   }
 
-  def doPut(request: DftpPutRequest, response: DftpPutResponse): Unit = {
-    putMethod.doPut(request, response)
+  def doPutStream(request: DftpPutStreamRequest, response: DftpPutStreamResponse): Unit = {
+    putMethod.doPutStream(request, response)
   }
 
   def doAction(request: DftpActionRequest, response: DftpActionResponse): Unit = {
@@ -263,54 +267,4 @@ class Modules(serverContext: ServerContext) extends Logging {
 
   def authenticate(credentials: Credentials): UserPrincipal =
     authMethod.authenticate(credentials)
-}
-
-class DftpGetRequestParseService(serverContext: ServerContext) extends GetRequestParseService {
-  val BLOB_TICKET: Byte = 1
-  val URL_GET_TICKET: Byte = 2
-
-  override def accepts(token: Array[Byte]): Boolean = {
-    val typeId = token(0)
-    typeId == BLOB_TICKET || typeId == URL_GET_TICKET
-  }
-
-  override def parse(bytes: Array[Byte], principal: UserPrincipal): DftpGetStreamRequest = {
-    val buffer = java.nio.ByteBuffer.wrap(bytes)
-    val typeId: Byte = buffer.get()
-    val len = buffer.getInt()
-    val b = new Array[Byte](len)
-    buffer.get(b)
-    val ticketContent = new String(b, StandardCharsets.UTF_8)
-    typeId match {
-      case BLOB_TICKET => {
-        new DacpGetBlobStreamRequest {
-          override def getBlobId(): String = ticketContent
-
-          override def getUserPrincipal(): UserPrincipal = principal
-        }
-      }
-
-      case URL_GET_TICKET => {
-        val transformOp = TransformOp.fromJsonString(ticketContent)
-        val dataFrameUrl = transformOp.sourceUrlList.head
-        val urlValidator = UrlValidator(serverContext.getProtocolScheme)
-        val urlAndPath = urlValidator.validate(dataFrameUrl) match {
-          case Right(v) => (dataFrameUrl, v._3)
-          case Left(message) => (s"${serverContext.getProtocolScheme}://${serverContext.getHost}:${serverContext.getPort}${dataFrameUrl}", dataFrameUrl)
-        }
-
-        new DftpGetPathStreamRequest {
-          override def getRequestPath(): String = urlAndPath._2
-
-          override def getRequestURL(): String = urlAndPath._1
-
-          override def getUserPrincipal(): UserPrincipal = principal
-
-          override def getTransformOp(): TransformOp = transformOp
-        }
-      }
-
-      case _ => null
-    }
-  }
 }

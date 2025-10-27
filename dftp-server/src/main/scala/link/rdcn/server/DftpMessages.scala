@@ -39,7 +39,7 @@ trait DftpActionRequest extends DftpRequest {
   def getParameterAsMap(): Map[String, Any] = MapSerializer.decodeMap(getParameter())
 }
 
-trait DftpPutRequest extends DftpRequest {
+trait DftpPutStreamRequest extends DftpRequest {
   def getDataFrame(): DataFrame
 }
 
@@ -54,8 +54,8 @@ trait DftpPlainResponse extends DftpResponse {
 
 trait DftpActionResponse extends DftpPlainResponse
 
-trait DftpPutResponse extends DftpPlainResponse
+trait DftpPutStreamResponse extends DftpPlainResponse
 
-trait DftpGetResponse extends DftpResponse {
+trait DftpGetStreamResponse extends DftpResponse {
   def sendDataFrame(data: DataFrame)
 }

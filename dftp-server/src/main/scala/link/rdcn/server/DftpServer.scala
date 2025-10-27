@@ -4,6 +4,7 @@ import link.rdcn.Logging
 import link.rdcn.client.UrlValidator
 import link.rdcn.operation.{ExecutionContext, TransformOp}
 import link.rdcn.server.ServerUtils.convertStructTypeToArrowSchema
+import link.rdcn.server.module.BaseDftpModule
 import link.rdcn.struct._
 import link.rdcn.user.UserPrincipal
 import link.rdcn.util.{CodecUtils, DataUtils}
@@ -54,7 +55,7 @@ class DftpServer(config: DftpServerConfig) extends Logging {
     override def getProtocolScheme(): String = config.protocolScheme
   })
 
-  def addModule(module: DftpModule) = modules.addModule(module)
+  def addModule(module: DftpModule): Modules = modules.addModule(module)
 
   private val authenticatedUserMap = new ConcurrentHashMap[String, UserPrincipal]()
 
@@ -132,7 +133,7 @@ class DftpServer(config: DftpServerConfig) extends Logging {
 
   protected def getStreamByTicket(userPrincipal: UserPrincipal,
                                   ticket: Array[Byte],
-                                  response: DftpGetResponse): Unit = {
+                                  response: DftpGetStreamResponse): Unit = {
     modules.parseGetStreamRequest(ticket, userPrincipal) match {
       //get blob as data frame
       case x: DacpGetBlobStreamRequest =>
@@ -153,8 +154,7 @@ class DftpServer(config: DftpServerConfig) extends Logging {
 
       //get data frame by id
       case x: DftpGetPathStreamRequest =>
-        //FIXME: register data frame sources?
-        val getResponse = new DftpGetResponse {
+        val getResponse = new DftpGetStreamResponse {
           override def sendError(code: Int, message: String): Unit = {
             response.sendError(code, message)
           }
@@ -169,9 +169,9 @@ class DftpServer(config: DftpServerConfig) extends Logging {
           }
         }
 
-        modules.doGet(x, getResponse)
+        modules.doGetStream(x, getResponse)
 
-      case x => modules.doGet(x, response)
+      case x => modules.doGetStream(x, response)
     }
   }
 
@@ -257,7 +257,7 @@ class DftpServer(config: DftpServerConfig) extends Logging {
                            listener: FlightProducer.ServerStreamListener): Unit = {
 
       val dataBatchLen = 1000
-      val response = new DftpGetResponse {
+      val response = new DftpGetStreamResponse {
         override def sendError(code: Int, message: String): Unit = {
           sendErrorWithFlightStatus(code, message)
         }
@@ -307,7 +307,7 @@ class DftpServer(config: DftpServerConfig) extends Logging {
                           ): Runnable = {
       new Runnable {
         override def run(): Unit = {
-          val request = new DftpPutRequest {
+          val request = new DftpPutStreamRequest {
             override def getDataFrame(): DataFrame = {
               var schema = StructType.empty
               if (flightStream.next()) {
@@ -323,7 +323,7 @@ class DftpServer(config: DftpServerConfig) extends Logging {
             override def getUserPrincipal(): UserPrincipal = authenticatedUserMap.get(callContext.peerIdentity())
           }
 
-          val response = new DftpPutResponse {
+          val response = new DftpPutStreamResponse {
             override def sendError(code: Int, message: String): Unit = sendErrorWithFlightStatus(code, message)
 
             override def sendData(data: Array[Byte]): Unit =
@@ -343,7 +343,7 @@ class DftpServer(config: DftpServerConfig) extends Logging {
               }
           }
 
-          modules.doPut(request, response)
+          modules.doPutStream(request, response)
         }
       }
     }
