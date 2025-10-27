@@ -7,6 +7,7 @@ import link.rdcn.struct.DataFrame
 import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal}
 
 import java.nio.charset.StandardCharsets
+import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 /**
@@ -24,10 +25,18 @@ trait Anchor {
   def hook(service: GetRequestParseService): Unit
   def hook(service: AuthenticationService): Unit
   def hook(service: ActionMethodService): Unit
-  //FIXME: register data sources? for reuse of getDocument()
+  def hook(service: EventHandleService): Unit
   def hook(service: GetMethodService): Unit
   def hook(service: PutMethodService): Unit
   def hook(service: LogService): Unit
+  def fireEvent(event: Event): Unit
+}
+
+trait Event
+
+trait EventHandleService {
+  def accepts(event: Event): Boolean
+  def doHandleEvent(event: Event): Unit
 }
 
 trait ActionMethodService {
@@ -172,6 +181,8 @@ class Modules(serverContext: ServerContext) extends Logging {
   }
 
   val anchor = new Anchor {
+    val handlers = ArrayBuffer[EventHandleService]()
+
     override def hook(service: AuthenticationService): Unit = {
       authMethod.add(service)
     }
@@ -195,13 +206,41 @@ class Modules(serverContext: ServerContext) extends Logging {
     override def hook(service: GetRequestParseService): Unit = {
       parseMethod.add(service)
     }
+
+    override def hook(service: EventHandleService): Unit = {
+      handlers += service
+    }
+
+    val tasksAfterInitialize = ArrayBuffer[() => Unit]()
+
+    override def fireEvent(event: Event): Unit = {
+      val task = () => {
+        handlers.filter(_.accepts(event)).foreach(_.doHandleEvent(event))
+      }
+      if (initialized) {
+        task()
+      }
+      else {
+        //just wait for initialization completed
+        tasksAfterInitialize += task
+      }
+    }
+
+    def afterInitialize() = {
+      tasksAfterInitialize.foreach(_())
+    }
   }
+
+  var initialized = false
 
   def init(): Unit = {
     modules.foreach(x => {
       x.init(anchor, serverContext)
       logger.info(s"loaded module: $x")
     })
+
+    initialized = true
+    anchor.afterInitialize()
   }
 
   def destroy(): Unit = {
