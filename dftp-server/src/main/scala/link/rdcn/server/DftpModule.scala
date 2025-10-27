@@ -25,11 +25,11 @@ trait Anchor {
   def hook(service: GetRequestParseService): Unit
   def hook(service: AuthenticationService): Unit
   def hook(service: ActionMethodService): Unit
-  def hook(service: EventHandleService): Unit
   def hook(service: GetMethodService): Unit
   def hook(service: PutMethodService): Unit
   def hook(service: LogService): Unit
-  def fireEvent(event: Event): Unit
+  def hook(service: EventHandleService): Unit
+  def hook(service: EventSourceService): Unit
 }
 
 trait Event
@@ -37,6 +37,10 @@ trait Event
 trait EventHandleService {
   def accepts(event: Event): Boolean
   def doHandleEvent(event: Event): Unit
+}
+
+trait EventSourceService {
+  def create(): Event
 }
 
 trait ActionMethodService {
@@ -180,8 +184,10 @@ class Modules(serverContext: ServerContext) extends Logging {
     modules += module
   }
 
+  val eventHandlers = ArrayBuffer[EventHandleService]()
+  val eventSources = ArrayBuffer[EventSourceService]()
+
   val anchor = new Anchor {
-    val handlers = ArrayBuffer[EventHandleService]()
 
     override def hook(service: AuthenticationService): Unit = {
       authMethod.add(service)
@@ -208,30 +214,17 @@ class Modules(serverContext: ServerContext) extends Logging {
     }
 
     override def hook(service: EventHandleService): Unit = {
-      handlers += service
+      eventHandlers += service
     }
 
-    val tasksAfterInitialize = ArrayBuffer[() => Unit]()
-
-    override def fireEvent(event: Event): Unit = {
-      val task = () => {
-        handlers.filter(_.accepts(event)).foreach(_.doHandleEvent(event))
-      }
-      if (initialized) {
-        task()
-      }
-      else {
-        //just wait for initialization completed
-        tasksAfterInitialize += task
-      }
-    }
-
-    def afterInitialize() = {
-      tasksAfterInitialize.foreach(_())
+    override def hook(service: EventSourceService): Unit = {
+      eventSources += service
     }
   }
 
-  var initialized = false
+  private def fireEvent(event: Event): Unit = {
+    eventHandlers.filter(_.accepts(event)).foreach(_.doHandleEvent(event))
+  }
 
   def init(): Unit = {
     modules.foreach(x => {
@@ -239,8 +232,7 @@ class Modules(serverContext: ServerContext) extends Logging {
       logger.info(s"loaded module: $x")
     })
 
-    initialized = true
-    anchor.afterInitialize()
+    eventSources.foreach(source => fireEvent(source.create()))
   }
 
   def destroy(): Unit = {
