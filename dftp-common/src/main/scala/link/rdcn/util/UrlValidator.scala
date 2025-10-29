@@ -8,8 +8,6 @@ package link.rdcn.client
  */
 case class UrlValidator(protocolPrefix: String) {
   private val DftpUrlPattern = s"^${protocolPrefix}://([^:/]+)(?::(\\d+))?(/.*)?$$".r
-  // 路径规则：必须/开头，且后面至少有一个非/字符（或单独一个/）
-  private val pathPattern = "^/([^/].*)?$".r
 
   def validate(url: String): Either[String, (String, Option[Int], String)] = {
     url match {
@@ -60,13 +58,6 @@ case class UrlValidator(protocolPrefix: String) {
    */
   def isValid(url: String): Boolean = validate(url).isRight
 
-  def isPath(input: String): Boolean = {
-    input match {
-      case pathPattern() => true
-      case _ => false
-    }
-  }
-
   /**
    * Extracts just the path component from a DFTP URL
    */
@@ -77,6 +68,14 @@ case class UrlValidator(protocolPrefix: String) {
 
 object UrlValidator {
   private val UrlPattern = "^([a-zA-Z][a-zA-Z0-9]*)://([^:/]+)(?::(\\d+))?(/.*)?$".r
+  private val pathPattern = "^/([^/].*)?$".r
+
+  def isPath(input: String): Boolean = {
+    input match {
+      case pathPattern(_*)  => true
+      case _ => false
+    }
+  }
 
   def extractBase(url: String): Option[(String, String, Int)] = {
     url match {

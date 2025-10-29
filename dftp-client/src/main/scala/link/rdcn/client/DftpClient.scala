@@ -23,7 +23,6 @@ import scala.collection.mutable
  * @Modified By:
  */
 class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
-  val prefixSchema: String = "dftp"
 
   def login(credentials: Credentials): Unit = {
     flightClient.authenticate(new FlightClientAuthHandler(credentials))
@@ -40,12 +39,11 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
   }
 
   def get(url: String): DataFrame = {
-    val urlValidator = new UrlValidator(prefixSchema)
-    if (urlValidator.isPath(url)) {
+    if (UrlValidator.isPath(url)) {
       RemoteDataFrameProxy(SourceOp(url), getRows)
     } else {
-      urlValidator.validate(url) match {
-        case Right((host, port, path)) => {
+      UrlValidator.validate(url) match {
+        case Right((prefixSchema, host, port, path)) => {
           if (host == this.host && port.getOrElse(3101) == this.port)
             RemoteDataFrameProxy(SourceOp(url), getRows)
           else throw new IllegalArgumentException(s"Invalid request URL: $url  Expected format: $prefixSchema://${this.host}[:${this.port}]")
