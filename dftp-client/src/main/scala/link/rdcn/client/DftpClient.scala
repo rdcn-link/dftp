@@ -1,8 +1,8 @@
 package link.rdcn.client
 
 import link.rdcn.client.ClientUtils.convertStructTypeToArrowSchema
+import link.rdcn.message.{BlobTicket, GetTicket, MapSerializer}
 import link.rdcn.operation._
-import link.rdcn.server.{MapSerializer, BlobTicket, GetTicket}
 import link.rdcn.struct._
 import link.rdcn.user.Credentials
 import link.rdcn.util.CodecUtils

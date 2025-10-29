@@ -1,4 +1,4 @@
-package link.rdcn.server
+package link.rdcn.message
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule

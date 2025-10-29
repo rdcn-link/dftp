@@ -1,10 +1,8 @@
 package link.rdcn.server
 
 import link.rdcn.Logging
-import link.rdcn.client.UrlValidator
-import link.rdcn.operation.{ExecutionContext, TransformOp}
+
 import link.rdcn.server.ServerUtils.convertStructTypeToArrowSchema
-import link.rdcn.server.module.BaseDftpModule
 import link.rdcn.struct._
 import link.rdcn.user.UserPrincipal
 import link.rdcn.util.{CodecUtils, DataUtils}
@@ -36,11 +34,12 @@ trait ServerContext {
   def getHost(): String
   def getPort(): Int
   def getProtocolScheme(): String
+  def getDataSourcePath(): Option[String]
 }
 
 class DftpServer(config: DftpServerConfig) extends Logging {
 
-  val location = if (config.useTls) {
+  private val location = if (config.useTls) {
     Location.forGrpcTls(config.host, config.port)
   } else {
     Location.forGrpcInsecure(config.host, config.port)
@@ -53,6 +52,9 @@ class DftpServer(config: DftpServerConfig) extends Logging {
     override def getPort(): Int = config.port
 
     override def getProtocolScheme(): String = config.protocolScheme
+
+    override def getDataSourcePath(): Option[String] =
+      config.dftpHome.map(_ + File.separator + "data")
   })
 
   def addModule(module: DftpModule): Modules = modules.addModule(module)
@@ -63,6 +65,26 @@ class DftpServer(config: DftpServerConfig) extends Logging {
   @volatile private var flightServer: FlightServer = _
   @volatile private var serverThread: Thread = _
   @volatile private var started: Boolean = false
+
+  def startBlocking(): Unit = synchronized {
+    if (!started) {
+      buildServer()
+      try {
+        flightServer.start()
+        started = true
+
+        Runtime.getRuntime.addShutdownHook(new Thread(() => close()))
+
+        flightServer.awaitTermination()
+      } catch {
+        case e: Exception =>
+          e.printStackTrace()
+          throw e
+      } finally {
+        started = false
+      }
+    }
+  }
 
   def start(): Unit = synchronized {
     if (!started) {
@@ -129,50 +151,6 @@ class DftpServer(config: DftpServerConfig) extends Logging {
     }
 
     modules.init()
-  }
-
-  protected def getStreamByTicket(userPrincipal: UserPrincipal,
-                                  ticket: Array[Byte],
-                                  response: DftpGetStreamResponse): Unit = {
-    modules.parseGetStreamRequest(ticket, userPrincipal) match {
-      //get blob as data frame
-      case x: DacpGetBlobStreamRequest =>
-        val blobId = x.getBlobId()
-        val blob = BlobRegistry.getBlob(blobId)
-        if (blob.isEmpty) {
-          response.sendError(404, s"blob ${blobId} resource closed")
-        } else {
-          blob.get.offerStream(inputStream => {
-            val stream: Iterator[Row] = DataUtils.chunkedIterator(inputStream)
-              .map(bytes => Row.fromSeq(Seq(bytes)))
-            val schema = StructType.blobStreamStructType
-            response.sendDataFrame(DefaultDataFrame(schema, stream))
-          })
-        }
-
-      case null => response.sendError(400, s"illegal ticket: $ticket")
-
-      //get data frame by id
-      case x: DftpGetPathStreamRequest =>
-        val getResponse = new DftpGetStreamResponse {
-          override def sendError(code: Int, message: String): Unit = {
-            response.sendError(code, message)
-          }
-
-          override def sendDataFrame(data: DataFrame): Unit = {
-            val outDataFrame = x.getTransformOp().execute(new ExecutionContext {
-              override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] =
-                Some(data)
-            })
-
-            response.sendDataFrame(outDataFrame)
-          }
-        }
-
-        modules.doGetStream(x, getResponse)
-
-      case x => modules.doGetStream(x, response)
-    }
   }
 
   private class FlightServerAuthHandler extends ServerAuthHandler {
@@ -261,7 +239,6 @@ class DftpServer(config: DftpServerConfig) extends Logging {
         override def sendError(code: Int, message: String): Unit = {
           sendErrorWithFlightStatus(code, message)
         }
-
         override def sendDataFrame(dataFrame: DataFrame): Unit = {
           val schema = convertStructTypeToArrowSchema(dataFrame.schema)
           val childAllocator = allocator.newChildAllocator("flight-session", 0, Long.MaxValue)
@@ -297,7 +274,9 @@ class DftpServer(config: DftpServerConfig) extends Logging {
       }
 
       val authenticatedUser = authenticatedUserMap.get(callContext.peerIdentity())
-      getStreamByTicket(authenticatedUser, ticket.getBytes, response)
+      val request: DftpGetStreamRequest = modules.parseGetStreamRequest(ticket.getBytes, authenticatedUser)
+
+      modules.doGetStream(request, response)
     }
 
     override def acceptPut(

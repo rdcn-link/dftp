@@ -1,5 +1,6 @@
 package link.rdcn.server
 
+import link.rdcn.message.MapSerializer
 import link.rdcn.operation.TransformOp
 import link.rdcn.struct.DataFrame
 import link.rdcn.user.UserPrincipal

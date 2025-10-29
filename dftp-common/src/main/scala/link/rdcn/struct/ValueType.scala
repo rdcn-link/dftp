@@ -1,6 +1,6 @@
 package link.rdcn.struct
 
-import link.rdcn.struct.ValueType.RefType
+import link.rdcn.struct.ValueType.{NullType, RefType}
 
 /**
  * @Author renhao

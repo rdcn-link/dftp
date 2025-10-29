@@ -11,6 +11,7 @@ import java.security.{PrivateKey, PublicKey}
 case class DftpServerConfig(
                              host: String,
                              port: Int = 3101,
+                             dftpHome: Option[String] = None,
                              useTls: Boolean = false,
                              protocolScheme: String = "dftp",
                              tlsCertFile: Option[File] = None,
