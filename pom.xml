@@ -43,6 +43,12 @@
       <artifactId>flight-grpc</artifactId>
       <version>13.0.0</version>
     </dependency>
+      <!-- https://mvnrepository.com/artifact/org.apache.arrow/flight-core -->
+      <dependency>
+          <groupId>org.apache.arrow</groupId>
+          <artifactId>flight-core</artifactId>
+          <version>13.0.0</version>
+      </dependency>
     <dependency>
       <groupId>org.apache.arrow</groupId>
       <artifactId>flight-sql</artifactId>
@@ -238,6 +244,7 @@
       <id>sdc</id>
       <url>http://10.0.82.220:8081/repository/maven-releases</url>
     </repository>
+      
   </distributionManagement>
 
   <repositories>
@@ -246,5 +253,10 @@
       <name>Repository</name>
       <url>http://10.0.82.220:8081/repository/maven-public/</url>
     </repository>
+      <repository>
+          <id>central</id>
+          <name>Maven Central</name>
+          <url>https://repo.maven.apache.org/maven2</url>
+      </repository>
   </repositories>
 </project>

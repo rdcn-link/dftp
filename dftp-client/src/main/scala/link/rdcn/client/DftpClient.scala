@@ -14,7 +14,7 @@ import org.apache.arrow.memory.{BufferAllocator, RootAllocator}
 import org.apache.arrow.vector.{VectorLoader, VectorSchemaRoot}
 
 import java.io.{File, InputStream}
-import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.{ConcurrentHashMap, TimeUnit}
 import java.util.concurrent.locks.LockSupport
 import scala.collection.JavaConverters.asScalaBufferConverter
 import scala.collection.mutable
@@ -128,21 +128,24 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
                   val blobId = CodecUtils.decodeString(v.get(index))
                   val blobTicket = new Ticket(BlobTicket(blobId).encodeTicket())
                   val blob = new Blob {
-                    println(s"[${System.currentTimeMillis()}] DEBUG: Server A - Blob created. Connection 2 (to Server B) is now established but LAZY.")
-                    val iter = getStream(flightClient, blobTicket)._2
-                    val chunkIterator = iter.map(value => {
-                      value.head match {
-                        case v: Array[Byte] => v
-                        case other => throw new Exception(s"Blob parsing failed: expected Array[Byte], but got ${other}")
-                      }
-                    })
+
 
                     override def offerStream[T](consume: InputStream => T): T = {
+                      println(s"[${System.currentTimeMillis()}] DEBUG: Server A - Blob created. Connection 2 (to Server B) is now established but LAZY.")
+
+                      val iter = getStream(flightClient, blobTicket)._2
+                      val chunkIterator = iter.map(value => {
+                        value.head match {
+                          case v: Array[Byte] => v
+                          case other => throw new Exception(s"Blob parsing failed: expected Array[Byte], but got ${other}")
+                        }
+                      })
                       println(s"[${System.currentTimeMillis()}] DEBUG: Server A - Blob.offerStream CALLED. Attempting to pull data from Connection 2 NOW.")
                       val stream = new IteratorInputStream(chunkIterator)
                       try consume(stream)
                       finally {
                         stream.close()
+//                        upstreamClient.close()
                       }
                     }
                   }
@@ -165,8 +168,8 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
       Location.forGrpcInsecure(host, port)
   }
   private val allocator: BufferAllocator = SharedFlightClient.getAllocator()
-//  private val channel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().asInstanceOf[ManagedChannelBuilder[_]].build()
-  protected val flightClient: FlightClient = SharedFlightClient.get(host, port)
+
+  protected val flightClient: FlightClient = FlightClient.builder(allocator,location).build()
 
   private class FlightClientAuthHandler(credentials: Credentials) extends ClientAuthHandler {
 

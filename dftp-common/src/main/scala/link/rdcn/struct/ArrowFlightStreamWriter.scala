@@ -42,7 +42,7 @@ case class ArrowFlightStreamWriter(stream: Iterator[Row]) {
             val bytes = v.url.getBytes("UTF-8")
             vec.asInstanceOf[VarCharVector].setSafe(i, bytes)
           case v: Blob =>
-            val transferId = BlobTransferRegistry.startTransfer(v)
+            val transferId = BlobRegistry.register(v)
             val bytes = CodecUtils.encodeString(transferId)
             vec.asInstanceOf[VarBinaryVector].setSafe(i, bytes)
           case _ => throw new UnsupportedOperationException("Type not supported")
