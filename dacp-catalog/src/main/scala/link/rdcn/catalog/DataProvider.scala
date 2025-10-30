@@ -16,7 +16,7 @@ import java.util.{List => JList}
  * @Data 2025/7/9 17:14
  * @Modified By:
  */
-trait DataProvider extends BaseDftpDataSource{
+trait DataProvider {
 
   /**
    * 列出所有数据集名称

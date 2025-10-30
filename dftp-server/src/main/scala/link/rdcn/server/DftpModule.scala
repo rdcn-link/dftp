@@ -1,9 +1,7 @@
 package link.rdcn.server
 
 import link.rdcn.Logging
-import link.rdcn.server.module.KernelModule
-import link.rdcn.struct.DataFrame
-import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal}
+import link.rdcn.user.UserPrincipal
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -39,27 +37,27 @@ trait EventSource {
   def init(eventHub: EventHub): Unit
 }
 
-trait ActionMethodService {
+trait ActionHandler {
   def accepts(request: DftpActionRequest): Boolean
   def doAction(request: DftpActionRequest, response: DftpActionResponse): Unit
 }
 
-trait GetStreamRequestParseService {
+trait GetStreamRequestParser {
   def accepts(token: Array[Byte]): Boolean
   def parse(token: Array[Byte], principal: UserPrincipal): DftpGetStreamRequest
 }
 
-trait LogService {
+trait AccessLogger {
   def accepts(request: DftpRequest): Boolean
   def doLog(request: DftpRequest, response: DftpResponse): Unit
 }
 
-trait GetMethodService {
+trait GetStreamHandler {
   def accepts(request: DftpGetStreamRequest): Boolean
   def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit
 }
 
-trait PutMethodService {
+trait PutStreamHandler {
   def accepts(request: DftpPutStreamRequest): Boolean
   def doPutStream(request: DftpPutStreamRequest, response: DftpPutStreamResponse): Unit
 }

@@ -22,12 +22,12 @@ class DirectoryDataSourceModule extends DftpModule {
   override def init(anchor: Anchor, serverContext: ServerContext): Unit =
     anchor.hook(new EventHandler {
       override def accepts(event: CrossModuleEvent): Boolean =
-        event.isInstanceOf[RequireGetStreamHandler]
+        event.isInstanceOf[RequiresGetStreamHandler]
 
       override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
-          case require: RequireGetStreamHandler =>
-            require.add(new GetMethodService() {
+          case require: RequiresGetStreamHandler =>
+            require.add(new GetStreamHandler() {
 
               override def accepts(request: DftpGetStreamRequest): Boolean = ???
 

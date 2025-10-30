@@ -1,51 +1,51 @@
 package link.rdcn.server.module
 
-import link.rdcn.server.{ActionMethodService, Anchor, CrossModuleEvent, DftpActionRequest, DftpActionResponse, DftpGetStreamRequest, DftpGetStreamResponse, DftpModule, DftpPutStreamRequest, DftpPutStreamResponse, DftpRequest, DftpResponse, EventHub, EventSource, GetMethodService, GetStreamRequestParseService, LogService, PutMethodService, ServerContext}
+import link.rdcn.server.{ActionHandler, Anchor, CrossModuleEvent, DftpActionRequest, DftpActionResponse, DftpGetStreamRequest, DftpGetStreamResponse, DftpModule, DftpPutStreamRequest, DftpPutStreamResponse, DftpRequest, DftpResponse, EventHub, EventSource, GetStreamHandler, GetStreamRequestParser, AccessLogger, PutStreamHandler, ServerContext}
 import link.rdcn.struct.DataFrame
 import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal}
 
 import scala.collection.mutable.ArrayBuffer
 
 class KernelModule extends DftpModule {
-  private val authMethod = new CompositeAuthenticationService
-  private val parseMethod = new CompositeGetStreamRequestParseService
-  private val getMethod = new CompositeGetMethodService
-  private val actionMethod = new CompositeActionMethodService
-  private val putMethod = new CompositePutMethodService
-  private val logMethod = new CompositeLogService
+  private val authStub = new CompositeAuthenticator
+  private val parseStub = new CompositeGetStreamRequestParser
+  private val getStub = new CompositeGetStreamHandler
+  private val actionStub = new CompositeActionHandler
+  private val putStub = new CompositePutStreamHandler
+  private val logStub = new CompositeAccessLogger
 
   def parseGetStreamRequest(token: Array[Byte], principal: UserPrincipal): DftpGetStreamRequest = {
-    parseMethod.parse(token, principal)
+    parseStub.parse(token, principal)
   }
 
-  def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
-    getMethod.doGetStream(request, response)
+  def getStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
+    getStub.doGetStream(request, response)
   }
 
-  def doPutStream(request: DftpPutStreamRequest, response: DftpPutStreamResponse): Unit = {
-    putMethod.doPutStream(request, response)
+  def putStream(request: DftpPutStreamRequest, response: DftpPutStreamResponse): Unit = {
+    putStub.doPutStream(request, response)
   }
 
   def doAction(request: DftpActionRequest, response: DftpActionResponse): Unit = {
-    actionMethod.doAction(request, response)
+    actionStub.doAction(request, response)
   }
 
-  def doLog(request: DftpRequest, response: DftpResponse): Unit = {
-    logMethod.doLog(request, response)
+  def logAccess(request: DftpRequest, response: DftpResponse): Unit = {
+    logStub.doLog(request, response)
   }
 
   def authenticate(credentials: Credentials): UserPrincipal =
-    authMethod.authenticate(credentials)
+    authStub.authenticate(credentials)
 
   override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
     anchor.hook(new EventSource {
       override def init(eventHub: EventHub): Unit = {
-        eventHub.fireEvent(new RequireAuthennticator(authMethod))
-        eventHub.fireEvent(new RequireAccessLogger(logMethod))
-        eventHub.fireEvent(new RequireGetMethodParser(parseMethod))
-        eventHub.fireEvent(new RequireActionHandler(actionMethod))
-        eventHub.fireEvent(new RequirePutStreamHandler(putMethod))
-        eventHub.fireEvent(new RequireGetStreamHandler(getMethod))
+        eventHub.fireEvent(new RequiresAuthennticator(authStub))
+        eventHub.fireEvent(new RequiresAccessLogger(logStub))
+        eventHub.fireEvent(new RequiresGetStreamRequestParser(parseStub))
+        eventHub.fireEvent(new RequiresActionHandler(actionStub))
+        eventHub.fireEvent(new RequirePutStreamHandler(putStub))
+        eventHub.fireEvent(new RequiresGetStreamHandler(getStub))
       }
     })
   }
@@ -54,31 +54,31 @@ class KernelModule extends DftpModule {
   }
 }
 
-class RequireAuthennticator(composite: CompositeAuthenticationService) extends CrossModuleEvent {
+class RequiresAuthennticator(composite: CompositeAuthenticator) extends CrossModuleEvent {
   def add(service: AuthenticationService) = composite.add(service)
 }
 
-class RequireAccessLogger(composite: CompositeLogService) extends CrossModuleEvent {
-  def add(service: LogService) = composite.add(service)
+class RequiresAccessLogger(composite: CompositeAccessLogger) extends CrossModuleEvent {
+  def add(service: AccessLogger) = composite.add(service)
 }
 
-class RequireGetMethodParser(composite: CompositeGetStreamRequestParseService) extends CrossModuleEvent {
-  def add(service: GetStreamRequestParseService) = composite.add(service)
+class RequiresGetStreamRequestParser(composite: CompositeGetStreamRequestParser) extends CrossModuleEvent {
+  def add(service: GetStreamRequestParser) = composite.add(service)
 }
 
-class RequireActionHandler(composite: CompositeActionMethodService) extends CrossModuleEvent {
-  def add(service: ActionMethodService) = composite.add(service)
+class RequiresActionHandler(composite: CompositeActionHandler) extends CrossModuleEvent {
+  def add(service: ActionHandler) = composite.add(service)
 }
 
-class RequirePutStreamHandler(composite: CompositePutMethodService) extends CrossModuleEvent {
-  def add(service: PutMethodService) = composite.add(service)
+class RequirePutStreamHandler(composite: CompositePutStreamHandler) extends CrossModuleEvent {
+  def add(service: PutStreamHandler) = composite.add(service)
 }
 
-class RequireGetStreamHandler(compositeGetMethodService: CompositeGetMethodService) extends CrossModuleEvent {
-  def add(service: GetMethodService) = compositeGetMethodService.add(service)
+class RequiresGetStreamHandler(compositeGetMethodService: CompositeGetStreamHandler) extends CrossModuleEvent {
+  def add(service: GetStreamHandler) = compositeGetMethodService.add(service)
 }
 
-class CompositeAuthenticationService extends AuthenticationService {
+class CompositeAuthenticator extends AuthenticationService {
   val services = ArrayBuffer[AuthenticationService]()
 
   def add(service: AuthenticationService): Unit = services += service
@@ -90,8 +90,8 @@ class CompositeAuthenticationService extends AuthenticationService {
   override def accepts(credentials: Credentials): Boolean = services.exists(_.accepts(credentials))
 }
 
-class CompositeGetStreamRequestParseService extends GetStreamRequestParseService {
-  val services = ArrayBuffer[GetStreamRequestParseService]()
+class CompositeGetStreamRequestParser extends GetStreamRequestParser {
+  val services = ArrayBuffer[GetStreamRequestParser]()
 
   override def accepts(token: Array[Byte]): Boolean = services.exists(_.accepts(token))
 
@@ -99,13 +99,13 @@ class CompositeGetStreamRequestParseService extends GetStreamRequestParseService
     services.find(_.accepts(token)).map(_.parse(token, principal)).find(_ != null).getOrElse(null)
   }
 
-  def add(service: GetStreamRequestParseService): Unit = services += service
+  def add(service: GetStreamRequestParser): Unit = services += service
 }
 
-class CompositeGetMethodService extends GetMethodService {
-  val services = ArrayBuffer[GetMethodService]()
+class CompositeGetStreamHandler extends GetStreamHandler {
+  val services = ArrayBuffer[GetStreamHandler]()
 
-  def add(service: GetMethodService): Unit = services += service
+  def add(service: GetStreamHandler): Unit = services += service
 
   override def accepts(request: DftpGetStreamRequest): Boolean = services.exists(_.accepts(request))
 
@@ -127,10 +127,10 @@ class CompositeGetMethodService extends GetMethodService {
   }
 }
 
-class CompositeActionMethodService extends ActionMethodService {
-  val services = ArrayBuffer[ActionMethodService]()
+class CompositeActionHandler extends ActionHandler {
+  val services = ArrayBuffer[ActionHandler]()
 
-  def add(service: ActionMethodService): Unit = services += service
+  def add(service: ActionHandler): Unit = services += service
 
   override def accepts(request: DftpActionRequest): Boolean = services.exists(_.accepts(request))
 
@@ -152,10 +152,10 @@ class CompositeActionMethodService extends ActionMethodService {
   }
 }
 
-class CompositePutMethodService extends PutMethodService {
-  val services = ArrayBuffer[PutMethodService]()
+class CompositePutStreamHandler extends PutStreamHandler {
+  val services = ArrayBuffer[PutStreamHandler]()
 
-  def add(service: PutMethodService): Unit = services += service
+  def add(service: PutStreamHandler): Unit = services += service
 
   override def accepts(request: DftpPutStreamRequest): Boolean = services.exists(_.accepts(request))
 
@@ -177,10 +177,10 @@ class CompositePutMethodService extends PutMethodService {
   }
 }
 
-class CompositeLogService extends LogService {
-  val services = ArrayBuffer[LogService]()
+class CompositeAccessLogger extends AccessLogger {
+  val services = ArrayBuffer[AccessLogger]()
 
-  def add(service: LogService): Unit = services += service
+  def add(service: AccessLogger): Unit = services += service
 
   override def accepts(request: DftpRequest): Boolean = services.exists(_.accepts(request))
 

@@ -13,12 +13,12 @@ class BaseDftpModule extends DftpModule {
     //by default parsing BLOB_TICKET & URL_GET_TICKET
     anchor.hook(new EventHandler {
       override def accepts(event: CrossModuleEvent): Boolean =
-        event.isInstanceOf[RequireGetMethodParser]
+        event.isInstanceOf[RequiresGetStreamRequestParser]
 
       override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
-          case require: RequireGetMethodParser =>
-            require.add(new GetStreamRequestParseService {
+          case require: RequiresGetStreamRequestParser =>
+            require.add(new GetStreamRequestParser {
               val BLOB_TICKET: Byte = 1
               val URL_GET_TICKET: Byte = 2
 

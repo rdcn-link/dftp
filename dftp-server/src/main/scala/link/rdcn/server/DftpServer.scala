@@ -278,7 +278,7 @@ class DftpServer(config: DftpServerConfig) extends Logging {
       val authenticatedUser = authenticatedUserMap.get(callContext.peerIdentity())
       val request: DftpGetStreamRequest = kernel.parseGetStreamRequest(ticket.getBytes, authenticatedUser)
 
-      kernel.doGetStream(request, response)
+      kernel.getStream(request, response)
     }
 
     override def acceptPut(
@@ -324,7 +324,7 @@ class DftpServer(config: DftpServerConfig) extends Logging {
               }
           }
 
-          kernel.doPutStream(request, response)
+          kernel.putStream(request, response)
         }
       }
     }

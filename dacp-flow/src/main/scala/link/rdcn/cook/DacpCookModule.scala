@@ -4,7 +4,7 @@ import link.rdcn.Logging
 import link.rdcn.operation.TransformOp
 import link.rdcn.optree.{FlowExecutionContext, OperatorRepository, RepositoryClient, TransformTree}
 import link.rdcn.server.module.BaseDftpDataSource
-import link.rdcn.server.{Anchor, CrossModuleEvent, DftpGetStreamRequest, DftpGetStreamResponse, DftpModule, EventHandleService, GetMethodService, GetStreamRequestParseService, ServerContext}
+import link.rdcn.server.{Anchor, CrossModuleEvent, DftpGetStreamRequest, DftpGetStreamResponse, DftpModule, EventHandleService, GetStreamHandler, GetStreamRequestParser, ServerContext}
 import link.rdcn.struct.DataFrame
 import link.rdcn.user.{Credentials, UserPrincipal}
 
@@ -36,7 +36,7 @@ class DacpCookModule extends DftpModule with Logging{
       dataSource = event.asInstanceOf[BaseDftpDataSource]
   }
 
-  private val getStreamRequestParseService = new GetStreamRequestParseService {
+  private val getStreamRequestParseService = new GetStreamRequestParser {
     val COOK_TICKET: Byte = 3
 
     override def accepts(token: Array[Byte]): Boolean = {
@@ -64,7 +64,7 @@ class DacpCookModule extends DftpModule with Logging{
     }
   }
 
-  private val getMethodService: GetMethodService = new GetMethodService {
+  private val getMethodService: GetStreamHandler = new GetStreamHandler {
 
     override def accepts(request: DftpGetStreamRequest): Boolean = {
       request match {

@@ -1,6 +1,6 @@
 package link.rdcn.server
 
-import link.rdcn.server.module.{BaseDftpModule, DirectoryDataSourceModule, RequireAuthennticator}
+import link.rdcn.server.module.{BaseDftpModule, DirectoryDataSourceModule, RequiresAuthennticator}
 import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials}
 
 import java.io.{File, FileInputStream, InputStreamReader}
@@ -25,11 +25,11 @@ class AuthModule extends DftpModule {
   override def init(anchor: Anchor, serverContext: ServerContext): Unit =
     anchor.hook(new EventHandler {
       override def accepts(event: CrossModuleEvent): Boolean =
-        event.isInstanceOf[RequireAuthennticator]
+        event.isInstanceOf[RequiresAuthennticator]
 
       override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
-          case require: RequireAuthennticator =>
+          case require: RequiresAuthennticator =>
             require.add(authenticationService)
         }
       }

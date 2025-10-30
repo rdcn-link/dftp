@@ -32,7 +32,7 @@ class DacpCatalogModule extends DftpModule {
       dataProvider = event.asInstanceOf[DataProvider]
   }
 
-  private val actionMethodService = new ActionMethodService {
+  private val actionMethodService = new ActionHandler {
 
     override def accepts(request: DftpActionRequest): Boolean = true
 
@@ -121,10 +121,17 @@ class DacpCatalogModule extends DftpModule {
 
     this.serverContext = serverContext
 
-    anchor.hook(eventHandleService)
-    anchor.hook(actionMethodService)
+    anchor.hook(new EventSource {
+      override def init(eventHub: EventHub): Unit = {
+        eventHub.fireEvent(new RequiresDataSource)
+      }
+    })
   }
 
   override def destroy(): Unit = {
   }
+}
+
+class RequiresDataSource extends CrossModuleEvent {
+  //val allDataSources
 }
