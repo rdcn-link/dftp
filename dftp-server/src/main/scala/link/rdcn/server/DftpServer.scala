@@ -1,8 +1,8 @@
 package link.rdcn.server
 
 import link.rdcn.Logging
-
 import link.rdcn.server.ServerUtils.convertStructTypeToArrowSchema
+import link.rdcn.server.module.KernelModule
 import link.rdcn.struct._
 import link.rdcn.user.UserPrincipal
 import link.rdcn.util.{CodecUtils, DataUtils}
@@ -45,7 +45,8 @@ class DftpServer(config: DftpServerConfig) extends Logging {
     Location.forGrpcInsecure(config.host, config.port)
   }
 
-  val modules = new Modules(new ServerContext() {
+  private val kernel = new KernelModule()
+  private val modules = new Modules(new ServerContext() {
 
     override def getHost(): String = config.host
 
@@ -149,6 +150,7 @@ class DftpServer(config: DftpServerConfig) extends Logging {
         .build()
     }
 
+    modules.addModule(kernel)
     modules.init()
   }
 
@@ -156,7 +158,7 @@ class DftpServer(config: DftpServerConfig) extends Logging {
     override def authenticate(serverAuthSender: ServerAuthHandler.ServerAuthSender, iterator: util.Iterator[Array[Byte]]): Boolean = {
       try {
         val cred = CodecUtils.decodeCredentials(iterator.next())
-        val authenticatedUser = modules.authenticate(cred)
+        val authenticatedUser = kernel.authenticate(cred)
         val token = UUID.randomUUID().toString()
         authenticatedUserMap.put(token, authenticatedUser)
         serverAuthSender.send(CodecUtils.encodeString(token))
@@ -198,7 +200,7 @@ class DftpServer(config: DftpServerConfig) extends Logging {
           authenticatedUserMap.get(callContext.peerIdentity())
       }
 
-      modules.doAction(actionRequest, actionResponse)
+      kernel.doAction(actionRequest, actionResponse)
     }
 
     /**
@@ -238,6 +240,7 @@ class DftpServer(config: DftpServerConfig) extends Logging {
         override def sendError(code: Int, message: String): Unit = {
           sendErrorWithFlightStatus(code, message)
         }
+
         override def sendDataFrame(dataFrame: DataFrame): Unit = {
           val schema = convertStructTypeToArrowSchema(dataFrame.schema)
           val childAllocator = allocator.newChildAllocator("flight-session", 0, Long.MaxValue)
@@ -273,9 +276,9 @@ class DftpServer(config: DftpServerConfig) extends Logging {
       }
 
       val authenticatedUser = authenticatedUserMap.get(callContext.peerIdentity())
-      val request: DftpGetStreamRequest = modules.parseGetStreamRequest(ticket.getBytes, authenticatedUser)
+      val request: DftpGetStreamRequest = kernel.parseGetStreamRequest(ticket.getBytes, authenticatedUser)
 
-      modules.doGetStream(request, response)
+      kernel.doGetStream(request, response)
     }
 
     override def acceptPut(
@@ -321,7 +324,7 @@ class DftpServer(config: DftpServerConfig) extends Logging {
               }
           }
 
-          modules.doPutStream(request, response)
+          kernel.doPutStream(request, response)
         }
       }
     }

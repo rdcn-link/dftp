@@ -1,6 +1,6 @@
 package link.rdcn.server
 
-import link.rdcn.server.module.{BaseDftpModule, DirectoryDataSourceModule}
+import link.rdcn.server.module.{BaseDftpModule, DirectoryDataSourceModule, RequireAuthennticator}
 import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials}
 
 import java.io.{File, FileInputStream, InputStreamReader}
@@ -13,7 +13,7 @@ import java.util.Properties
  * @Modified By:
  */
 
-class AuthModule extends DftpModule{
+class AuthModule extends DftpModule {
 
   private val authenticationService = new AuthenticationService {
     override def accepts(credentials: Credentials): Boolean = true
@@ -23,7 +23,17 @@ class AuthModule extends DftpModule{
   }
 
   override def init(anchor: Anchor, serverContext: ServerContext): Unit =
-    anchor.hook(authenticationService)
+    anchor.hook(new EventHandler {
+      override def accepts(event: CrossModuleEvent): Boolean =
+        event.isInstanceOf[RequireAuthennticator]
+
+      override def doHandleEvent(event: CrossModuleEvent): Unit = {
+        event match {
+          case require: RequireAuthennticator =>
+            require.add(authenticationService)
+        }
+      }
+    })
 
   override def destroy(): Unit = {}
 }
@@ -42,6 +52,7 @@ object DftpServerStart {
       .addModule(new DirectoryDataSourceModule)
     server.startBlocking()
   }
+
   private def loadProperties(path: String): Properties = {
     val props = new Properties()
     val fis = new InputStreamReader(new FileInputStream(path), "UTF-8")

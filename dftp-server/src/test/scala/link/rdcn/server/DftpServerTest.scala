@@ -1,7 +1,7 @@
 package link.rdcn.server
 
 import link.rdcn.client.DftpClient
-import link.rdcn.server.module.{BaseDftpDataSource, BaseDftpModule, DirectoryDataSourceModule}
+import link.rdcn.server.module.{BaseDftpDataSource, BaseDftpModule}
 import link.rdcn.struct.ValueType.StringType
 import link.rdcn.struct.{DataFrame, DefaultDataFrame, Row, StructType, ValueType}
 import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials}
