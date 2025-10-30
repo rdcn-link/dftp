@@ -4,7 +4,7 @@
     <parent>
         <groupId>link.rdcn</groupId>
         <artifactId>dftp</artifactId>
-        <version>0.5.0-20250928</version>
+        <version>0.5.0-20251028</version>
     </parent>
 
     <artifactId>dftp-server</artifactId>
@@ -25,9 +25,20 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+        <groupId>link.rdcn</groupId>
+        <artifactId>dftp-common</artifactId>
+        <version>0.5.0-20251028</version>
+    </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+            <version>5.3.13</version>
+        </dependency>
+        <dependency>
             <groupId>link.rdcn</groupId>
-            <artifactId>dftp-common</artifactId>
-            <version>0.5.0-20250928</version>
+            <artifactId>dftp-client</artifactId>
+            <version>0.5.0-20251028</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
     <build>

@@ -42,8 +42,6 @@ case class DefaultDataFrame(
     DefaultDataFrame(schema, ClosableIterator(stream.take(n))(stream.close()))
   }
 
-  override def reduce(f: ((Row, Row)) => Row): DataFrame = ???
-
   override def foreach(f: Row => Unit): Unit = ResourceUtils.using(stream) { iter => iter.foreach(f(_)) }
 
   override def collect(): List[Row] = ResourceUtils.using(stream) {

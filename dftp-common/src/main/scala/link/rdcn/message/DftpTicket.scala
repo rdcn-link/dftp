@@ -1,4 +1,4 @@
-package link.rdcn.server
+package link.rdcn.message
 
 import java.nio.charset.StandardCharsets
 

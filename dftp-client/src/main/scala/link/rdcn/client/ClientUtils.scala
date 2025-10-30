@@ -20,7 +20,6 @@ import scala.collection.JavaConverters.{asJavaIterableConverter, asScalaBufferCo
  * @Modified By:
  */
 object ClientUtils {
-
   def arrowSchemaToStructType(schema: org.apache.arrow.vector.types.pojo.Schema): StructType = {
     val columns = schema.getFields.asScala.map { field =>
       val colType = field.getType match {

@@ -24,8 +24,6 @@ trait DataFrame {
 
   def limit(n: Int): DataFrame
 
-  def reduce(f: ((Row, Row)) => Row): DataFrame
-
   def foreach(f: Row => Unit): Unit
 
   def collect(): List[Row]

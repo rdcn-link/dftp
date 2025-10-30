@@ -1,8 +1,9 @@
 package link.rdcn.util
 
 import link.rdcn.Logging
-import link.rdcn.struct.ValueType.{BinaryType, BlobType, BooleanType, DoubleType, FloatType, IntType, LongType, NullType, StringType}
-import link.rdcn.struct.{Blob, ClosableIterator, Column, DefaultDataFrame, Row, StructType, ValueType}
+import link.rdcn.struct.ValueType.{BinaryType, BlobType, BooleanType, DoubleType, FloatType, IntType, LongType, NullType, RefType, StringType}
+import link.rdcn.struct.{Blob, ClosableIterator, Column, DFRef, DefaultDataFrame, Row, StructType, ValueType}
+import org.apache.poi.hssf.usermodel.HSSFWorkbook
 import org.apache.poi.ss.usermodel.{Cell, CellType, DateUtil}
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.json.JSONObject
@@ -65,7 +66,6 @@ object DataUtils extends Logging{
   def listFilesWithAttributes(directoryFile: File): Seq[(File, BasicFileAttributes)] = {
     if (directoryFile.exists() && directoryFile.isDirectory) {
       directoryFile.listFiles()
-        .filter(_.isFile)
         .toSeq
         .flatMap { file =>
           val path = file.toPath
@@ -190,6 +190,7 @@ object DataUtils extends Logging{
     case _: Array[Byte] => BinaryType
     case _: java.io.File => BinaryType
     case _: Blob => BlobType
+    case _: DFRef => RefType
     case _ => StringType
   }
 
@@ -213,7 +214,13 @@ object DataUtils extends Logging{
 
   /** 按 schema 读取所有数据为 Iterator[List[Any]] */
   def readExcelRows(path: String, schema: StructType): Iterator[List[Any]] = {
-    val workbook = new XSSFWorkbook(new FileInputStream(path))
+    val workbook = if (path.toLowerCase().endsWith(".xlsx")) {
+       new XSSFWorkbook(new FileInputStream(path)); // .xlsx 文件
+    } else if (path.toLowerCase().endsWith(".xls")) {
+       new HSSFWorkbook(new FileInputStream(path)); // .xls 文件
+    } else {
+      throw new IllegalArgumentException("不支持的文件格式");
+    }
     val sheet = workbook.getSheetAt(0)
     val rowIter = sheet.iterator().asScala
 

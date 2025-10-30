@@ -3,8 +3,8 @@ package link.rdcn.client
 
 import io.grpc.{ManagedChannel, ManagedChannelBuilder}
 import link.rdcn.client.ClientUtils.convertStructTypeToArrowSchema
+import link.rdcn.message.{BlobTicket, GetTicket, MapSerializer}
 import link.rdcn.operation._
-import link.rdcn.server.{ActionBody, BlobTicket, GetTicket}
 import link.rdcn.struct._
 import link.rdcn.user.Credentials
 import link.rdcn.util.CodecUtils
@@ -26,27 +26,27 @@ import scala.collection.mutable
  * @Modified By:
  */
 class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
-  val prefixSchema: String = "dftp"
 
   def login(credentials: Credentials): Unit = {
     flightClient.authenticate(new FlightClientAuthHandler(credentials))
   }
 
-  def doAction(actionName: String, params: Array[Byte] = Array.emptyByteArray, paramMap: Map[String, Any] = Map.empty): Array[Byte] = {
-    val body = ActionBody(params, paramMap).encode()
+  def doAction(actionName: String, paramMap: Map[String, Any] = Map.empty): Array[Byte] = {
+    val body = MapSerializer.encodeMap(paramMap)
     val actionResultIter = flightClient.doAction(new Action(actionName, body))
-    try{
+    try {
       actionResultIter.next().getBody
-    }catch {
+    } catch {
       case e: Exception => Array.empty
     }
   }
 
   def get(url: String): DataFrame = {
-    val urlValidator = new UrlValidator(prefixSchema)
-    if (urlValidator.isPath(url)) RemoteDataFrameProxy(SourceOp(url), getRows) else {
-      urlValidator.validate(url) match {
-        case Right((host, port, path)) => {
+    if (UrlValidator.isPath(url)) {
+      RemoteDataFrameProxy(SourceOp(url), getRows)
+    } else {
+      UrlValidator.validate(url) match {
+        case Right((prefixSchema, host, port, path)) => {
           if (host == this.host && port.getOrElse(3101) == this.port)
             RemoteDataFrameProxy(SourceOp(url), getRows)
           else throw new IllegalArgumentException(s"Invalid request URL: $url  Expected format: $prefixSchema://${this.host}[:${this.port}]")
@@ -95,12 +95,12 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
   }
 
   protected def getRows(operationNode: String): (StructType, ClosableIterator[Row]) = {
-    val schemaAndIter = getStream(flightClient, new Ticket(GetTicket(operationNode).encodeTicket()))
+    val schemaAndIter = getStream(new Ticket(GetTicket(operationNode).encodeTicket()))
     val stream = schemaAndIter._2.map(seq => Row.fromSeq(seq))
     (schemaAndIter._1, ClosableIterator(stream)())
   }
 
-  def getStream(flightClient: FlightClient, ticket: Ticket): (StructType, Iterator[Seq[Any]]) = {
+  protected def getStream(ticket: Ticket): (StructType, Iterator[Seq[Any]]) = {
     val flightStream = flightClient.getStream(ticket)
     val vectorSchemaRootReceived = flightStream.getRoot
     val schema = ClientUtils.arrowSchemaToStructType(vectorSchemaRootReceived.getSchema)
@@ -128,25 +128,17 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
                   val blobId = CodecUtils.decodeString(v.get(index))
                   val blobTicket = new Ticket(BlobTicket(blobId).encodeTicket())
                   val blob = new Blob {
-
-
                     override def offerStream[T](consume: InputStream => T): T = {
-                      println(s"[${System.currentTimeMillis()}] DEBUG: Server A - Blob created. Connection 2 (to Server B) is now established but LAZY.")
-
-                      val iter = getStream(flightClient, blobTicket)._2
+                      val iter = getStream(blobTicket)._2
                       val chunkIterator = iter.map(value => {
                         value.head match {
                           case v: Array[Byte] => v
                           case other => throw new Exception(s"Blob parsing failed: expected Array[Byte], but got ${other}")
                         }
                       })
-                      println(s"[${System.currentTimeMillis()}] DEBUG: Server A - Blob.offerStream CALLED. Attempting to pull data from Connection 2 NOW.")
                       val stream = new IteratorInputStream(chunkIterator)
                       try consume(stream)
-                      finally {
-                        stream.close()
-//                        upstreamClient.close()
-                      }
+                      finally stream.close()
                     }
                   }
                   (vec.getName, blob)
@@ -167,15 +159,16 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
     } else
       Location.forGrpcInsecure(host, port)
   }
-  private val allocator: BufferAllocator = SharedFlightClient.getAllocator()
 
-  protected val flightClient: FlightClient = FlightClient.builder(allocator,location).build()
+  private val allocator: BufferAllocator = new RootAllocator()
+  protected val flightClient: FlightClient = FlightClient.builder(allocator, location).build()
 
   private class FlightClientAuthHandler(credentials: Credentials) extends ClientAuthHandler {
 
     private var callToken: Array[Byte] = _
 
-    override def authenticate(clientAuthSender: ClientAuthHandler.ClientAuthSender, iterator: java.util.Iterator[Array[Byte]]): Unit = {
+    override def authenticate(clientAuthSender: ClientAuthHandler.ClientAuthSender,
+                              iterator: java.util.Iterator[Array[Byte]]): Unit = {
       clientAuthSender.send(CodecUtils.encodeCredentials(credentials))
       try {
         callToken = iterator.next()
@@ -187,7 +180,7 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
     override def getCallToken: Array[Byte] = callToken
   }
 
-  class IteratorInputStream(it: Iterator[Array[Byte]]) extends InputStream {
+  private class IteratorInputStream(it: Iterator[Array[Byte]]) extends InputStream {
     private var currentChunk: Array[Byte] = Array.emptyByteArray
     private var index: Int = 0
 
@@ -235,7 +228,6 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
 
 
 object DftpClient {
-
   def connect(url: String, credentials: Credentials = Credentials.ANONYMOUS): DftpClient = {
     UrlValidator.extractBase(url) match {
       case Some(parsed) =>
@@ -258,23 +250,4 @@ object DftpClient {
         throw new IllegalArgumentException(s"Invalid DFTP URL: $url")
     }
   }
-}
-
-object SharedFlightClient {
-  private val allocator = new RootAllocator(Long.MaxValue)
-  private val clients = new ConcurrentHashMap[String, ManagedChannel]()
-
-  // 配置上游 Server B 的地址和端口
-  private val serverBHost = "0.0.0.0"
-  private val serverBPort = 3102
-
-
-  // 提供一个公共的获取方法
-  def get(host: String, port: Int): FlightClient = {
-    val channel = ManagedChannelBuilder.forAddress(host,port).usePlaintext().asInstanceOf[ManagedChannelBuilder[_]].build()
-    FlightGrpcUtils.createFlightClientWithSharedChannel(allocator,channel)
-  }
-
-  def getAllocator(): RootAllocator = allocator
-
 }

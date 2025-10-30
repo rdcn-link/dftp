@@ -1,43 +1,103 @@
 package link.rdcn.server
 
+import link.rdcn.client.DftpClient
+import link.rdcn.server.module.{BaseDftpDataSource, BaseDftpModule, DirectoryDataSourceModule}
+import link.rdcn.struct.ValueType.StringType
+import link.rdcn.struct.{DataFrame, DefaultDataFrame, Row, StructType, ValueType}
+import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials}
+import link.rdcn.util.{CodecUtils, DataUtils}
+import org.json.JSONObject
+import org.junit.jupiter.api.{AfterAll, BeforeAll, Test}
+
 /**
  * @Author Yomi
  * @Description:
  * @Data 2025/9/25 19:13
  * @Modified By:
  */
-import link.rdcn.ServerTestBase.getResourcePath
-import link.rdcn.ServerTestProvider
-import link.rdcn.ServerTestProvider.getServer
-import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.Test
+class DataSourceModule extends DftpModule{
 
-import java.io.File
-import java.nio.file.Paths
+  private val eventSourceService = new EventSourceService {
+    override def create(): CrossModuleEvent = new BaseDftpDataSource {
+      override def getDataFrame(dataFrameName: String): DataFrame = {
+        val structType = StructType.empty.add("col1", StringType)
+        val rows = Seq.range(0, 10).map(index => Row.fromSeq(Seq("id" + index))).toIterator
+        DefaultDataFrame(structType, rows)
+      }
 
-class DftpServerTest extends ServerTestProvider{
-  val server = getServer
-  val tlsDir = getResourcePath("tls")
+      override def action(actionName: String, parameter: Array[Byte]): Array[Byte] = {
+        CodecUtils.encodeString(new JSONObject().put("status","success").toString())
+      }
+
+      override def put(dataFrame: DataFrame): Array[Byte] = {
+        CodecUtils.encodeString(new JSONObject().put("status","success").toString())
+      }
+    }
+  }
+
+  override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
+    anchor.hook(eventSourceService)
+  }
+
+  override def destroy(): Unit = {}
+}
+
+class AuthModule extends DftpModule{
+
+  private val authenticationService = new AuthenticationService {
+    override def accepts(credentials: Credentials): Boolean = true
+
+    override def authenticate(credentials: Credentials): UserPrincipal =
+      UserPrincipalWithCredentials(credentials)
+  }
+
+  override def init(anchor: Anchor, serverContext: ServerContext): Unit =
+    anchor.hook(authenticationService)
+
+  override def destroy(): Unit = {}
+}
+
+
+object DftpServerTest{
+
+  var server: DftpServer = _
+
+  @BeforeAll
+  def startServer(): Unit = {
+    val modules = Array(new DirectoryDataSourceModule, new BaseDftpModule, new AuthModule)
+    server = DftpServer.start(DftpServerConfig("0.0.0.0", 3101, Some("data")), modules)
+  }
+
+  @AfterAll
+  def closeServer(): Unit = {
+    server.close()
+  }
+
+}
+
+class DftpServerTest {
 
   @Test
-  def testSetProtocolSchema(): Unit = {
-    val newServer = server.setProtocolSchema("dftp")
-    assertTrue(newServer eq server)
+  def getStreamTest(): Unit = {
+    val client = DftpClient.connect("dftp://0.0.0.0:3101")
+    val df = client.get("dftp://0.0.0.0:3101/")
+    df.foreach(println)
   }
 
   @Test
-  def testEnableTLS(): Unit = {
-    val certFile = new File(Paths.get(tlsDir,"server.crt").toString)
-    val keyFile = new File(Paths.get(tlsDir,"server.pem").toString)
-    val newServer = server.enableTLS(certFile, keyFile)
-    assertTrue(newServer eq server)
+  def actionTest(): Unit = {
+    val client = DftpClient.connect("dftp://0.0.0.0:3101")
+    val result: Array[Byte] = client.doAction("test")
+    val exceptResult: String = new JSONObject().put("status","success").toString()
+    assert(CodecUtils.decodeString(result) == exceptResult)
   }
 
   @Test
-  def testDisableTLS(): Unit = {
-    val newServer = server.disableTLS()
-    assertTrue(newServer eq server)
+  def putTest(): Unit = {
+    val client = DftpClient.connect("dftp://0.0.0.0:3101")
+    val result: Array[Byte] = client.put(DataFrame.empty())
+    val exceptResult: String = new JSONObject().put("status","success").toString()
+    assert(CodecUtils.decodeString(result) == exceptResult)
   }
-
 
 }

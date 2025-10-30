@@ -4,7 +4,7 @@
 
   <groupId>link.rdcn</groupId>
   <artifactId>dftp</artifactId>
-  <version>0.5.0-20250928</version>
+  <version>0.5.0-20251028</version>
   <packaging>pom</packaging>
 
   <name>dftp</name>
@@ -13,6 +13,9 @@
     <module>dftp-client</module>
     <module>dftp-server</module>
     <module>dftp-common</module>
+      <module>packaging</module>
+      <module>dacp-flow</module>
+      <module>dacp-catalog</module>
   </modules>
 
   <properties>
@@ -97,12 +100,12 @@
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
-      <version>2.15.1</version>
+      <version>2.15.2</version>
     </dependency>
     <dependency>
       <groupId>com.fasterxml.jackson.module</groupId>
       <artifactId>jackson-module-scala_2.12</artifactId>
-      <version>2.15.1</version>
+      <version>2.15.2</version>
     </dependency>
     <dependency>
       <groupId>black.ninia</groupId>
