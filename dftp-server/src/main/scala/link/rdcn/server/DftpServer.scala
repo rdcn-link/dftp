@@ -34,7 +34,7 @@ trait ServerContext {
   def getHost(): String
   def getPort(): Int
   def getProtocolScheme(): String
-  def getDataSourcePath(): Option[String]
+  def getDftpHome(): Option[String]
 }
 
 class DftpServer(config: DftpServerConfig) extends Logging {
@@ -53,8 +53,7 @@ class DftpServer(config: DftpServerConfig) extends Logging {
 
     override def getProtocolScheme(): String = config.protocolScheme
 
-    override def getDataSourcePath(): Option[String] =
-      config.dftpHome.map(_ + File.separator + "data")
+    override def getDftpHome(): Option[String] = config.dftpHome
   })
 
   def addModule(module: DftpModule): Modules = modules.addModule(module)

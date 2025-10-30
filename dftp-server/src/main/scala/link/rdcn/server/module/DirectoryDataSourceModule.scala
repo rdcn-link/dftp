@@ -7,6 +7,7 @@ import link.rdcn.util.{CodecUtils, DataUtils}
 import org.json.JSONObject
 
 import java.io.File
+import java.nio.file.Paths
 
 /**
  * @Author renhao
@@ -22,7 +23,9 @@ class DirectoryDataSourceModule extends DftpModule{
         val baseUrl = s"${ctx.getProtocolScheme()}://${ctx.getHost()}:${ctx.getPort()}/"
         override def getDataFrame(dataFrameUrl: String): DataFrame = {
           val dataFramePath = dataFrameUrl.stripPrefix(baseUrl).stripPrefix("/")
-          val dfFile = new File(ctx.getDataSourcePath().getOrElse("data") + File.separator + dataFramePath)
+          val dfFile = if(ctx.getDftpHome().isEmpty) {
+            Paths.get(ctx.getDftpHome().get, "data", dataFramePath).toFile
+          }else Paths.get("data" + dataFramePath).toFile
           if(dfFile.isFile){
             dfFile.getName match {
               case fileName if(fileName.endsWith(".csv")) =>
