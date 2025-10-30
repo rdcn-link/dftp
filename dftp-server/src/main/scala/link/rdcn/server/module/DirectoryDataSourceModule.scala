@@ -1,6 +1,7 @@
 package link.rdcn.server.module
 
 import link.rdcn.server._
+import link.rdcn.struct.DataFrame
 
 import java.io.File
 
@@ -19,6 +20,13 @@ class DirectoryDataSourceModule extends DftpModule {
     this
   }
 
+  def setPathName(name: String): DirectoryDataSourceModule = {
+    _name = name
+    this
+  }
+
+  private var _name: String = "data"
+
   override def init(anchor: Anchor, serverContext: ServerContext): Unit =
     anchor.hook(new EventHandler {
       override def accepts(event: CrossModuleEvent): Boolean =
@@ -31,7 +39,11 @@ class DirectoryDataSourceModule extends DftpModule {
 
               override def accepts(request: DftpGetStreamRequest): Boolean = ???
 
-              override def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = ???
+              override def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit =
+                request match {
+                  case x: DftpGetPathStreamRequest if x.getRequestPath().startsWith("/data") =>
+                    response.sendDataFrame(null)
+                }
             })
         }
       }

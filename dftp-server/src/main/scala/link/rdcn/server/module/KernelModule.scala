@@ -40,7 +40,7 @@ class KernelModule extends DftpModule {
   override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
     anchor.hook(new EventSource {
       override def init(eventHub: EventHub): Unit = {
-        eventHub.fireEvent(new RequiresAuthennticator(authStub))
+        eventHub.fireEvent(new RequiresAuthenticator(authStub))
         eventHub.fireEvent(new RequiresAccessLogger(logStub))
         eventHub.fireEvent(new RequiresGetStreamRequestParser(parseStub))
         eventHub.fireEvent(new RequiresActionHandler(actionStub))
@@ -54,7 +54,7 @@ class KernelModule extends DftpModule {
   }
 }
 
-class RequiresAuthennticator(composite: CompositeAuthenticator) extends CrossModuleEvent {
+class RequiresAuthenticator(composite: CompositeAuthenticator) extends CrossModuleEvent {
   def add(service: AuthenticationService) = composite.add(service)
 }
 
