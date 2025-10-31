@@ -2,8 +2,8 @@ package link.rdcn.catalog
 
 import link.rdcn.catalog.CatalogFormatter._
 import link.rdcn.client.UrlValidator
-import link.rdcn.cook.DataFrameProvider
 import link.rdcn.server.ServerContext
+import link.rdcn.server.module.{DataFrameProvider, DataFrameProviderRequest}
 import link.rdcn.struct.ValueType.{LongType, RefType, StringType}
 import link.rdcn.struct._
 import org.apache.jena.rdf.model.{Model, ModelFactory}
@@ -18,6 +18,8 @@ import java.io.StringWriter
  * @Modified By:
  */
 trait DataProvider extends DataFrameProvider {
+
+  override def accepts(request: DataFrameProviderRequest): Boolean
 
   /**
    * 列出所有数据集名称
@@ -78,14 +80,14 @@ trait DataProvider extends DataFrameProvider {
 
   def getDataFrameTitle(dataFrameName: String): Option[String]
 
-  def getDataFrame(dataFrameName: String)(implicit ctx: ServerContext): DataFrame = {
-    UrlValidator.extractPath(dataFrameName) match {
+  final override def getDataFrame(dataFrameUrl: String)(implicit ctx: ServerContext): DataFrame = {
+    UrlValidator.extractPath(dataFrameUrl) match {
       case "/listDataSets" => doListDataSets(ctx.baseUrl)
       case path if path.startsWith("/listDataFrames") =>
         doListDataFrames(path, ctx.baseUrl)
       case path if path.startsWith("/listHosts") =>
         doListHostInfo(ctx)
-      case _ => getDataStreamSource(dataFrameName).dataFrame
+      case _ => getDataStreamSource(dataFrameUrl).dataFrame
     }
   }
 

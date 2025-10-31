@@ -1,20 +1,54 @@
 package link.rdcn.server.module
 
 import link.rdcn.client.UrlValidator
-import link.rdcn.operation.TransformOp
+import link.rdcn.operation.{ExecutionContext, TransformOp}
 import link.rdcn.server._
-import link.rdcn.struct.{BlobRegistry, DefaultDataFrame, Row, StructType}
+import link.rdcn.struct.{BlobRegistry, DataFrame, DefaultDataFrame, Row, StructType}
 import link.rdcn.user.UserPrincipal
 import link.rdcn.util.DataUtils
 
 import java.nio.charset.StandardCharsets
+import scala.collection.mutable.ArrayBuffer
+
+trait DataFrameProviderRequest {
+  def getDataFrameUrl: String
+}
+
+trait DataFrameProvider{
+  def getDataFrame(dataFrameUrl: String)(implicit ctx: ServerContext): DataFrame
+  def accepts(request: DataFrameProviderRequest): Boolean
+}
+
+class CompositeDataFrameProvider extends DataFrameProvider{
+  private val dataFrameProviders = new ArrayBuffer[DataFrameProvider]
+
+  override def accepts(request: DataFrameProviderRequest): Boolean =
+    dataFrameProviders.exists(_.accepts(request))
+
+  override def getDataFrame(dataFrameUrl: String)(implicit ctx: ServerContext): DataFrame = {
+    val request = new DataFrameProviderRequest {
+      override def getDataFrameUrl: String = dataFrameUrl
+    }
+    dataFrameProviders.find(_.accepts(request)).map(_.getDataFrame(dataFrameUrl)).getOrElse(null)
+  }
+
+  def add(dataFrameProvider: DataFrameProvider) = dataFrameProviders.append(dataFrameProvider)
+}
+
+case class RequireDataFrameProviderEvent(composite: CompositeDataFrameProvider) extends CrossModuleEvent{
+  def add(dataFrameProvider: DataFrameProvider) = composite.add(dataFrameProvider)
+}
 
 class BaseDftpModule extends DftpModule {
+
+  private val dataFrameProviderHub = new CompositeDataFrameProvider
+  private var serverContext: ServerContext = _
 
   private val getStreamHandler = new GetStreamHandler {
     override def accepts(request: DftpGetStreamRequest): Boolean = {
       request match {
         case _: DacpGetBlobStreamRequest => true
+        case _: DftpGetPathStreamRequest => true
         case _ => false
       }
     }
@@ -35,20 +69,27 @@ class BaseDftpModule extends DftpModule {
             })
           }
         }
+        case r: DftpGetPathStreamRequest => {
+          val dataFrame = r.getTransformOp().execute(new ExecutionContext {
+            override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] =
+              Some(dataFrameProviderHub.getDataFrame(dataFrameNameUrl)(serverContext))
+          })
+          response.sendDataFrame(dataFrame)
+        }
         case _ =>
           response.sendError(500, s"illegal DftpGetStreamRequest except DacpGetBlobStreamRequest but get $request")
       }
     }
   }
 
-  private val eventHandlerBlobStream = new EventHandler {
+  private val eventHandlerGetStream = new EventHandler {
 
     override def accepts(event: CrossModuleEvent): Boolean =
-      event.isInstanceOf[RequiresGetStreamHandler]
+      event.isInstanceOf[RequireGetStreamHandlerEvent]
 
     override def doHandleEvent(event: CrossModuleEvent): Unit = {
       event match {
-        case require: RequiresGetStreamHandler  =>
+        case require: RequireGetStreamHandlerEvent  =>
           require.add(getStreamHandler)
         case _ =>
       }
@@ -56,14 +97,16 @@ class BaseDftpModule extends DftpModule {
   }
 
   override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
+    this.serverContext = serverContext
+
     //by default parsing BLOB_TICKET & URL_GET_TICKET
     anchor.hook(new EventHandler {
       override def accepts(event: CrossModuleEvent): Boolean =
-        event.isInstanceOf[RequiresGetStreamRequestParser]
+        event.isInstanceOf[RequireGetStreamRequestParserEvent]
 
       override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
-          case require: RequiresGetStreamRequestParser =>
+          case require: RequireGetStreamRequestParserEvent =>
             require.add(new GetStreamRequestParser {
               val BLOB_TICKET: Byte = 1
               val URL_GET_TICKET: Byte = 2
@@ -117,7 +160,11 @@ class BaseDftpModule extends DftpModule {
         }
       }
     })
-    anchor.hook(eventHandlerBlobStream)
+    anchor.hook(eventHandlerGetStream)
+    anchor.hook(new EventSource {
+      override def init(eventHub: EventHub): Unit =
+        eventHub.fireEvent(RequireDataFrameProviderEvent(dataFrameProviderHub))
+    })
   }
 
   override def destroy(): Unit = {

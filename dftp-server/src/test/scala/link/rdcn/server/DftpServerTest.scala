@@ -1,7 +1,7 @@
 package link.rdcn.server
 
 import link.rdcn.client.DftpClient
-import link.rdcn.server.module.{BaseDftpModule, DirectoryDataSourceModule, RequiresAuthenticator}
+import link.rdcn.server.module.{BaseDftpModule, DirectoryDataSourceModule, RequireAuthenticatorEvent}
 import link.rdcn.struct.ValueType.StringType
 import link.rdcn.struct.{DataFrame, DefaultDataFrame, Row, StructType, ValueType}
 import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials}
@@ -30,11 +30,11 @@ class AuthModule extends DftpModule{
 
   override def init(anchor: Anchor, serverContext: ServerContext): Unit =
     anchor.hook(new EventHandler {
-      override def accepts(event: CrossModuleEvent): Boolean = event.isInstanceOf[RequiresAuthenticator]
+      override def accepts(event: CrossModuleEvent): Boolean = event.isInstanceOf[RequireAuthenticatorEvent]
 
       override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
-          case r: RequiresAuthenticator => r.add(authenticationService)
+          case r: RequireAuthenticatorEvent => r.add(authenticationService)
           case _ =>
         }
       }
@@ -51,7 +51,6 @@ object DftpServerTest{
   @BeforeAll
   def startServer(): Unit = {
     val directoryDataSourceModule = new DirectoryDataSourceModule
-    directoryDataSourceModule.setRootDirectory(new File("/Users/renhao/IdeaProjects/dftp_1031/packaging/src/main/distribution/data"))
     val modules = Array(directoryDataSourceModule, new BaseDftpModule, new AuthModule)
     server = DftpServer.start(DftpServerConfig("0.0.0.0", 3102, Some("data")), modules)
   }
@@ -68,7 +67,7 @@ class DftpServerTest {
   @Test
   def getStreamTest(): Unit = {
     val client = DftpClient.connect("dftp://0.0.0.0:3102")
-    val df = client.get("dftp://0.0.0.0:3102/nodes")
+    val df = client.get("dftp://0.0.0.0:3102/")
     df.foreach(println)
   }
 

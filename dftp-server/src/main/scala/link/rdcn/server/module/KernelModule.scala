@@ -40,12 +40,12 @@ class KernelModule extends DftpModule {
   override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
     anchor.hook(new EventSource {
       override def init(eventHub: EventHub): Unit = {
-        eventHub.fireEvent(new RequiresAuthenticator(authStub))
-        eventHub.fireEvent(new RequiresAccessLogger(logStub))
-        eventHub.fireEvent(new RequiresGetStreamRequestParser(parseStub))
-        eventHub.fireEvent(new RequiresActionHandler(actionStub))
-        eventHub.fireEvent(new RequirePutStreamHandler(putStub))
-        eventHub.fireEvent(new RequiresGetStreamHandler(getStub))
+        eventHub.fireEvent(new RequireAuthenticatorEvent(authStub))
+        eventHub.fireEvent(new RequireAccessLoggerEvent(logStub))
+        eventHub.fireEvent(new RequireGetStreamRequestParserEvent(parseStub))
+        eventHub.fireEvent(new RequireActionHandlerEvent(actionStub))
+        eventHub.fireEvent(new RequirePutStreamHandlerEvent(putStub))
+        eventHub.fireEvent(new RequireGetStreamHandlerEvent(getStub))
       }
     })
   }
@@ -54,27 +54,27 @@ class KernelModule extends DftpModule {
   }
 }
 
-class RequiresAuthenticator(composite: CompositeAuthenticator) extends CrossModuleEvent {
+class RequireAuthenticatorEvent(composite: CompositeAuthenticator) extends CrossModuleEvent {
   def add(service: AuthenticationService) = composite.add(service)
 }
 
-class RequiresAccessLogger(composite: CompositeAccessLogger) extends CrossModuleEvent {
+class RequireAccessLoggerEvent(composite: CompositeAccessLogger) extends CrossModuleEvent {
   def add(service: AccessLogger) = composite.add(service)
 }
 
-class RequiresGetStreamRequestParser(composite: CompositeGetStreamRequestParser) extends CrossModuleEvent {
+class RequireGetStreamRequestParserEvent(composite: CompositeGetStreamRequestParser) extends CrossModuleEvent {
   def add(service: GetStreamRequestParser) = composite.add(service)
 }
 
-class RequiresActionHandler(composite: CompositeActionHandler) extends CrossModuleEvent {
+class RequireActionHandlerEvent(composite: CompositeActionHandler) extends CrossModuleEvent {
   def add(service: ActionHandler) = composite.add(service)
 }
 
-class RequirePutStreamHandler(composite: CompositePutStreamHandler) extends CrossModuleEvent {
+class RequirePutStreamHandlerEvent(composite: CompositePutStreamHandler) extends CrossModuleEvent {
   def add(service: PutStreamHandler) = composite.add(service)
 }
 
-class RequiresGetStreamHandler(compositeGetMethodService: CompositeGetStreamHandler) extends CrossModuleEvent {
+class RequireGetStreamHandlerEvent(compositeGetMethodService: CompositeGetStreamHandler) extends CrossModuleEvent {
   def add(service: GetStreamHandler) = compositeGetMethodService.add(service)
 }
 

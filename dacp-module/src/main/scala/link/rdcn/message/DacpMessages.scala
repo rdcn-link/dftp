@@ -1,8 +1,8 @@
-package link.rdcn.cook
+package link.rdcn.message
 
-import link.rdcn.message.DftpTicket
 import link.rdcn.operation.TransformOp
 import link.rdcn.server.DftpGetStreamRequest
+import link.rdcn.server.module.DataFrameProviderRequest
 
 /**
  * @Author renhao
@@ -16,4 +16,8 @@ case class CookTicket(ticketContent: String) extends DftpTicket {
 
 trait DacpCookStreamRequest extends DftpGetStreamRequest{
   def getTransformTree: TransformOp
+}
+
+trait DataProviderRequest extends DataFrameProviderRequest {
+  def getDataSetId: String
 }

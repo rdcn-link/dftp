@@ -1,14 +1,16 @@
 package link.rdcn.cook
 
 import link.rdcn.Logging
+import link.rdcn.message.DacpCookStreamRequest
 import link.rdcn.operation.{ExecutionContext, TransformOp}
 import link.rdcn.optree.{FlowExecutionContext, OperatorRepository, RepositoryClient, TransformTree}
-import link.rdcn.server.module.{RequiresGetStreamHandler, RequiresGetStreamRequestParser}
-import link.rdcn.server.{Anchor, CrossModuleEvent, DftpGetPathStreamRequest, DftpGetStreamRequest, DftpGetStreamResponse, DftpModule, EventHandler, GetStreamHandler, GetStreamRequestParser, ServerContext}
+import link.rdcn.server.module.{CompositeDataFrameProvider, DataFrameProviderRequest, RequireDataFrameProviderEvent, RequireGetStreamHandlerEvent, RequireGetStreamRequestParserEvent}
+import link.rdcn.server.{Anchor, CrossModuleEvent, DftpGetPathStreamRequest, DftpGetStreamRequest, DftpGetStreamResponse, DftpModule, EventHandler, EventHub, EventSource, GetStreamHandler, GetStreamRequestParser, ServerContext}
 import link.rdcn.struct.{DataFrame, DataStreamSource}
 import link.rdcn.user.{Credentials, UserPrincipal}
 
 import java.nio.charset.StandardCharsets
+import scala.collection.mutable.ArrayBuffer
 
 /**
  * @Author renhao
@@ -16,13 +18,10 @@ import java.nio.charset.StandardCharsets
  * @Data 2025/10/31 10:59
  * @Modified By:
  */
-trait DataFrameProvider{
-  def getDataFrame(dataFrameUrl: String)(implicit ctx: ServerContext): DataFrame
-}
-
-class DacpCookModule(dataFrameProvider: DataFrameProvider) extends DftpModule with Logging {
+class DacpCookModule() extends DftpModule with Logging {
 
   private implicit var serverContext: ServerContext = _
+  private val dataFrameProviderHub = new CompositeDataFrameProvider
 
   private val getStreamRequestParseService = new GetStreamRequestParser {
     val COOK_TICKET: Byte = 3
@@ -57,7 +56,6 @@ class DacpCookModule(dataFrameProvider: DataFrameProvider) extends DftpModule wi
     override def accepts(request: DftpGetStreamRequest): Boolean = {
       request match {
         case _: DacpCookStreamRequest => true
-        case _: DftpGetPathStreamRequest => true
         case _ => false
       }
     }
@@ -69,13 +67,6 @@ class DacpCookModule(dataFrameProvider: DataFrameProvider) extends DftpModule wi
           val userPrincipal = request.getUserPrincipal()
           //TODO check permission
           response.sendDataFrame(transformTree.execute(flowExecutionContext))
-        }
-        case request: DftpGetPathStreamRequest => {
-          val dataFrame = request.getTransformOp().execute(new ExecutionContext {
-            override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] =
-              Some(dataFrameProvider.getDataFrame(dataFrameNameUrl))
-          })
-          response.sendDataFrame(dataFrame)
         }
         case _ => response.sendError(500, s"illegal DftpGetStreamRequest: $request")
       }
@@ -91,7 +82,7 @@ class DacpCookModule(dataFrameProvider: DataFrameProvider) extends DftpModule wi
 
     override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
       try {
-        Some(dataFrameProvider.getDataFrame(dataFrameNameUrl))
+        Some(dataFrameProviderHub.getDataFrame(dataFrameNameUrl))
       } catch {
         case e: Exception =>
           logger.error(e)
@@ -110,19 +101,23 @@ class DacpCookModule(dataFrameProvider: DataFrameProvider) extends DftpModule wi
     anchor.hook(new EventHandler {
       override def accepts(event: CrossModuleEvent): Boolean = {
         event match {
-          case r: RequiresGetStreamRequestParser => true
-          case r: RequiresGetStreamHandler => true
+          case r: RequireGetStreamRequestParserEvent => true
+          case r: RequireGetStreamHandlerEvent => true
           case _ => false
         }
       }
 
       override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
-          case r: RequiresGetStreamRequestParser => r.add(getStreamRequestParseService)
-          case r: RequiresGetStreamHandler => r.add(getMethodService)
+          case r: RequireGetStreamRequestParserEvent => r.add(getStreamRequestParseService)
+          case r: RequireGetStreamHandlerEvent => r.add(getMethodService)
           case _ =>
         }
       }
+    })
+    anchor.hook(new EventSource {
+      override def init(eventHub: EventHub): Unit =
+        eventHub.fireEvent(RequireDataFrameProviderEvent(dataFrameProviderHub))
     })
   }
 

@@ -1,6 +1,6 @@
 package link.rdcn.server.module
 
-import link.rdcn.operation.ExecutionContext
+import link.rdcn.client.UrlValidator
 import link.rdcn.server._
 import link.rdcn.struct.ValueType.RefType
 import link.rdcn.struct.{Blob, DFRef, DataFrame, DataStreamSource, DefaultDataFrame, Row, StructType}
@@ -65,33 +65,25 @@ class DirectoryDataSourceModule extends DftpModule {
 
   }
 
+  private def isInDataDirectory(path: String): Boolean = new File(defaultRootDirectory, path).exists()
+
   override def init(anchor: Anchor, serverContext: ServerContext): Unit =
     anchor.hook(new EventHandler {
       override def accepts(event: CrossModuleEvent): Boolean =
-        event.isInstanceOf[RequiresGetStreamHandler]
+        event.isInstanceOf[RequireDataFrameProviderEvent]
 
       override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
-          case require: RequiresGetStreamHandler =>
-            require.add(new GetStreamHandler() {
+          case require: RequireDataFrameProviderEvent =>
+            require.add(new DataFrameProvider{
+              override def getDataFrame(dataFrameUrl: String)(implicit ctx: ServerContext): DataFrame =
+                getDataFrameByUrl(dataFrameUrl, ctx)
 
-              override def accepts(request: DftpGetStreamRequest): Boolean =
-                request match {
-                  case _: DftpGetPathStreamRequest => true
-                  case _ => false
-                }
-
-              override def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit =
-                request match {
-                  case r: DftpGetPathStreamRequest => {
-                    val dataFrame = r.getTransformOp().execute(new ExecutionContext {
-                      override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] =
-                        Some(getDataFrameByUrl(dataFrameNameUrl, serverContext))
-                    })
-                    response.sendDataFrame(dataFrame)
-                  }
-                }
+              override def accepts(request: DataFrameProviderRequest): Boolean = {
+                isInDataDirectory(UrlValidator.extractPath(request.getDataFrameUrl))
+              }
             })
+          case _ =>
         }
       }
     })

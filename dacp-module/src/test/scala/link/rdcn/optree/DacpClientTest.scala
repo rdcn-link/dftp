@@ -1,10 +1,10 @@
 package link.rdcn.optree
 
-import link.rdcn.catalog.{DacpCatalogModule, DataProvider}
+import link.rdcn.catalog.{DacpCatalogModule, DataProvider, DataProviderModule}
 import link.rdcn.client.DacpClient
 import link.rdcn.cook.DacpCookModule
 import link.rdcn.recipe.{ExecutionResult, Flow, SourceNode, Transformer11}
-import link.rdcn.server.module.BaseDftpModule
+import link.rdcn.server.module.{BaseDftpModule, DataFrameProviderRequest}
 import link.rdcn.server.{Anchor, AuthModule, CrossModuleEvent, DftpModule, DftpServer, DftpServerConfig, ServerContext}
 import link.rdcn.struct.ValueType.StringType
 import link.rdcn.struct._
@@ -102,13 +102,15 @@ object DacpClientTest{
       Some(StructType.empty.add("col1", StringType))
 
     override def getDataFrameTitle(dataFrameName: String): Option[String] = Some(dataFrameName)
+
+    override def accepts(request: DataFrameProviderRequest): Boolean = true
   }
 
 
   @BeforeAll
   def startServer(): Unit = {
     val modules = Array(new BaseDftpModule,
-      new AuthModule, new DacpCookModule(dataProvider), new DacpCatalogModule(dataProvider))
+      new AuthModule, new DacpCookModule, new DacpCatalogModule, new DataProviderModule(dataProvider))
     server = DftpServer.start(DftpServerConfig("0.0.0.0", 3102).withProtocolScheme("dacp"), modules)
   }
 
