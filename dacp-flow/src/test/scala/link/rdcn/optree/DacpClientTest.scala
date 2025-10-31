@@ -2,7 +2,7 @@ package link.rdcn.optree
 
 import link.rdcn.cook.{DacpClient, DacpCookModule}
 import link.rdcn.recipe.{ExecutionResult, Flow, SourceNode, Transformer11}
-import link.rdcn.server.module.{BaseDftpDataSource, BaseDftpModule, DirectoryDataSourceModule}
+import link.rdcn.server.module.{BaseDftpDataSource, BaseDftpModuleTest, DirectoryDataSourceModule}
 import link.rdcn.server.{Anchor, CrossModuleEvent, DftpModule, DftpServer, DftpServerConfig, EventSourceService, ServerContext}
 import link.rdcn.struct.ValueType.StringType
 import link.rdcn.struct.{DataFrame, DefaultDataFrame, Row, StructType}
@@ -60,7 +60,7 @@ object DacpClientTest{
 
   @BeforeAll
   def startServer(): Unit = {
-    val modules = Array(new DataSourceModule, new BaseDftpModule, new AuthModule, new DacpCookModule)
+    val modules = Array(new DataSourceModule, new BaseDftpModuleTest, new AuthModule, new DacpCookModule)
     server = DftpServer.start(DftpServerConfig("0.0.0.0", 3102, Some("data"), false, "dacp"), modules)
   }
 

@@ -1,12 +1,13 @@
 package link.rdcn.server
 
 import link.rdcn.client.DftpClient
-import link.rdcn.server.module.{BaseDftpDataSource, BaseDftpModule, DirectoryDataSourceModule}
+import link.rdcn.server.module.{BaseDftpDataSource, BaseDftpModuleTest, DirectoryDataSourceModule}
 import link.rdcn.struct.ValueType.StringType
-import link.rdcn.struct.{DataFrame, DefaultDataFrame, Row, StructType, ValueType}
+import link.rdcn.struct.{DataFrame, DefaultDataFrame, Row, StructType}
 import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials}
-import link.rdcn.util.{CodecUtils, DataUtils}
+import link.rdcn.util.CodecUtils
 import org.json.JSONObject
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.{AfterAll, BeforeAll, Test}
 
 /**
@@ -64,7 +65,7 @@ object DftpServerTest{
 
   @BeforeAll
   def startServer(): Unit = {
-    val modules = Array(new DirectoryDataSourceModule, new BaseDftpModule, new AuthModule)
+    val modules = Array(new DataSourceModule, new BaseDftpModuleTest, new AuthModule)
     server = DftpServer.start(DftpServerConfig("0.0.0.0", 3101, Some("data")), modules)
   }
 
@@ -88,16 +89,16 @@ class DftpServerTest {
   def actionTest(): Unit = {
     val client = DftpClient.connect("dftp://0.0.0.0:3101")
     val result: Array[Byte] = client.doAction("test")
-    val exceptResult: String = new JSONObject().put("status","success").toString()
-    assert(CodecUtils.decodeString(result) == exceptResult)
+    val expectResult: String = new JSONObject().put("status","success").toString()
+    assertEquals(expectResult, CodecUtils.decodeString(result), "result should be matched.")
   }
 
   @Test
   def putTest(): Unit = {
     val client = DftpClient.connect("dftp://0.0.0.0:3101")
     val result: Array[Byte] = client.put(DataFrame.empty())
-    val exceptResult: String = new JSONObject().put("status","success").toString()
-    assert(CodecUtils.decodeString(result) == exceptResult)
+    val expectResult: String = new JSONObject().put("status","success").toString()
+    assertEquals(expectResult, CodecUtils.decodeString(result), "result should be matched.")
   }
 
 }

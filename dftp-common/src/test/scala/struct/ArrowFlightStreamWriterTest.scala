@@ -1,4 +1,4 @@
-package link.rdcn.server
+package struct
 
 /**
  * @Author Yomi
@@ -6,8 +6,7 @@ package link.rdcn.server
  * @Data 2025/9/26 10:49
  * @Modified By:
  */
-import link.rdcn.server.ArrowFlightStreamWriterTest.{allocator, root, testRow}
-import link.rdcn.struct.{ArrowFlightStreamWriter, Blob, BlobRegistry, DFRef, Row}
+import link.rdcn.struct._
 import link.rdcn.util.CodecUtils
 import org.apache.arrow.memory.{BufferAllocator, RootAllocator}
 import org.apache.arrow.vector._
@@ -15,6 +14,7 @@ import org.apache.arrow.vector.types.Types
 import org.apache.arrow.vector.types.pojo._
 import org.junit.jupiter.api.Assertions.{assertArrayEquals, assertEquals, assertThrows, assertTrue}
 import org.junit.jupiter.api.{AfterAll, Test}
+import struct.ArrowFlightStreamWriterTest.{allocator, root, testRow}
 
 import java.io.InputStream
 import java.math.BigDecimal
