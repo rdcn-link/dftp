@@ -14,8 +14,7 @@
     <module>dftp-server</module>
     <module>dftp-common</module>
       <module>packaging</module>
-      <module>dacp-flow</module>
-      <module>dacp-catalog</module>
+      <module>dacp-module</module>
   </modules>
 
   <properties>

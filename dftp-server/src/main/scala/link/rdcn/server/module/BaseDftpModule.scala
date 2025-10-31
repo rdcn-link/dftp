@@ -3,11 +3,57 @@ package link.rdcn.server.module
 import link.rdcn.client.UrlValidator
 import link.rdcn.operation.TransformOp
 import link.rdcn.server._
+import link.rdcn.struct.{BlobRegistry, DefaultDataFrame, Row, StructType}
 import link.rdcn.user.UserPrincipal
+import link.rdcn.util.DataUtils
 
 import java.nio.charset.StandardCharsets
 
 class BaseDftpModule extends DftpModule {
+
+  private val getStreamHandler = new GetStreamHandler {
+    override def accepts(request: DftpGetStreamRequest): Boolean = {
+      request match {
+        case _: DacpGetBlobStreamRequest => true
+        case _ => false
+      }
+    }
+
+    override def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
+      request match {
+        case r: DacpGetBlobStreamRequest => {
+          val blobId = r.getBlobId()
+          val blob = BlobRegistry.getBlob(blobId)
+          if (blob.isEmpty) {
+            response.sendError(404, s"blob ${blobId} resource closed")
+          } else {
+            blob.get.offerStream(inputStream => {
+              val stream: Iterator[Row] = DataUtils.chunkedIterator(inputStream)
+                .map(bytes => Row.fromSeq(Seq(bytes)))
+              val schema = StructType.blobStreamStructType
+              response.sendDataFrame(DefaultDataFrame(schema, stream))
+            })
+          }
+        }
+        case _ =>
+          response.sendError(500, s"illegal DftpGetStreamRequest except DacpGetBlobStreamRequest but get $request")
+      }
+    }
+  }
+
+  private val eventHandlerBlobStream = new EventHandler {
+
+    override def accepts(event: CrossModuleEvent): Boolean =
+      event.isInstanceOf[RequiresGetStreamHandler]
+
+    override def doHandleEvent(event: CrossModuleEvent): Unit = {
+      event match {
+        case require: RequiresGetStreamHandler  =>
+          require.add(getStreamHandler)
+        case _ =>
+      }
+    }
+  }
 
   override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
     //by default parsing BLOB_TICKET & URL_GET_TICKET
@@ -71,6 +117,7 @@ class BaseDftpModule extends DftpModule {
         }
       }
     })
+    anchor.hook(eventHandlerBlobStream)
   }
 
   override def destroy(): Unit = {

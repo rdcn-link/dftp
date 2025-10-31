@@ -18,6 +18,8 @@ import scala.collection.mutable.ArrayBuffer
  */
 
 trait DataStreamSource {
+  final def dataFrame: DataFrame = DefaultDataFrame(schema, iterator)
+
   def rowCount: Long
 
   def schema: StructType

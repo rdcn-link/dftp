@@ -108,8 +108,16 @@ object UrlValidator {
     }
   }
 
-  def extractPath(url: String): Either[String, String] = {
-    validate(url).map { case (_, _, _, path) => path }
+  def extractPath(url: String): String = {
+    if (isPath(url)) {
+      url
+    } else {
+      validate(url) match {
+        case Right((_, _, _, path)) => path
+        case Left(error) =>
+          throw new IllegalArgumentException(s"Failed to extract path from URL: $error")
+      }
+    }
   }
 
   def extractBaseUrlAndPath(url: String): Either[String, (String, String)] = {

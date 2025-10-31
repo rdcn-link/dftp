@@ -1,16 +1,20 @@
-package link.rdcn.cook
+package link.rdcn.client
 
-import link.rdcn.client.{DftpClient, RemoteDataFrameProxy, UrlValidator}
+import link.rdcn.cook.CookTicket
 import link.rdcn.operation.{DataFrameCall11, DataFrameCall21, SerializableFunction, SourceOp, TransformOp}
 import link.rdcn.optree.{FiFoFileNode, FileRepositoryBundle, LangTypeV2, RepositoryOperator, TransformFunctionWrapper, TransformerNode}
 import link.rdcn.recipe.{ExecutionResult, FifoFileBundleFlowNode, FifoFileFlowNode, Flow, FlowPath, RepositoryNode, SourceNode, Transformer11, Transformer21}
-import link.rdcn.struct.{ClosableIterator, DataFrame, Row, StructType}
+import link.rdcn.struct.{ClosableIterator, DFRef, DataFrame, DataFrameDocument, DataFrameStatistics, DefaultDataFrame, Row, StructType}
 import link.rdcn.user.{AnonymousCredentials, Credentials, UsernamePassword}
 import org.apache.arrow.flight.Ticket
+import org.apache.jena.rdf.model.{Model, ModelFactory}
 import org.json.{JSONArray, JSONObject}
 
-import java.io.File
+import java.io.{File, StringReader}
 import scala.collection.JavaConverters.asJavaCollectionConverter
+import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
+import scala.collection.JavaConverters.asScalaIteratorConverter
 
 /**
  * @Author renhao
@@ -19,6 +23,125 @@ import scala.collection.JavaConverters.asJavaCollectionConverter
  * @Modified By:
  */
 class DacpClient(host: String, port: Int, useTLS: Boolean = false) extends DftpClient(host, port, useTLS) {
+
+  private val dacpUrlPrefix: String = s"dacp://$host:$port"
+
+  def listDataSetNames(): Seq[String] = {
+    val result = ArrayBuffer[String]()
+    get(dacpUrlPrefix + "/listDataSets").mapIterator(rows => rows.foreach(row => {
+      result+=(row.getAs[String](0))
+    }))
+    result
+  }
+
+  def listDataFrameNames(dsName: String): Seq[String] = {
+    val allDataSets = get(dacpUrlPrefix + "/listDataSets")
+      .mapIterator(rows => rows.find(row => row.getAs[String](0) == dsName))
+    allDataSets.map { row =>
+      val url = row.getAs[DFRef](3).url
+      get(url).collect().map(dataRow => dataRow.getAs[String](0))
+    }.getOrElse(Seq.empty)
+  }
+
+  def getDataSetMetaData(dsName: String): Model = {
+    val rdfString = new String(doAction(s"/getDataSetMetaData/${dsName}"), "UTF-8").trim
+    getModelByString(rdfString)
+  }
+
+  def getDataFrameMetaData(dfName: String): Model = {
+    val rdfString = new String(doAction(s"/getDataFrameMetaData/${dfName}"), "UTF-8").trim
+    getModelByString(rdfString)
+  }
+
+  private def getModelByString(rdfString: String): Model = {
+    val model = ModelFactory.createDefaultModel()
+    rdfString match {
+      case s if s.nonEmpty =>
+        val reader = new StringReader(s)
+        model.read(reader, null, "RDF/XML")
+      case _ =>
+    }
+    model
+  }
+
+  def getSchema(dataFrameName: String): StructType = {
+    val structTypeStr = new String(doAction(s"/getSchema/${dataFrameName}"), "UTF-8")
+    StructType.fromString(structTypeStr)
+  }
+
+  def getDataFrameTitle(dataFrameName: String): String = {
+    new String(doAction(s"/getDataFrameTitle/${dataFrameName}"), "UTF-8")
+  }
+
+  def getDocument(dataFrameName: String): DataFrameDocument = {
+    val jsonString: String = {
+      new String(doAction(s"/getDocument/${dataFrameName}"), "UTF-8").trim match {
+        case s if s.nonEmpty => s
+        case _ => "[]"
+      }
+    }
+    val jo = new JSONArray(jsonString).getJSONObject(0)
+    new DataFrameDocument {
+      override def getSchemaURL(): Option[String] = Some("SchemaUrl")
+
+      override def getDataFrameTitle(): Option[String] = Some(jo.getString("DataFrameTitle"))
+
+      override def getColumnURL(colName: String): Option[String] = Some(jo.getString("ColumnUrl"))
+
+      override def getColumnAlias(colName: String): Option[String] = Some(jo.getString("ColumnAlias"))
+
+      override def getColumnTitle(colName: String): Option[String] = Some(jo.getString("ColumnTitle"))
+    }
+  }
+
+  def getStatistics(dataFrameName: String): DataFrameStatistics = {
+    val jsonString: String = {
+      new String(doAction(s"/getStatistics/${dataFrameName}"), "UTF-8").trim match {
+        case s if s.isEmpty => ""
+        case s => s
+      }
+    }
+    val jo = new JSONObject(jsonString)
+    new DataFrameStatistics {
+      override def rowCount: Long = jo.getLong("rowCount")
+
+      override def byteSize: Long = jo.getLong("byteSize")
+    }
+  }
+
+  def getDataFrameSize(dataFrameName: String): Long = {
+    new String(doAction(s"/getDataFrameSize/${dataFrameName}"), "UTF-8").trim match {
+      case s if s.nonEmpty => s.asInstanceOf[Long]
+      case _ => 0L
+    }
+  }
+
+  def getHostInfo: Map[String, String] = {
+    val result = mutable.Map[String, String]()
+    get(dacpUrlPrefix + "/listHostInfo").mapIterator(iter => iter.foreach(row => {
+      result.put(row.getAs[String](0), row.getAs[String](1))
+    }))
+    val jo = new JSONObject(result.toMap.head._2)
+    jo.keys().asScala.map { key =>
+      key -> jo.getString(key)
+    }.toMap
+  }
+
+  def getServerResourceInfo: Map[String, String] = {
+    val result = mutable.Map[String, String]()
+    get(dacpUrlPrefix + "/listHostInfo").mapIterator(iter => iter.foreach(row => {
+      result.put(row.getAs[String](0), row.getAs[String](2))
+    }))
+    val jo = new JSONObject(result.toMap.head._2)
+    jo.keys().asScala.map { key =>
+      key -> jo.getString(key)
+    }.toMap
+  }
+
+  def executeTransformTree(transformOp: TransformOp): DataFrame = {
+    val schemaAndRow = getCookRows(transformOp.toJsonString)
+    DefaultDataFrame(schemaAndRow._1, schemaAndRow._2)
+  }
 
   def cook(recipe: Flow): ExecutionResult = {
     val executePaths: Seq[FlowPath] = recipe.getExecutionPaths()

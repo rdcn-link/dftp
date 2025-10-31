@@ -1,4 +1,4 @@
-package link.rdcn.cook
+package link.rdcn.client
 
 import link.rdcn.user.{TokenAuth, UsernamePassword}
 import org.json.JSONObject

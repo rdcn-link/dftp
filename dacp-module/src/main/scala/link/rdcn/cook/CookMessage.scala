@@ -1,6 +1,8 @@
 package link.rdcn.cook
 
 import link.rdcn.message.DftpTicket
+import link.rdcn.operation.TransformOp
+import link.rdcn.server.DftpGetStreamRequest
 
 /**
  * @Author renhao
@@ -12,3 +14,6 @@ case class CookTicket(ticketContent: String) extends DftpTicket {
   override val typeId: Byte = 3
 }
 
+trait DacpCookStreamRequest extends DftpGetStreamRequest{
+  def getTransformTree: TransformOp
+}

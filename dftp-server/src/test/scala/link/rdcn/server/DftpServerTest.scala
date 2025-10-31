@@ -1,7 +1,7 @@
 package link.rdcn.server
 
 import link.rdcn.client.DftpClient
-import link.rdcn.server.module.{BaseDftpDataSource, BaseDftpModule}
+import link.rdcn.server.module.{BaseDftpModule, DirectoryDataSourceModule, RequiresAuthenticator}
 import link.rdcn.struct.ValueType.StringType
 import link.rdcn.struct.{DataFrame, DefaultDataFrame, Row, StructType, ValueType}
 import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials}
@@ -9,38 +9,15 @@ import link.rdcn.util.{CodecUtils, DataUtils}
 import org.json.JSONObject
 import org.junit.jupiter.api.{AfterAll, BeforeAll, Test}
 
+import java.io.File
+
 /**
  * @Author Yomi
  * @Description:
  * @Data 2025/9/25 19:13
  * @Modified By:
  */
-class DataSourceModule extends DftpModule{
 
-  private val eventSourceService = new EventSourceService {
-    override def create(): CrossModuleEvent = new BaseDftpDataSource {
-      override def getDataFrame(dataFrameName: String): DataFrame = {
-        val structType = StructType.empty.add("col1", StringType)
-        val rows = Seq.range(0, 10).map(index => Row.fromSeq(Seq("id" + index))).toIterator
-        DefaultDataFrame(structType, rows)
-      }
-
-      override def action(actionName: String, parameter: Array[Byte]): Array[Byte] = {
-        CodecUtils.encodeString(new JSONObject().put("status","success").toString())
-      }
-
-      override def put(dataFrame: DataFrame): Array[Byte] = {
-        CodecUtils.encodeString(new JSONObject().put("status","success").toString())
-      }
-    }
-  }
-
-  override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
-    anchor.hook(eventSourceService)
-  }
-
-  override def destroy(): Unit = {}
-}
 
 class AuthModule extends DftpModule{
 
@@ -52,7 +29,16 @@ class AuthModule extends DftpModule{
   }
 
   override def init(anchor: Anchor, serverContext: ServerContext): Unit =
-    anchor.hook(authenticationService)
+    anchor.hook(new EventHandler {
+      override def accepts(event: CrossModuleEvent): Boolean = event.isInstanceOf[RequiresAuthenticator]
+
+      override def doHandleEvent(event: CrossModuleEvent): Unit = {
+        event match {
+          case r: RequiresAuthenticator => r.add(authenticationService)
+          case _ =>
+        }
+      }
+    })
 
   override def destroy(): Unit = {}
 }
@@ -64,8 +50,10 @@ object DftpServerTest{
 
   @BeforeAll
   def startServer(): Unit = {
-    val modules = Array(new DirectoryDataSourceModule, new BaseDftpModule, new AuthModule)
-    server = DftpServer.start(DftpServerConfig("0.0.0.0", 3101, Some("data")), modules)
+    val directoryDataSourceModule = new DirectoryDataSourceModule
+    directoryDataSourceModule.setRootDirectory(new File("/Users/renhao/IdeaProjects/dftp_1031/packaging/src/main/distribution/data"))
+    val modules = Array(directoryDataSourceModule, new BaseDftpModule, new AuthModule)
+    server = DftpServer.start(DftpServerConfig("0.0.0.0", 3102, Some("data")), modules)
   }
 
   @AfterAll
@@ -79,25 +67,9 @@ class DftpServerTest {
 
   @Test
   def getStreamTest(): Unit = {
-    val client = DftpClient.connect("dftp://0.0.0.0:3101")
-    val df = client.get("dftp://0.0.0.0:3101/")
+    val client = DftpClient.connect("dftp://0.0.0.0:3102")
+    val df = client.get("dftp://0.0.0.0:3102/nodes")
     df.foreach(println)
-  }
-
-  @Test
-  def actionTest(): Unit = {
-    val client = DftpClient.connect("dftp://0.0.0.0:3101")
-    val result: Array[Byte] = client.doAction("test")
-    val exceptResult: String = new JSONObject().put("status","success").toString()
-    assert(CodecUtils.decodeString(result) == exceptResult)
-  }
-
-  @Test
-  def putTest(): Unit = {
-    val client = DftpClient.connect("dftp://0.0.0.0:3101")
-    val result: Array[Byte] = client.put(DataFrame.empty())
-    val exceptResult: String = new JSONObject().put("status","success").toString()
-    assert(CodecUtils.decodeString(result) == exceptResult)
   }
 
 }

@@ -7,7 +7,7 @@
         <version>0.5.0-20251028</version>
     </parent>
 
-    <artifactId>dacp-flow</artifactId>
+    <artifactId>dacp-module</artifactId>
     <packaging>jar</packaging>
 
     <name>dftp-cook</name>
