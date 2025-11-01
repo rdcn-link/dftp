@@ -2,6 +2,7 @@ package link.rdcn.operation
 
 import jep.{Jep, SharedInterpreter}
 import link.rdcn.struct.{DataFrame, Row}
+import link.rdcn.user.UserPrincipal
 import org.json.{JSONArray, JSONObject}
 
 import scala.collection.JavaConverters.{asScalaBufferConverter, seqAsJavaListConverter}

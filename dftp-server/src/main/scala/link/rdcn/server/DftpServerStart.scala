@@ -1,7 +1,7 @@
 package link.rdcn.server
 
-import link.rdcn.server.module.{BaseDftpModule, DirectoryDataSourceModule, RequireAuthenticatorEvent}
-import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials}
+import link.rdcn.server.module.{AuthModule, BaseDftpModule, DirectoryDataSourceModule, RequireAuthenticatorEvent}
+import link.rdcn.user.{AuthenticationRequest, AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials}
 
 import java.io.{File, FileInputStream, InputStreamReader}
 import java.util.Properties
@@ -13,31 +13,6 @@ import java.util.Properties
  * @Modified By:
  */
 
-class AuthModule extends DftpModule {
-
-  private val authenticationService = new AuthenticationService {
-    override def accepts(credentials: Credentials): Boolean = true
-
-    override def authenticate(credentials: Credentials): UserPrincipal =
-      UserPrincipalWithCredentials(credentials)
-  }
-
-  override def init(anchor: Anchor, serverContext: ServerContext): Unit =
-    anchor.hook(new EventHandler {
-      override def accepts(event: CrossModuleEvent): Boolean =
-        event.isInstanceOf[RequireAuthenticatorEvent]
-
-      override def doHandleEvent(event: CrossModuleEvent): Unit = {
-        event match {
-          case require: RequireAuthenticatorEvent =>
-            require.add(authenticationService)
-        }
-      }
-    })
-
-  override def destroy(): Unit = {}
-}
-
 object DftpServerStart {
 
   def main(args: Array[String]): Unit = {
@@ -48,9 +23,16 @@ object DftpServerStart {
       props.getProperty("dftp.host.port").toInt, Some(dftpHome))
     val server = new DftpServer(dftpServerConfig)
     server.addModule(new BaseDftpModule)
-      .addModule(new AuthModule)
+      .addModule(new AuthModule(authenticationService))
       .addModule(new DirectoryDataSourceModule)
     server.startBlocking()
+  }
+
+  private val authenticationService = new AuthenticationService {
+    override def accepts(request: AuthenticationRequest): Boolean = true
+
+    override def authenticate(credentials: Credentials): UserPrincipal =
+      UserPrincipalWithCredentials(credentials)
   }
 
   private def loadProperties(path: String): Properties = {

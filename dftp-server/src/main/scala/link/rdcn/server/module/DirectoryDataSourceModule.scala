@@ -4,6 +4,7 @@ import link.rdcn.client.UrlValidator
 import link.rdcn.server._
 import link.rdcn.struct.ValueType.RefType
 import link.rdcn.struct.{Blob, DFRef, DataFrame, DataStreamSource, DefaultDataFrame, Row, StructType}
+import link.rdcn.user.UserPrincipal
 import link.rdcn.util.DataUtils
 
 import java.io.File
@@ -76,7 +77,7 @@ class DirectoryDataSourceModule extends DftpModule {
         event match {
           case require: RequireDataFrameProviderEvent =>
             require.add(new DataFrameProvider{
-              override def getDataFrame(dataFrameUrl: String)(implicit ctx: ServerContext): DataFrame =
+              override def getDataFrame(dataFrameUrl: String, user: UserPrincipal)(implicit ctx: ServerContext): DataFrame =
                 getDataFrameByUrl(dataFrameUrl, ctx)
 
               override def accepts(request: DataFrameProviderRequest): Boolean = {

@@ -4,7 +4,7 @@ import link.rdcn.client.DftpClient
 import link.rdcn.server.module.{BaseDftpModule, DirectoryDataSourceModule, RequireAuthenticatorEvent}
 import link.rdcn.struct.ValueType.StringType
 import link.rdcn.struct.{DataFrame, DefaultDataFrame, Row, StructType, ValueType}
-import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials}
+import link.rdcn.user.{AuthenticationRequest, AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials}
 import link.rdcn.util.{CodecUtils, DataUtils}
 import org.json.JSONObject
 import org.junit.jupiter.api.{AfterAll, BeforeAll, Test}
@@ -22,7 +22,7 @@ import java.io.File
 class AuthModule extends DftpModule{
 
   private val authenticationService = new AuthenticationService {
-    override def accepts(credentials: Credentials): Boolean = true
+    override def accepts(request: AuthenticationRequest): Boolean = true
 
     override def authenticate(credentials: Credentials): UserPrincipal =
       UserPrincipalWithCredentials(credentials)

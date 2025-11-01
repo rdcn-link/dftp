@@ -6,6 +6,7 @@ import link.rdcn.server.ServerContext
 import link.rdcn.server.module.{DataFrameProvider, DataFrameProviderRequest}
 import link.rdcn.struct.ValueType.{LongType, RefType, StringType}
 import link.rdcn.struct._
+import link.rdcn.user.{CompositeAuthProvider, UserPrincipal}
 import org.apache.jena.rdf.model.{Model, ModelFactory}
 import org.json.JSONObject
 
@@ -18,6 +19,12 @@ import java.io.StringWriter
  * @Modified By:
  */
 trait DataProvider extends DataFrameProvider {
+
+  protected val authProviderHub = new CompositeAuthProvider
+
+  final def add(authProviderHub: CompositeAuthProvider):Unit = {
+    authProviderHub.services.foreach(this.authProviderHub.add)
+  }
 
   override def accepts(request: DataFrameProviderRequest): Boolean
 
@@ -80,17 +87,19 @@ trait DataProvider extends DataFrameProvider {
 
   def getDataFrameTitle(dataFrameName: String): Option[String]
 
-  final override def getDataFrame(dataFrameUrl: String)(implicit ctx: ServerContext): DataFrame = {
+  final override def getDataFrame(dataFrameUrl: String, userPrincipal: UserPrincipal)(implicit ctx: ServerContext): DataFrame = {
     UrlValidator.extractPath(dataFrameUrl) match {
       case "/listDataSets" => doListDataSets(ctx.baseUrl)
       case path if path.startsWith("/listDataFrames") =>
         doListDataFrames(path, ctx.baseUrl)
       case path if path.startsWith("/listHosts") =>
         doListHostInfo(ctx)
-      case _ => getDataStreamSource(dataFrameUrl).dataFrame
+      case _ =>
+        if(authProviderHub.checkPermission(userPrincipal, dataFrameUrl))
+          getDataStreamSource(dataFrameUrl).dataFrame
+        else throw new IllegalAccessException(s"No permission to access this DataFrame $dataFrameUrl.")
     }
   }
-
 
   /**
    * 输入链接（实现链接）： dacp://0.0.0.0:3101/listDataSets

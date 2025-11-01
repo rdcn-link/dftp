@@ -1,7 +1,8 @@
 package link.rdcn.catalog
 
+import link.rdcn.server._
 import link.rdcn.server.module.RequireDataFrameProviderEvent
-import link.rdcn.server.{Anchor, CrossModuleEvent, DftpModule, EventHandler, ServerContext}
+import link.rdcn.user.{CompositeAuthProvider, RequireAuthProviderEvent}
 
 /**
  * @Author renhao
@@ -10,6 +11,8 @@ import link.rdcn.server.{Anchor, CrossModuleEvent, DftpModule, EventHandler, Ser
  * @Modified By:
  */
 class DataProviderModule(dataProvider: DataProvider) extends DftpModule {
+
+  private val authProviderHub = new CompositeAuthProvider
 
   override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
     anchor.hook(new EventHandler {
@@ -22,6 +25,13 @@ class DataProviderModule(dataProvider: DataProvider) extends DftpModule {
           case r: RequireDataFrameProviderEvent => r.add(dataProvider)
           case _ =>
         }
+      }
+    })
+
+    anchor.hook(new EventSource {
+      override def init(eventHub: EventHub): Unit = {
+        eventHub.fireEvent(RequireAuthProviderEvent(authProviderHub))
+        dataProvider.add(authProviderHub)
       }
     })
   }

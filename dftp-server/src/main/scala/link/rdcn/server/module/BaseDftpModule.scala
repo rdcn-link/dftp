@@ -10,35 +10,6 @@ import link.rdcn.util.DataUtils
 import java.nio.charset.StandardCharsets
 import scala.collection.mutable.ArrayBuffer
 
-trait DataFrameProviderRequest {
-  def getDataFrameUrl: String
-}
-
-trait DataFrameProvider{
-  def getDataFrame(dataFrameUrl: String)(implicit ctx: ServerContext): DataFrame
-  def accepts(request: DataFrameProviderRequest): Boolean
-}
-
-class CompositeDataFrameProvider extends DataFrameProvider{
-  private val dataFrameProviders = new ArrayBuffer[DataFrameProvider]
-
-  override def accepts(request: DataFrameProviderRequest): Boolean =
-    dataFrameProviders.exists(_.accepts(request))
-
-  override def getDataFrame(dataFrameUrl: String)(implicit ctx: ServerContext): DataFrame = {
-    val request = new DataFrameProviderRequest {
-      override def getDataFrameUrl: String = dataFrameUrl
-    }
-    dataFrameProviders.find(_.accepts(request)).map(_.getDataFrame(dataFrameUrl)).getOrElse(null)
-  }
-
-  def add(dataFrameProvider: DataFrameProvider) = dataFrameProviders.append(dataFrameProvider)
-}
-
-case class RequireDataFrameProviderEvent(composite: CompositeDataFrameProvider) extends CrossModuleEvent{
-  def add(dataFrameProvider: DataFrameProvider) = composite.add(dataFrameProvider)
-}
-
 class BaseDftpModule extends DftpModule {
 
   private val dataFrameProviderHub = new CompositeDataFrameProvider
@@ -71,8 +42,17 @@ class BaseDftpModule extends DftpModule {
         }
         case r: DftpGetPathStreamRequest => {
           val dataFrame = r.getTransformOp().execute(new ExecutionContext {
-            override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] =
-              Some(dataFrameProviderHub.getDataFrame(dataFrameNameUrl)(serverContext))
+            override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
+              try {
+                Some(dataFrameProviderHub.getDataFrame(dataFrameNameUrl, r.getUserPrincipal())(serverContext))
+              }catch {
+                case e: IllegalAccessException => response.sendError(403, e.getMessage)
+                  throw e
+                case e: Exception => response.sendError(500, e.getMessage)
+                  throw e
+              }
+
+            }
           })
           response.sendDataFrame(dataFrame)
         }

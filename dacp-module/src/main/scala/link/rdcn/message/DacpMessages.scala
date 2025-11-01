@@ -18,6 +18,27 @@ trait DacpCookStreamRequest extends DftpGetStreamRequest{
   def getTransformTree: TransformOp
 }
 
-trait DataProviderRequest extends DataFrameProviderRequest {
+trait DataProviderRequest extends DataFrameProviderRequest{
   def getDataSetId: String
+}
+
+object DataProviderRequest {
+
+  def createByDataFrameUrl(dataFrameUrl: String): DataProviderRequest = {
+    new DataProviderRequest{
+
+      override def getDataSetId: String = null
+
+      override def getDataFrameUrl: String = dataFrameUrl
+    }
+  }
+
+  def createByDataSetId(dataSetId: String): DataProviderRequest = {
+    new DataProviderRequest{
+
+      override def getDataSetId: String = dataSetId
+
+      override def getDataFrameUrl: String = null
+    }
+  }
 }

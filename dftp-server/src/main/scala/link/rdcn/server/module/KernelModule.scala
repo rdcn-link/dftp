@@ -1,8 +1,8 @@
 package link.rdcn.server.module
 
-import link.rdcn.server.{ActionHandler, Anchor, CrossModuleEvent, DftpActionRequest, DftpActionResponse, DftpGetStreamRequest, DftpGetStreamResponse, DftpModule, DftpPutStreamRequest, DftpPutStreamResponse, DftpRequest, DftpResponse, EventHub, EventSource, GetStreamHandler, GetStreamRequestParser, AccessLogger, PutStreamHandler, ServerContext}
+import link.rdcn.server.{AccessLogger, ActionHandler, Anchor, CrossModuleEvent, DftpActionRequest, DftpActionResponse, DftpGetStreamRequest, DftpGetStreamResponse, DftpModule, DftpPutStreamRequest, DftpPutStreamResponse, DftpRequest, DftpResponse, EventHub, EventSource, GetStreamHandler, GetStreamRequestParser, PutStreamHandler, ServerContext}
 import link.rdcn.struct.DataFrame
-import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal}
+import link.rdcn.user.{AuthenticationRequest, AuthenticationService, Credentials, UserPrincipal}
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -84,10 +84,13 @@ class CompositeAuthenticator extends AuthenticationService {
   def add(service: AuthenticationService): Unit = services += service
 
   override def authenticate(credentials: Credentials): UserPrincipal = {
-    services.find(_.accepts(credentials)).map(_.authenticate(credentials)).find(_ != null).getOrElse(null)
+    val request = new AuthenticationRequest {
+      override def getCredentials: Credentials = credentials
+    }
+    services.find(_.accepts(request)).map(_.authenticate(credentials)).find(_ != null).getOrElse(null)
   }
 
-  override def accepts(credentials: Credentials): Boolean = services.exists(_.accepts(credentials))
+  override def accepts(rquest: AuthenticationRequest): Boolean = services.exists(_.accepts(rquest))
 }
 
 class CompositeGetStreamRequestParser extends GetStreamRequestParser {

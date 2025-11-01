@@ -2,15 +2,14 @@ package link.rdcn.cook
 
 import link.rdcn.Logging
 import link.rdcn.message.DacpCookStreamRequest
-import link.rdcn.operation.{ExecutionContext, TransformOp}
+import link.rdcn.operation.TransformOp
 import link.rdcn.optree.{FlowExecutionContext, OperatorRepository, RepositoryClient, TransformTree}
-import link.rdcn.server.module.{CompositeDataFrameProvider, DataFrameProviderRequest, RequireDataFrameProviderEvent, RequireGetStreamHandlerEvent, RequireGetStreamRequestParserEvent}
-import link.rdcn.server.{Anchor, CrossModuleEvent, DftpGetPathStreamRequest, DftpGetStreamRequest, DftpGetStreamResponse, DftpModule, EventHandler, EventHub, EventSource, GetStreamHandler, GetStreamRequestParser, ServerContext}
-import link.rdcn.struct.{DataFrame, DataStreamSource}
-import link.rdcn.user.{Credentials, UserPrincipal}
+import link.rdcn.server.module.{CompositeDataFrameProvider, RequireDataFrameProviderEvent, RequireGetStreamHandlerEvent, RequireGetStreamRequestParserEvent}
+import link.rdcn.server._
+import link.rdcn.struct.DataFrame
+import link.rdcn.user.{CompositeAuthProvider, Credentials, RequireAuthProviderEvent, UserPrincipal}
 
 import java.nio.charset.StandardCharsets
-import scala.collection.mutable.ArrayBuffer
 
 /**
  * @Author renhao
@@ -65,35 +64,34 @@ class DacpCookModule() extends DftpModule with Logging {
         case request: DacpCookStreamRequest => {
           val transformTree = request.getTransformTree
           val userPrincipal = request.getUserPrincipal()
-          //TODO check permission
+          val flowExecutionContext: FlowExecutionContext = new FlowExecutionContext {
+
+            override def fairdHome: String = serverContext.getDftpHome().getOrElse("./")
+
+            override def pythonHome: String = sys.env
+              .getOrElse("PYTHON_HOME", throw new Exception("PYTHON_HOME environment variable is not set"))
+
+            override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
+              try {
+                Some(dataFrameProviderHub.getDataFrame(dataFrameNameUrl, userPrincipal))
+              } catch {
+                case e: IllegalAccessException => response.sendError(403, e.getMessage)
+                  throw e
+                case e: Exception => response.sendError(500, e.getMessage)
+                  throw e
+              }
+            }
+
+            //TODO Repository config
+            override def getRepositoryClient(): Option[OperatorRepository] = Some(new RepositoryClient("10.0.89.38", 8088))
+            //TODO UnionServer
+            override def loadRemoteDataFrame(baseUrl: String, path: String, credentials: Credentials): Option[DataFrame] = ???
+          }
           response.sendDataFrame(transformTree.execute(flowExecutionContext))
         }
         case _ => response.sendError(500, s"illegal DftpGetStreamRequest: $request")
       }
     }
-  }
-
-  private val flowExecutionContext: FlowExecutionContext = new FlowExecutionContext {
-
-    override def fairdHome: String = serverContext.getDftpHome().getOrElse("./")
-
-    override def pythonHome: String = sys.env
-      .getOrElse("PYTHON_HOME", throw new Exception("PYTHON_HOME environment variable is not set"))
-
-    override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
-      try {
-        Some(dataFrameProviderHub.getDataFrame(dataFrameNameUrl))
-      } catch {
-        case e: Exception =>
-          logger.error(e)
-          None
-      }
-    }
-
-    //TODO Repository config
-    override def getRepositoryClient(): Option[OperatorRepository] = Some(new RepositoryClient("10.0.89.38", 8088))
-    //TODO UnionServer
-    override def loadRemoteDataFrame(baseUrl: String, path: String, credentials: Credentials): Option[DataFrame] = ???
   }
 
   override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
@@ -116,8 +114,9 @@ class DacpCookModule() extends DftpModule with Logging {
       }
     })
     anchor.hook(new EventSource {
-      override def init(eventHub: EventHub): Unit =
+      override def init(eventHub: EventHub): Unit = {
         eventHub.fireEvent(RequireDataFrameProviderEvent(dataFrameProviderHub))
+      }
     })
   }
 

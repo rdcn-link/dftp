@@ -3,7 +3,7 @@ package link.rdcn.optree
 import jep.SubInterpreter
 import link.rdcn.operation.TransformOp
 import link.rdcn.struct.DataFrame
-import link.rdcn.user.Credentials
+import link.rdcn.user.{Credentials, UserPrincipal}
 
 import java.util.concurrent.ConcurrentHashMap
 import scala.collection.mutable.ArrayBuffer
@@ -65,8 +65,6 @@ trait FlowExecutionContext extends link.rdcn.operation.ExecutionContext {
   def isAsyncEnabled: Boolean = false
 
   def loadRemoteDataFrame(baseUrl: String, path:String, credentials: Credentials): Option[DataFrame]
-
-  def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame]
 
   def getSubInterpreter(sitePackagePath: String, whlPath: String): Option[SubInterpreter] =
     Some(JepInterpreterManager.getJepInterpreter(sitePackagePath, whlPath, Some(pythonHome)))

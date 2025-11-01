@@ -4,23 +4,14 @@ import link.rdcn.catalog.{DacpCatalogModule, DataProvider, DataProviderModule}
 import link.rdcn.client.DacpClient
 import link.rdcn.cook.DacpCookModule
 import link.rdcn.recipe.{ExecutionResult, Flow, SourceNode, Transformer11}
-import link.rdcn.server.module.{BaseDftpModule, DataFrameProviderRequest}
-import link.rdcn.server.{Anchor, AuthModule, CrossModuleEvent, DftpModule, DftpServer, DftpServerConfig, ServerContext}
+import link.rdcn.server.module.{AuthModule, BaseDftpModule, DataFrameProviderRequest}
+import link.rdcn.server.{Anchor, CrossModuleEvent, DftpModule, DftpServer, DftpServerConfig, ServerContext}
 import link.rdcn.struct.ValueType.StringType
 import link.rdcn.struct._
-import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials}
+import link.rdcn.user.{AuthProvider, AuthProviderModule, AuthenticationRequest, AuthenticationService, Credentials, DataOperationType, UserPrincipal, UserPrincipalWithCredentials, UsernamePassword}
 import org.apache.jena.rdf.model.{Model, ModelFactory}
 import org.apache.jena.vocabulary.RDF
 import org.junit.jupiter.api.{AfterAll, BeforeAll, Test}
-
-//{
-//  override def getDataFrame(dataFrameName: String)(ctx: ServerContext): DataFrame = {
-//    val structType = StructType.empty.add("col1", StringType)
-//    val rows = Seq.range(0, 10).map(index => Row.fromSeq(Seq("id" + index))).toIterator
-//    DefaultDataFrame(structType, rows)
-//  }
-//}
-
 
 object DacpClientTest{
 
@@ -68,6 +59,7 @@ object DacpClientTest{
     override def listDataFrameNames(dataSetId: String): List[String] = List("DataFrame")
 
     override def getDataStreamSource(dataFrameName: String): DataStreamSource = {
+
       new DataStreamSource {
         override def rowCount: Long = -1L
 
@@ -105,12 +97,26 @@ object DacpClientTest{
 
     override def accepts(request: DataFrameProviderRequest): Boolean = true
   }
+  val authProvider = new AuthProvider {
 
+    override def authenticate(credentials: Credentials): UserPrincipal =
+      UserPrincipalWithCredentials(credentials)
+
+    override def checkPermission(user: UserPrincipal, dataFrameName: String, opList: List[DataOperationType]): Boolean = {
+      user.asInstanceOf[UserPrincipalWithCredentials].credentials match {
+        case Credentials.ANONYMOUS => false
+        case UsernamePassword(username, password) =>true
+      }
+    }
+
+    override def accepts(request: AuthenticationRequest): Boolean = true
+  }
 
   @BeforeAll
   def startServer(): Unit = {
     val modules = Array(new BaseDftpModule,
-      new AuthModule, new DacpCookModule, new DacpCatalogModule, new DataProviderModule(dataProvider))
+      new AuthProviderModule(authProvider), new DacpCookModule,
+      new DacpCatalogModule, new DataProviderModule(dataProvider))
     server = DftpServer.start(DftpServerConfig("0.0.0.0", 3102).withProtocolScheme("dacp"), modules)
   }
 
@@ -145,7 +151,7 @@ class DacpClientTest {
 
   @Test
   def getTest(): Unit = {
-    val dc = DacpClient.connect("dacp://0.0.0.0:3102")
+    val dc = DacpClient.connect("dacp://0.0.0.0:3102", UsernamePassword("admin", "admin"))
     val df = dc.get("dacp://0.0.0.0:3102/abc")
     df.foreach(println)
   }
@@ -153,7 +159,7 @@ class DacpClientTest {
   @Test
   def cookTest(): Unit = {
 
-    val dc = DacpClient.connect("dacp://0.0.0.0:3102")
+    val dc = DacpClient.connect("dacp://0.0.0.0:3102", UsernamePassword("admin", "admin"))
 
     val udf = new Transformer11 {
       override def transform(dataFrame: DataFrame): DataFrame = {
