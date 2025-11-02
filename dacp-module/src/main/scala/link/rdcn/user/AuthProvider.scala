@@ -20,7 +20,7 @@ trait AuthProvider extends AuthenticationService {
                       opList: List[DataOperationType] = List.empty): Boolean
 }
 
-trait AuthProviderRequest extends AuthenticationRequest {
+trait AuthProviderRequest {
   def getUserPrincipal(): UserPrincipal
 }
 

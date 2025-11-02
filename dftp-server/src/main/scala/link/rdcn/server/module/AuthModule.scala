@@ -1,7 +1,7 @@
 package link.rdcn.server.module
 
 import link.rdcn.server.{Anchor, CrossModuleEvent, DftpModule, EventHandler, ServerContext}
-import link.rdcn.user.AuthenticationService
+import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal}
 
 class AuthModule(authenticationService: AuthenticationService) extends DftpModule {
 
@@ -13,7 +13,22 @@ class AuthModule(authenticationService: AuthenticationService) extends DftpModul
       override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
           case require: RequireAuthenticatorEvent =>
-            require.add(authenticationService)
+            require.holder.set(old =>
+              new AuthenticationService {
+
+                override def accepts(credentials: Credentials): Boolean = {
+                  authenticationService.accepts(credentials) || (old != null && old.accepts(credentials))
+                }
+
+                override def authenticate(credentials: Credentials): UserPrincipal = {
+                  if (authenticationService.accepts(credentials))
+                    authenticationService.authenticate(credentials)
+                  else if (old != null && old.accepts(credentials))
+                    old.authenticate(credentials)
+                  else
+                    throw new Exception(s"unrecognized credentials: ${credentials}")
+                }
+              })
         }
       }
     })
