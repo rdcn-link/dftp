@@ -1,5 +1,6 @@
 package link.rdcn.server
 
+
 import link.rdcn.client.DftpClient
 import link.rdcn.message.MapSerializer
 import link.rdcn.server.TestDataGenerator.getOutputDir
@@ -130,7 +131,7 @@ class DftpServerTest {
 
     // 获取不存在的数据源，服务器应返回 404 NOT_FOUND，客户端捕获为 FlightRuntimeException
     val exception = assertThrows(classOf[FlightRuntimeException], () => {
-      client.get(s"${DftpServerTest.baseUrl}/non_existent_data").collect() // 必须触发数据收集才会真正执行 getStream
+      client.get(s"${DftpServerTest.baseUrl}/non_existent_data").collect()
       ()
     }, "获取不存在的数据应抛出 FlightRuntimeException")
 
@@ -210,10 +211,3 @@ class MockAuthModule extends DftpModule{
   override def destroy(): Unit = {}
 }
 
-class MockActionHandler extends ActionHandler {
-  override def accepts(request: DftpActionRequest): Boolean = true
-
-  override def doAction(request: DftpActionRequest, response: DftpActionResponse): Unit = {
-    response.sendData(new JSONObject().put("status", "success").toString().getBytes)
-  }
-}
