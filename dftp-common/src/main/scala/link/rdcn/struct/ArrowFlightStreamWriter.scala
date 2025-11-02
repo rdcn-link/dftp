@@ -42,8 +42,8 @@ case class ArrowFlightStreamWriter(stream: Iterator[Row]) {
             val bytes = v.url.getBytes("UTF-8")
             vec.asInstanceOf[VarCharVector].setSafe(i, bytes)
           case v: Blob =>
-            val blobId = BlobRegistry.register(v)
-            val bytes = CodecUtils.encodeString(blobId)
+            val transferId = BlobRegistry.register(v)
+            val bytes = CodecUtils.encodeString(transferId)
             vec.asInstanceOf[VarBinaryVector].setSafe(i, bytes)
           case _ => throw new UnsupportedOperationException("Type not supported")
         }
@@ -56,3 +56,5 @@ case class ArrowFlightStreamWriter(stream: Iterator[Row]) {
     unloader.getRecordBatch
   }
 }
+
+

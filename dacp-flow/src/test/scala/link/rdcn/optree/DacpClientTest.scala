@@ -1,21 +1,16 @@
-package link.rdcn.server
+package link.rdcn.optree
 
-import link.rdcn.client.DftpClient
+import link.rdcn.cook.{DacpClient, DacpCookModule}
+import link.rdcn.recipe.{ExecutionResult, Flow, SourceNode, Transformer11}
 import link.rdcn.server.module.{BaseDftpDataSource, BaseDftpModuleTest, DirectoryDataSourceModule}
+import link.rdcn.server.{Anchor, CrossModuleEvent, DftpModule, DftpServer, DftpServerConfig, EventSourceService, ServerContext}
 import link.rdcn.struct.ValueType.StringType
 import link.rdcn.struct.{DataFrame, DefaultDataFrame, Row, StructType}
 import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials}
 import link.rdcn.util.CodecUtils
 import org.json.JSONObject
-import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.{AfterAll, BeforeAll, Test}
 
-/**
- * @Author Yomi
- * @Description:
- * @Data 2025/9/25 19:13
- * @Modified By:
- */
 class DataSourceModule extends DftpModule{
 
   private val eventSourceService = new EventSourceService {
@@ -59,14 +54,14 @@ class AuthModule extends DftpModule{
 }
 
 
-object DftpServerTest{
+object DacpClientTest{
 
   var server: DftpServer = _
 
   @BeforeAll
   def startServer(): Unit = {
-    val modules = Array(new DataSourceModule, new BaseDftpModuleTest, new AuthModule)
-    server = DftpServer.start(DftpServerConfig("0.0.0.0", 3101, Some("data")), modules)
+    val modules = Array(new DataSourceModule, new BaseDftpModuleTest, new AuthModule, new DacpCookModule)
+    server = DftpServer.start(DftpServerConfig("0.0.0.0", 3102, Some("data"), false, "dacp"), modules)
   }
 
   @AfterAll
@@ -76,29 +71,38 @@ object DftpServerTest{
 
 }
 
-class DftpServerTest {
+class DacpClientTest {
 
   @Test
-  def getStreamTest(): Unit = {
-    val client = DftpClient.connect("dftp://0.0.0.0:3101")
-    val df = client.get("dftp://0.0.0.0:3101/")
+  def getTest(): Unit = {
+    val dc = DacpClient.connect("dacp://0.0.0.0:3102")
+    val df = dc.get("dacp://0.0.0.0:3102/abc")
     df.foreach(println)
   }
 
   @Test
-  def actionTest(): Unit = {
-    val client = DftpClient.connect("dftp://0.0.0.0:3101")
-    val result: Array[Byte] = client.doAction("test")
-    val expectResult: String = new JSONObject().put("status","success").toString()
-    assertEquals(expectResult, CodecUtils.decodeString(result), "result should be matched.")
-  }
+  def cookTest(): Unit = {
 
-  @Test
-  def putTest(): Unit = {
-    val client = DftpClient.connect("dftp://0.0.0.0:3101")
-    val result: Array[Byte] = client.put(DataFrame.empty())
-    val expectResult: String = new JSONObject().put("status","success").toString()
-    assertEquals(expectResult, CodecUtils.decodeString(result), "result should be matched.")
+    val dc = DacpClient.connect("dacp://0.0.0.0:3102")
+
+    val udf = new Transformer11 {
+      override def transform(dataFrame: DataFrame): DataFrame = {
+        dataFrame.limit(5)
+      }
+    }
+
+    val transformerDAG = Flow(
+      Map(
+        "A" -> SourceNode("/abc"),
+        "B" -> udf
+      ),
+      Map(
+        "A" -> Seq("B")
+      )
+    )
+    val dfs: ExecutionResult = dc.cook(transformerDAG)
+    dfs.single().foreach(println)
+
   }
 
 }

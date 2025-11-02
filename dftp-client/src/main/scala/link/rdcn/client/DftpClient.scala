@@ -1,17 +1,20 @@
 package link.rdcn.client
 
+
+import io.grpc.{ManagedChannel, ManagedChannelBuilder}
 import link.rdcn.client.ClientUtils.convertStructTypeToArrowSchema
 import link.rdcn.message.{BlobTicket, GetTicket, MapSerializer}
 import link.rdcn.operation._
 import link.rdcn.struct._
 import link.rdcn.user.Credentials
 import link.rdcn.util.CodecUtils
-import org.apache.arrow.flight.auth.ClientAuthHandler
 import org.apache.arrow.flight._
+import org.apache.arrow.flight.auth.ClientAuthHandler
 import org.apache.arrow.memory.{BufferAllocator, RootAllocator}
 import org.apache.arrow.vector.{VectorLoader, VectorSchemaRoot}
 
 import java.io.{File, InputStream}
+import java.util.concurrent.{ConcurrentHashMap, TimeUnit}
 import java.util.concurrent.locks.LockSupport
 import scala.collection.JavaConverters.asScalaBufferConverter
 import scala.collection.mutable

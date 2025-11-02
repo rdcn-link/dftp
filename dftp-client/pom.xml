@@ -15,9 +15,35 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <grpc.version>1.60.0</grpc.version>
     </properties>
 
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-bom</artifactId>
+                <version>${grpc.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
     <dependencies>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-stub</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-protobuf</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-netty-shaded</artifactId>
+        </dependency>
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
@@ -141,22 +167,5 @@
             </plugin>
         </plugins>
     </build>
-    <distributionManagement>
-        <snapshotRepository>
-            <id>sdc</id>
-            <url>http://10.0.82.220:8081/repository/maven-snapshots/</url>
-        </snapshotRepository>
-        <repository>
-            <id>sdc</id>
-            <url>http://10.0.82.220:8081/repository/maven-releases</url>
-        </repository>
-    </distributionManagement>
 
-    <repositories>
-        <repository>
-            <id>sdc</id>
-            <name>Repository</name>
-            <url>http://10.0.82.220:8081/repository/maven-public/</url>
-        </repository>
-    </repositories>
 </project>
