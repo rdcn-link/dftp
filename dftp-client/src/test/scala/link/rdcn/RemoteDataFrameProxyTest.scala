@@ -1,4 +1,4 @@
-package link.rdcn.client
+package link.rdcn
 
 /**
  * @Author Yomi
@@ -7,9 +7,7 @@ package link.rdcn.client
  * @Modified By:
  */
 
-import link.rdcn.ClientTestProvider
-import link.rdcn.ClientTestBase._
-import link.rdcn.ClientTestProvider.{csvDir, dc}
+import link.rdcn.client.RemoteDataFrameProxy
 import link.rdcn.operation._
 import link.rdcn.struct.ValueType.{DoubleType, LongType}
 import link.rdcn.struct._

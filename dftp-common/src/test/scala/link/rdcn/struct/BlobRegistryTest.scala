@@ -9,6 +9,7 @@ package struct
 import link.rdcn.struct.{Blob, BlobRegistry}
 import org.junit.jupiter.api.Assertions.{assertEquals, assertTrue, fail}
 import org.junit.jupiter.api.{AfterAll, BeforeEach, Test}
+import struct.BlobRegistryTest.{TEST_DATA, mockBlob, testBlobId}
 
 import java.io.{ByteArrayInputStream, InputStream}
 import java.nio.charset.StandardCharsets

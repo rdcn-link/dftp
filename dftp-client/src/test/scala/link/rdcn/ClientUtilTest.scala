@@ -1,4 +1,4 @@
-package link.rdcn.client
+package link.rdcn
 
 /**
  * @Author Yomi
@@ -6,6 +6,7 @@ package link.rdcn.client
  * @Data 2025/9/25 11:08
  * @Modified By:
  */
+import link.rdcn.client.ClientUtils
 import link.rdcn.struct.ValueType._
 import link.rdcn.struct._
 import org.apache.arrow.flight.{PutResult, Result, SyncPutListener}
