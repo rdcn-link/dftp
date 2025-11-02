@@ -72,6 +72,10 @@ class ObjectHolder[T] {
 
   def set(v: T): Unit = _object = v
 
+  def set(fn: (T) => T): Unit = {
+    _object = fn(_object)
+  }
+
   def invoke[Y](run: (T) => Y, onNull: => Y): Y = {
     if (_object == null) {
       onNull
@@ -79,10 +83,6 @@ class ObjectHolder[T] {
     else {
       run(_object)
     }
-  }
-
-  def set(fn: (T) => T): Unit = {
-    _object = fn(_object)
   }
 }
 
