@@ -5,10 +5,10 @@ import link.rdcn.server.DftpServerStartTest.{baseUrl, testFileContent, testFileN
 import link.rdcn.server.module.{AuthModule, BaseDftpModule, DirectoryDataSourceModule}
 import link.rdcn.struct.StructType
 import link.rdcn.struct.ValueType.StringType
-import link.rdcn.user.{AuthenticationRequest, AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials, UsernamePassword}
+import link.rdcn.user._
 import org.junit.jupiter.api.Assertions.{assertEquals, assertNotNull, assertThrows, assertTrue}
 import org.junit.jupiter.api.io.TempDir
-import org.junit.jupiter.api.{AfterAll, BeforeAll, Test, TestInstance}
+import org.junit.jupiter.api.{AfterAll, BeforeAll, Test}
 
 import java.io.{File, FileInputStream, FileOutputStream, PrintWriter}
 import java.nio.file.{Path, Paths}

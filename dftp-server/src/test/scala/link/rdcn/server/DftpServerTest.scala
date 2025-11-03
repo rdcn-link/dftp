@@ -1,6 +1,7 @@
 package link.rdcn.server
 
 
+import link.rdcn.client.DftpClient
 import link.rdcn.server.TestDataGenerator.getOutputDir
 import link.rdcn.server.module.{BaseDftpModule, DirectoryDataSourceModule, RequireAuthenticatorEvent}
 import link.rdcn.struct.StructType

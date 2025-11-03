@@ -1,4 +1,4 @@
-package link.rdcn
+package link.rdcn.client
 
 /**
  * @Author Yomi
@@ -7,7 +7,9 @@ package link.rdcn
  * @Modified By:
  */
 
-import link.rdcn.client.RemoteDataFrameProxy
+import link.rdcn.DacpModuleTestProvider
+import link.rdcn.DacpModuleTestProvider.{csvDir, dc}
+import link.rdcn.DacpModuleTestBase._
 import link.rdcn.operation._
 import link.rdcn.struct.ValueType.{DoubleType, LongType}
 import link.rdcn.struct._
@@ -18,18 +20,18 @@ import java.io.{PrintWriter, StringWriter}
 import java.nio.file.Paths
 import scala.io.{BufferedSource, Source}
 
-class RemoteDataFrameProxyTest extends ClientTestProvider {
+class RemoteDataFrameProxyTest extends DacpModuleTestProvider {
 
   private val initialSchema = StructType(List(Column("id", LongType), Column("value", DoubleType)))
 
-  private val remoteDataFrame = dc.get("dftp://localhost:3101/csv/data_1.csv").asInstanceOf[RemoteDataFrameProxy]
+  private val remoteDataFrame = dc.get("dftp://0.0.0.0:3101/csv/data_1.csv").asInstanceOf[RemoteDataFrameProxy]
   private var source: BufferedSource = _
   private var size: Int = _
 
   @BeforeEach
   def setUp(): Unit = {
     source = Source.fromFile(Paths.get(csvDir, "data_1.csv").toString)
-    size = source.getLines().size - 1
+    size = source.getLines().size
     source.close()
     source = Source.fromFile(Paths.get(csvDir, "data_1.csv").toString)
   }
@@ -76,7 +78,7 @@ class RemoteDataFrameProxyTest extends ClientTestProvider {
     }
     printWriter.flush()
     val actualOutput = stringWriter.toString
-    val expectedOutput = source.getLines().toSeq.tail.mkString("\n") + "\n"
+    val expectedOutput = source.getLines().toSeq.mkString("\n") + "\n"
 
     assertTrue(selectedDataFrame.operation.isInstanceOf[SelectOp], "Select should create SelectOp")
     val selectOp = selectedDataFrame.operation.asInstanceOf[SelectOp]
@@ -96,7 +98,7 @@ class RemoteDataFrameProxyTest extends ClientTestProvider {
     }
     printWriter.flush()
     val actualOutput = stringWriter.toString
-    val expectedOutput = source.getLines().take(limitN + 1).toSeq.tail.mkString("\n") + "\n"
+    val expectedOutput = source.getLines().take(limitN).toSeq.mkString("\n") + "\n"
 
 
     assertTrue(limitedDataFrame.operation.isInstanceOf[LimitOp], "Limit should create LimitOp")
@@ -116,7 +118,7 @@ class RemoteDataFrameProxyTest extends ClientTestProvider {
     }
     printWriter.flush()
     val actualOutput = stringWriter.toString
-    val expectedOutput = source.getLines().toSeq.tail.mkString("\n") + "\n"
+    val expectedOutput = source.getLines().toSeq.mkString("\n") + "\n"
 
     assertTrue(mappedDataFrame.operation.isInstanceOf[MapOp], "Map should create MapOp")
     assertEquals(expectedOutput, actualOutput, "Mapped data must match")
@@ -133,7 +135,7 @@ class RemoteDataFrameProxyTest extends ClientTestProvider {
     }
     printWriter.flush()
     val actualOutput = stringWriter.toString
-    val expectedOutput = source.getLines().take(11).toSeq.tail.mkString("\n") + "\n"
+    val expectedOutput = source.getLines().take(11).toSeq.mkString("\n") + "\n"
 
     assertTrue(chainedDataFrame.operation.isInstanceOf[LimitOp], "Final op should be LimitOp")
     assertEquals(expectedOutput, actualOutput, "Chain operated data must match")

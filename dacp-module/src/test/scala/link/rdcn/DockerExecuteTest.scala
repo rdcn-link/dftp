@@ -1,4 +1,4 @@
-package link.rdcn.optree
+package link.rdcn
 
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.exception.{ConflictException, NotFoundException}

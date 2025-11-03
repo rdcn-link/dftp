@@ -1,13 +1,12 @@
-package link.rdcn.optree
+package link.rdcn
 
 import jep.SharedInterpreter
 import link.rdcn.operation.SharedInterpreterManager
-import link.rdcn.struct.ValueType.IntType
+import link.rdcn.optree._
 import link.rdcn.struct._
 import link.rdcn.user.Credentials
 import org.junit.jupiter.api.Test
 
-import java.io.{BufferedReader, FileInputStream, InputStreamReader}
 import java.nio.file.Paths
 
 /**
@@ -20,11 +19,11 @@ class FunctionWrapperTest {
   val rows = Seq(Row.fromSeq(Seq(1, 2))).iterator
   val dataFrame = DefaultDataFrame(StructType.empty.add("col_1", ValueType.IntType).add("col_2", ValueType.IntType), ClosableIterator(rows)())
   val dataFrames = Seq(dataFrame)
-  val fairdHome = getClass.getClassLoader.getResource("").getPath
+  val fairdHome = Paths.get(getClass.getClassLoader.getResource("").toURI()).toString
 
   @Test
   def pythonBinTest(): Unit = {
-    val whlPath = Paths.get(fairdHome + "lib", "link-0.1-py3-none-any.whl").toString
+    val whlPath = Paths.get(fairdHome, "lib", "link-0.1-py3-none-any.whl").toString
     val pythonBin = PythonBin("normalize",whlPath)
     val df = pythonBin.applyToDataFrames(dataFrames, ctx)
     df.foreach(row => {
@@ -73,7 +72,7 @@ class FunctionWrapperTest {
 
     override def getRepositoryClient(): Option[OperatorRepository] = Some(new RepositoryClient("10.0.89.38", 8088))
 
-    override val fairdHome: String = ???
+    override val fairdHome: String = this.fairdHome
 
     override def loadRemoteDataFrame(baseUrl: String, path: String, credentials: Credentials): Option[DataFrame] = ???
   }

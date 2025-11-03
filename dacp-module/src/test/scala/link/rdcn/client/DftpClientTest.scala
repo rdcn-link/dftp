@@ -1,5 +1,8 @@
-package link.rdcn
+package link.rdcn.client
 
+import link.rdcn.DacpModuleTestProvider
+import link.rdcn.DacpModuleTestProvider.{csvDir, dc}
+import link.rdcn.DacpModuleTestBase._
 import link.rdcn.struct.{DataFrame, DataStreamSource, DefaultDataFrame}
 import link.rdcn.util.CodecUtils
 import org.json.JSONObject
@@ -8,7 +11,6 @@ import org.junit.jupiter.api.Test
 
 import java.io.{File, PrintWriter, StringWriter}
 import java.nio.file.Paths
-import javax.sound.sampled.AudioSystem.getLine
 import scala.io.{BufferedSource, Source}
 
 /**
@@ -19,12 +21,12 @@ import scala.io.{BufferedSource, Source}
  */
 
 
-class DftpClientTest extends ClientTestProvider {
+class DftpClientTest extends DacpModuleTestProvider {
   @Test
   def testGet(): Unit = {
     val source: BufferedSource = Source.fromFile(Paths.get(csvDir, "data_1.csv").toString)
     val expectedOutput = source.getLines().toSeq.tail.mkString("\n") + "\n"
-    val dataFrame = dc.get("dftp://localhost:3101/csv/data_1.csv")
+    val dataFrame = dc.get("dftp://0.0.0.0:3101/csv/data_1.csv")
     val stringWriter = new StringWriter()
     val printWriter = new PrintWriter(stringWriter)
     dataFrame.foreach { row =>
