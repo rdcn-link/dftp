@@ -9,10 +9,10 @@ package link.rdcn
 import link.rdcn.DacpModuleTestBase._
 import link.rdcn.catalog.DacpCatalogModule
 import link.rdcn.client.DftpClient
-import link.rdcn.server.module.{BaseDftpModule, DirectoryDataSourceModule, RequireAuthenticatorEvent}
+import link.rdcn.server.module.{AuthModule, BaseDftpModule, DirectoryDataSourceModule, RequireAuthenticatorEvent}
 import link.rdcn.server._
 import link.rdcn.struct._
-import link.rdcn.user.{AuthenticationRequest, AuthenticationService, UserPrincipalWithCredentials, UsernamePassword}
+import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipalWithCredentials, UsernamePassword}
 import org.junit.jupiter.api.{AfterAll, BeforeAll}
 
 import java.io.File
@@ -39,6 +39,13 @@ object DacpModuleTestProvider {
   //必须在DfInfos前执行一次
   DacpModuleTestDataGenerator.generateTestData(binDir, csvDir, baseDir)
 
+  val authenticationService = new AuthenticationService {
+    override def authenticate(credentials: user.Credentials): user.UserPrincipal =
+      UserPrincipalWithCredentials(credentials)
+
+    override def accepts(credentials: Credentials): Boolean = true
+  }
+
 
   var dc: DftpClient = _
   var expectedHostInfo: Map[String, String] = _
@@ -61,7 +68,7 @@ object DacpModuleTestProvider {
     if (server.isEmpty) {
       val directoryDataSourceModule = new DirectoryDataSourceModule
       directoryDataSourceModule.setRootDirectory(new File(baseDir))
-      val modules = Array(directoryDataSourceModule, new BaseDftpModule, new MockAuthModule, new DacpCatalogModule)
+      val modules = Array(directoryDataSourceModule, new BaseDftpModule, new AuthModule(authenticationService), new DacpCatalogModule)
       val s = DftpServer.start(DftpServerConfig("0.0.0.0", 3101, Some("data")), modules)
       server = Some(s)
 
@@ -79,32 +86,3 @@ object DacpModuleTestProvider {
   }
 
 }
-
-class MockAuthModule extends DftpModule{
-
-  private val authenticationService = new AuthenticationService {
-    override def accepts(request: AuthenticationRequest): Boolean = true
-
-    override def authenticate(credentials: user.Credentials): user.UserPrincipal =
-      UserPrincipalWithCredentials(credentials)
-  }
-
-  override def init(anchor: Anchor, serverContext: ServerContext): Unit =
-    anchor.hook(new EventHandler {
-      override def accepts(event: CrossModuleEvent): Boolean = event.isInstanceOf[RequireAuthenticatorEvent]
-
-      override def doHandleEvent(event: CrossModuleEvent): Unit = {
-        event match {
-          case r: RequireAuthenticatorEvent => r.add(authenticationService)
-          case _ =>
-        }
-      }
-    })
-
-  override def destroy(): Unit = {}
-}
-
-
-
-
-

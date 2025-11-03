@@ -1,7 +1,8 @@
 package link.rdcn.server
 
 import link.rdcn.client.DftpClient
-import link.rdcn.server.DftpServerStartTest.{baseUrl, testFileContent, testFileName, server}
+import link.rdcn.server.DftpServerStartTest.{baseUrl, testFileContent, testFileName}
+import link.rdcn.server.module.{AuthModule, BaseDftpModule, DirectoryDataSourceModule}
 import link.rdcn.struct.ValueType.StringType
 import link.rdcn.struct.{Row, StructType}
 import link.rdcn.user._
@@ -9,8 +10,9 @@ import org.junit.jupiter.api.Assertions.{assertEquals, assertNotNull, assertThro
 import org.junit.jupiter.api.io.TempDir
 import org.junit.jupiter.api.{AfterAll, BeforeAll, Test}
 
-import java.io.File
+import java.io.{File, FileInputStream, InputStreamReader}
 import java.nio.file.{Path, Paths}
+import java.util.Properties
 
 object DftpServerStartTest {
   private var server: DftpServer = _
@@ -18,7 +20,6 @@ object DftpServerStartTest {
   private val baseUrl = s"dftp://localhost:$serverPort"
   private val testFileName = "csv/data_1.csv"
   private val testFileContent = Row("id","value")
-  private var serverThread: Thread = null
 
 
   @TempDir
@@ -29,20 +30,34 @@ object DftpServerStartTest {
     // --- DftpServerStart 所需的模拟 dftpHome 环境 ---
     homeDir = new File(getResourcePath(""))
     val dftpHome = homeDir.getAbsolutePath
+    val confFile = new File(Paths.get(dftpHome,"conf", "dftp.conf").toString)
 
-    serverThread = new Thread(() => {
-      try {
-        DftpServerStart.main(Array(dftpHome))
-      } catch {
-        case e: InterruptedException =>
-          // 预期在线程被中断时捕获此异常
-          Thread.currentThread().interrupt()
-        case e: Exception =>
-          e.printStackTrace()
-      }
-    })
+    val props = new Properties()
+    props.load(new InputStreamReader(new FileInputStream(confFile), "UTF-8"))
 
-    serverThread.start()
+    val dftpServerConfig = DftpServerConfig(
+      props.getProperty("dftp.host.position"),
+      props.getProperty("dftp.host.port").toInt,
+      Some(dftpHome),
+      Some(props.getProperty("dftp.datasource"))
+    )
+
+    val directoryDataSourceModule = new DirectoryDataSourceModule
+    directoryDataSourceModule.setRootDirectory(new File(dftpServerConfig.dftpDataSource.getOrElse("")))
+
+    val authenticationService = new AuthenticationService {
+      override def authenticate(credentials: Credentials): UserPrincipal =
+        UserPrincipalWithCredentials(credentials)
+      override def accepts(credentials: Credentials): Boolean = true
+    }
+
+    server = new DftpServer(dftpServerConfig) {
+      modules.addModule(new BaseDftpModule)
+        .addModule(new AuthModule(authenticationService))
+        .addModule(directoryDataSourceModule)
+    }
+
+    server.start()
   }
 
   @AfterAll

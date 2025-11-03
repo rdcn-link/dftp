@@ -3,7 +3,7 @@ package link.rdcn.server
 
 import link.rdcn.client.DftpClient
 import link.rdcn.server.ServerTestDataGenerator.{baseDir, binDir, csvDir, getOutputDir}
-import link.rdcn.server.module.{BaseDftpModule, DirectoryDataSourceModule, RequireAuthenticatorEvent}
+import link.rdcn.server.module.{AuthModule, BaseDftpModule, DirectoryDataSourceModule, RequireAuthenticatorEvent}
 import link.rdcn.struct.StructType
 import link.rdcn.struct.ValueType.StringType
 import link.rdcn.user
@@ -34,11 +34,18 @@ object DftpServerTest {
   //必须在DfInfos前执行一次
   ServerTestDataGenerator.generateTestData(binDir, csvDir, baseDir)
 
+  val authenticationService = new AuthenticationService {
+    override def accepts(request: Credentials): Boolean = true
+
+    override def authenticate(credentials: user.Credentials): user.UserPrincipal =
+      UserPrincipalWithCredentials(credentials)
+  }
+
   @BeforeAll
   def startServer(): Unit = {
     val directoryDataSourceModule = new DirectoryDataSourceModule
     directoryDataSourceModule.setRootDirectory(new File(baseDir))
-    val modules = Array(directoryDataSourceModule, new BaseDftpModule, new MockAuthModule)
+    val modules = Array(directoryDataSourceModule, new BaseDftpModule, new AuthModule(authenticationService))
     server = DftpServer.start(DftpServerConfig("0.0.0.0", 3101, Some("data")), modules)
   }
 
@@ -124,7 +131,7 @@ class DftpServerTest {
       ()
     }, "获取不存在的数据应抛出 FlightRuntimeException")
 
-    assertTrue(exception.getMessage.contains("There was an error servicing your request."), "异常消息应包含模拟模块的错误信息")
+    assertTrue(exception.getMessage.contains("not found"), "异常消息应包含模拟模块的错误信息")
   }
 
   @Test
@@ -173,30 +180,5 @@ class DftpServerTest {
 //    assertEquals(2L, resultJson.getInt("rows_received"), "Put 2行数据 接收到的行数应为 2")
 //
 //  }
-}
-
-// --- 模拟认证模块 ---
-class MockAuthModule extends DftpModule{
-
-  private val authenticationService = new AuthenticationService {
-    override def accepts(request: Credentials): Boolean = true
-
-    override def authenticate(credentials: user.Credentials): user.UserPrincipal =
-      UserPrincipalWithCredentials(credentials)
-  }
-
-  override def init(anchor: Anchor, serverContext: ServerContext): Unit =
-    anchor.hook(new EventHandler {
-      override def accepts(event: CrossModuleEvent): Boolean = event.isInstanceOf[RequireAuthenticatorEvent]
-
-      override def doHandleEvent(event: CrossModuleEvent): Unit = {
-        event match {
-          case r: RequireAuthenticatorEvent => r.holder.set(authenticationService)
-          case _ =>
-        }
-      }
-    })
-
-  override def destroy(): Unit = {}
 }
 
