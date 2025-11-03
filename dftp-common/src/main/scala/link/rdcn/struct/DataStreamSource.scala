@@ -34,7 +34,7 @@ object DataStreamSource {
 
   def guessCsvDelimiter(sampleLines: Seq[String]): String = {
     val candidates = List(",", ";", "\t", "\\|")
-    candidates.maxBy{
+    candidates.maxBy {
       delim => sampleLines.head.split(delim).length
     }
   }
@@ -42,10 +42,13 @@ object DataStreamSource {
   def csv(csvFile: File, delimiter: Option[String] = None, header: Boolean = true): DataStreamSource = {
     val fileRowCount = DataUtils.countLinesFast(csvFile)
     val iterLines: ClosableIterator[String] = DataUtils.getFileLines(csvFile)
-    val sampleLines: Seq[String] = iterLines.take(10).toSeq
-    val delim = guessCsvDelimiter(sampleLines)
+    var sampleLines: Seq[String] = iterLines.take(10).toSeq
+    val delim = delimiter.getOrElse(guessCsvDelimiter(sampleLines))
     val headerArray = new ArrayBuffer[String]()
-    if (header) sampleLines.head.split(delim, -1).map(headerArray.append(_))
+    if (header) {
+      sampleLines.head.split(delim, -1).map(headerArray.append(_))
+      sampleLines = sampleLines.tail
+    }
 
     val sampleBuffer = sampleLines.map(_.split(delim, -1)).toArray
     val structType = DataUtils.inferSchema(sampleBuffer, headerArray)
@@ -81,10 +84,12 @@ object DataStreamSource {
     else DataUtils.listFilesWithAttributes(dir).toIterator
     val stream = iterFiles
       // schema [name, byteSize, 文件类型, 创建时间, 最后修改时间, 最后访问时间, file]
-      .map { file => (file._1.getName, file._2.size(),
-        DataUtils.getFileType(file._1), file._2.creationTime().toMillis,
-        file._2.lastModifiedTime().toMillis, file._2.lastAccessTime().toMillis,
-        Blob.fromFile(file._1)) }
+      .map { file =>
+        (file._1.getName, file._2.size(),
+          DataUtils.getFileType(file._1), file._2.creationTime().toMillis,
+          file._2.lastModifiedTime().toMillis, file._2.lastAccessTime().toMillis,
+          Blob.fromFile(file._1))
+      }
       .map(Row.fromTuple(_))
     new DataStreamSource {
       override def rowCount: Long = -1
@@ -92,7 +97,7 @@ object DataStreamSource {
       override def schema: StructType = StructType.binaryStructType
 
       override def iterator: ClosableIterator[Row] =
-        new ClosableIterator(stream, ()=>iterFiles.map(file=>file._1.delete()), false)
+        new ClosableIterator(stream, () => iterFiles.map(file => file._1.delete()), false)
     }
   }
 
@@ -103,30 +108,30 @@ object DataStreamSource {
                 tableName: String,
                 driver: String = "com.mysql.cj.jdbc.Driver"
               ): Unit = {
-Class.forName(driver)
-val conn: Connection = DriverManager.getConnection(jdbcUrl, user, password)
-val stmt = conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
+    Class.forName(driver)
+    val conn: Connection = DriverManager.getConnection(jdbcUrl, user, password)
+    val stmt = conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
 
-// 可配置 fetchSize 优化大数据查询
-stmt.setFetchSize(jdbcFetchSize)
+    // 可配置 fetchSize 优化大数据查询
+    stmt.setFetchSize(jdbcFetchSize)
 
-val rs = stmt.executeQuery(s"SELECT * FROM $tableName")
-val rsMeta = rs.getMetaData
-val structType = JdbcUtils.inferSchema(rsMeta)
-val iterRows: Iterator[Row] = JdbcUtils.resultSetToIterator(rs, stmt, conn, structType)
+    val rs = stmt.executeQuery(s"SELECT * FROM $tableName")
+    val rsMeta = rs.getMetaData
+    val structType = JdbcUtils.inferSchema(rsMeta)
+    val iterRows: Iterator[Row] = JdbcUtils.resultSetToIterator(rs, stmt, conn, structType)
 
-new DataStreamSource {
-override def rowCount: Long = -1 // 行数未知，除非 COUNT 查询
+    new DataStreamSource {
+      override def rowCount: Long = -1 // 行数未知，除非 COUNT 查询
 
-override def schema: StructType = structType
+      override def schema: StructType = structType
 
-override def iterator: ClosableIterator[Row] = ClosableIterator(iterRows)(() => {
-rs.close()
-stmt.close()
-conn.close()
-})
-}
-}
+      override def iterator: ClosableIterator[Row] = ClosableIterator(iterRows)(() => {
+        rs.close()
+        stmt.close()
+        conn.close()
+      })
+    }
+  }
 
 }
 

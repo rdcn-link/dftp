@@ -92,7 +92,7 @@ class DacpCookModule() extends DftpModule with Logging {
 
                         override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
                           try {
-                            Some(dataFrameProviderHub.getDataFrame(dataFrameNameUrl, userPrincipal)(serverContext))
+                            Option(dataFrameProviderHub.getDataFrame(dataFrameNameUrl, userPrincipal)(serverContext))
                           } catch {
                             case e: IllegalAccessException => response.sendError(403, e.getMessage)
                               throw e

@@ -3,7 +3,7 @@ package link.rdcn.server.module
 import link.rdcn.client.UrlValidator
 import link.rdcn.operation.{ExecutionContext, TransformOp}
 import link.rdcn.server._
-import link.rdcn.struct.{BlobRegistry, DataFrame, DefaultDataFrame, Row, StructType}
+import link.rdcn.struct._
 import link.rdcn.user.UserPrincipal
 import link.rdcn.util.DataUtils
 
@@ -49,19 +49,19 @@ class BaseDftpModule extends DftpModule {
                     }
                   }
                   case r: DftpGetPathStreamRequest => {
-                    val dataFrame = r.getTransformOp().execute(new ExecutionContext {
-                      override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
-                        try {
-                          Some(dataFrameProviderHub.getDataFrame(dataFrameNameUrl, r.getUserPrincipal())(serverContext))
-                        } catch {
-                          case e: IllegalAccessException => response.sendError(403, e.getMessage)
-                            throw e
-                          case e: Exception => response.sendError(500, e.getMessage)
-                            throw e
+                    val dataFrame = try {
+                      r.getTransformOp().execute(new ExecutionContext {
+                        override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
+                          Option(dataFrameProviderHub.getDataFrame(dataFrameNameUrl, r.getUserPrincipal())(serverContext))
                         }
-
                       }
-                    })
+                      )
+                    } catch {
+                      case e: IllegalAccessException => response.sendError(403, e.getMessage)
+                        throw e
+                      case e: Exception => response.sendError(500, e.getMessage)
+                        throw e
+                    }
                     response.sendDataFrame(dataFrame)
                   }
                   case _ =>

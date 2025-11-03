@@ -1,7 +1,6 @@
-package link.rdcn.optree
+package link.rdcn.client
 
 import link.rdcn.catalog.{DacpCatalogModule, DataProvider, DataProviderModule}
-import link.rdcn.client.DacpClient
 import link.rdcn.cook.DacpCookModule
 import link.rdcn.recipe.{ExecutionResult, Flow, SourceNode, Transformer11}
 import link.rdcn.server.module.{BaseDftpModule, DataFrameProviderRequest}
@@ -152,7 +151,7 @@ class DacpClientTest {
   @Test
   def getTest(): Unit = {
     val dc = DacpClient.connect("dacp://0.0.0.0:3102", UsernamePassword("admin", "admin"))
-    val df = dc.get("dacp://0.0.0.0:3102/abc")
+    val df = dc.get("dacp://0.0.0.0:3102/abcd")
     df.foreach(println)
   }
 

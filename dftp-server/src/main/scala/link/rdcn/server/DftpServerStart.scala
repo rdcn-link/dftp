@@ -19,11 +19,13 @@ object DftpServerStart {
     val dftpHome = args(0)
     val props = loadProperties(dftpHome + File.separator + "conf" + File.separator + "dftp.conf")
     val dftpServerConfig = DftpServerConfig(props.getProperty("dftp.host.position"),
-      props.getProperty("dftp.host.port").toInt, Some(dftpHome))
+      props.getProperty("dftp.host.port").toInt, Some(dftpHome),Some(props.getProperty("dftp.datasource")))
+    val directoryDataSourceModule = new DirectoryDataSourceModule
+    directoryDataSourceModule.setRootDirectory(new File(dftpServerConfig.dftpDataSource.getOrElse("")))
     val server = new DftpServer(dftpServerConfig) {
       modules.addModule(new BaseDftpModule)
         .addModule(new AuthModule(authenticationService))
-        .addModule(new DirectoryDataSourceModule)
+        .addModule(directoryDataSourceModule)
     }
     server.startBlocking()
   }

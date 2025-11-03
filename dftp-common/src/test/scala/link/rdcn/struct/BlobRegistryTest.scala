@@ -1,4 +1,4 @@
-package link.rdcn.server
+package struct
 
 /**
  * @Author Yomi
@@ -6,10 +6,10 @@ package link.rdcn.server
  * @Data 2025/9/26 10:50
  * @Modified By:
  */
-import link.rdcn.server.BlobRegistryTest.{TEST_DATA, mockBlob, testBlobId}
 import link.rdcn.struct.{Blob, BlobRegistry}
 import org.junit.jupiter.api.Assertions.{assertEquals, assertTrue, fail}
 import org.junit.jupiter.api.{AfterAll, BeforeEach, Test}
+import struct.BlobRegistryTest.{TEST_DATA, mockBlob, testBlobId}
 
 import java.io.{ByteArrayInputStream, InputStream}
 import java.nio.charset.StandardCharsets
