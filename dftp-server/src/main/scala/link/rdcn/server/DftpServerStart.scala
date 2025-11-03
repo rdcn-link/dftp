@@ -1,7 +1,7 @@
 package link.rdcn.server
 
 import link.rdcn.server.module.{AuthModule, BaseDftpModule, DirectoryDataSourceModule, RequireAuthenticatorEvent}
-import link.rdcn.user.{AuthenticationRequest, AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials}
+import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials}
 
 import java.io.{File, FileInputStream, InputStreamReader}
 import java.util.Properties
@@ -14,25 +14,25 @@ import java.util.Properties
  */
 
 object DftpServerStart {
-
   def main(args: Array[String]): Unit = {
     if (args.length < 1) sys.error("need set Dftp Home")
     val dftpHome = args(0)
     val props = loadProperties(dftpHome + File.separator + "conf" + File.separator + "dftp.conf")
     val dftpServerConfig = DftpServerConfig(props.getProperty("dftp.host.position"),
       props.getProperty("dftp.host.port").toInt, Some(dftpHome))
-    val server = new DftpServer(dftpServerConfig)
-    server.addModule(new BaseDftpModule)
-      .addModule(new AuthModule(authenticationService))
-      .addModule(new DirectoryDataSourceModule)
+    val server = new DftpServer(dftpServerConfig) {
+      modules.addModule(new BaseDftpModule)
+        .addModule(new AuthModule(authenticationService))
+        .addModule(new DirectoryDataSourceModule)
+    }
     server.startBlocking()
   }
 
   private val authenticationService = new AuthenticationService {
-    override def accepts(request: AuthenticationRequest): Boolean = true
-
     override def authenticate(credentials: Credentials): UserPrincipal =
       UserPrincipalWithCredentials(credentials)
+
+    override def accepts(credentials: Credentials): Boolean = true
   }
 
   private def loadProperties(path: String): Properties = {

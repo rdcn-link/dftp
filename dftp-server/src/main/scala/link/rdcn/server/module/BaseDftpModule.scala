@@ -8,59 +8,11 @@ import link.rdcn.user.UserPrincipal
 import link.rdcn.util.DataUtils
 
 import java.nio.charset.StandardCharsets
-import scala.collection.mutable.ArrayBuffer
 
 class BaseDftpModule extends DftpModule {
 
   private val dataFrameProviderHub = new CompositeDataFrameProvider
   private var serverContext: ServerContext = _
-
-  private val getStreamHandler = new GetStreamHandler {
-    override def accepts(request: DftpGetStreamRequest): Boolean = {
-      request match {
-        case _: DacpGetBlobStreamRequest => true
-        case _: DftpGetPathStreamRequest => true
-        case _ => false
-      }
-    }
-
-    override def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
-      request match {
-        case r: DacpGetBlobStreamRequest => {
-          val blobId = r.getBlobId()
-          val blob = BlobRegistry.getBlob(blobId)
-          if (blob.isEmpty) {
-            response.sendError(404, s"blob ${blobId} resource closed")
-          } else {
-            blob.get.offerStream(inputStream => {
-              val stream: Iterator[Row] = DataUtils.chunkedIterator(inputStream)
-                .map(bytes => Row.fromSeq(Seq(bytes)))
-              val schema = StructType.blobStreamStructType
-              response.sendDataFrame(DefaultDataFrame(schema, stream))
-            })
-          }
-        }
-        case r: DftpGetPathStreamRequest => {
-          val dataFrame = r.getTransformOp().execute(new ExecutionContext {
-            override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
-              try {
-                Some(dataFrameProviderHub.getDataFrame(dataFrameNameUrl, r.getUserPrincipal())(serverContext))
-              }catch {
-                case e: IllegalAccessException => response.sendError(403, e.getMessage)
-                  throw e
-                case e: Exception => response.sendError(500, e.getMessage)
-                  throw e
-              }
-
-            }
-          })
-          response.sendDataFrame(dataFrame)
-        }
-        case _ =>
-          response.sendError(500, s"illegal DftpGetStreamRequest except DacpGetBlobStreamRequest but get $request")
-      }
-    }
-  }
 
   private val eventHandlerGetStream = new EventHandler {
 
@@ -69,8 +21,55 @@ class BaseDftpModule extends DftpModule {
 
     override def doHandleEvent(event: CrossModuleEvent): Unit = {
       event match {
-        case require: RequireGetStreamHandlerEvent  =>
-          require.add(getStreamHandler)
+        case require: RequireGetStreamHandlerEvent =>
+          require.holder.set(
+            new GetStreamHandler {
+              override def accepts(request: DftpGetStreamRequest): Boolean = {
+                request match {
+                  case _: DacpGetBlobStreamRequest => true
+                  case _: DftpGetPathStreamRequest => true
+                  case _ => false
+                }
+              }
+
+              override def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
+                request match {
+                  case r: DacpGetBlobStreamRequest => {
+                    val blobId = r.getBlobId()
+                    val blob = BlobRegistry.getBlob(blobId)
+                    if (blob.isEmpty) {
+                      response.sendError(404, s"blob ${blobId} resource closed")
+                    } else {
+                      blob.get.offerStream(inputStream => {
+                        val stream: Iterator[Row] = DataUtils.chunkedIterator(inputStream)
+                          .map(bytes => Row.fromSeq(Seq(bytes)))
+                        val schema = StructType.blobStreamStructType
+                        response.sendDataFrame(DefaultDataFrame(schema, stream))
+                      })
+                    }
+                  }
+                  case r: DftpGetPathStreamRequest => {
+                    val dataFrame = r.getTransformOp().execute(new ExecutionContext {
+                      override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
+                        try {
+                          Some(dataFrameProviderHub.getDataFrame(dataFrameNameUrl, r.getUserPrincipal())(serverContext))
+                        } catch {
+                          case e: IllegalAccessException => response.sendError(403, e.getMessage)
+                            throw e
+                          case e: Exception => response.sendError(500, e.getMessage)
+                            throw e
+                        }
+
+                      }
+                    })
+                    response.sendDataFrame(dataFrame)
+                  }
+                  case _ =>
+                    response.sendError(500, s"illegal DftpGetStreamRequest except DacpGetBlobStreamRequest but get $request")
+                }
+              }
+            })
+
         case _ =>
       }
     }
@@ -87,7 +86,7 @@ class BaseDftpModule extends DftpModule {
       override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
           case require: RequireGetStreamRequestParserEvent =>
-            require.add(new GetStreamRequestParser {
+            require.holder.set(new GetStreamRequestParser {
               val BLOB_TICKET: Byte = 1
               val URL_GET_TICKET: Byte = 2
 

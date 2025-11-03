@@ -20,8 +20,7 @@ import java.nio.file.Paths
  * @Author Yomi
  * @Description:
  * @Data 2025/9/25 19:13
- * @Modified By: Gemini
- * @Modification: Refactored for comprehensive API testing.
+ * @Modified By:
  */
 
 // --- 测试服务器启动与关闭 ---
@@ -199,7 +198,7 @@ class MockAuthModule extends DftpModule{
 
       override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
-          case r: RequireAuthenticatorEvent => r.add(authenticationService)
+          case r: RequireAuthenticatorEvent => r.holder.set(authenticationService)
           case _ =>
         }
       }

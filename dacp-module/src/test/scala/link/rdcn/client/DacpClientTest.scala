@@ -108,7 +108,7 @@ object DacpClientTest{
       }
     }
 
-    override def accepts(request: AuthenticationRequest): Boolean = true
+    override def accepts(credentials: Credentials): Boolean = true
   }
 
   @BeforeAll

@@ -22,78 +22,6 @@ class DacpCookModule() extends DftpModule with Logging {
   private implicit var serverContext: ServerContext = _
   private val dataFrameProviderHub = new CompositeDataFrameProvider
 
-  private val getStreamRequestParseService = new GetStreamRequestParser {
-    val COOK_TICKET: Byte = 3
-
-    override def accepts(token: Array[Byte]): Boolean = {
-      val typeId = token(0)
-      typeId == COOK_TICKET
-    }
-
-    override def parse(bytes: Array[Byte], principal: UserPrincipal): DftpGetStreamRequest = {
-      val buffer = java.nio.ByteBuffer.wrap(bytes)
-      val typeId: Byte = buffer.get()
-      val len = buffer.getInt()
-      val b = new Array[Byte](len)
-      buffer.get(b)
-      val ticketContent = new String(b, StandardCharsets.UTF_8)
-      typeId match {
-        case COOK_TICKET =>
-          val transformOp = TransformTree.fromJsonString(ticketContent)
-          new DacpCookStreamRequest {
-            override def getUserPrincipal(): UserPrincipal = principal
-
-            override def getTransformTree: TransformOp = transformOp
-          }
-        case _ => null
-      }
-    }
-  }
-
-  private val getMethodService: GetStreamHandler = new GetStreamHandler {
-
-    override def accepts(request: DftpGetStreamRequest): Boolean = {
-      request match {
-        case _: DacpCookStreamRequest => true
-        case _ => false
-      }
-    }
-
-    override def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
-      request match {
-        case request: DacpCookStreamRequest => {
-          val transformTree = request.getTransformTree
-          val userPrincipal = request.getUserPrincipal()
-          val flowExecutionContext: FlowExecutionContext = new FlowExecutionContext {
-
-            override def fairdHome: String = serverContext.getDftpHome().getOrElse("./")
-
-            override def pythonHome: String = sys.env
-              .getOrElse("PYTHON_HOME", throw new Exception("PYTHON_HOME environment variable is not set"))
-
-            override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
-              try {
-                Some(dataFrameProviderHub.getDataFrame(dataFrameNameUrl, userPrincipal))
-              } catch {
-                case e: IllegalAccessException => response.sendError(403, e.getMessage)
-                  throw e
-                case e: Exception => response.sendError(500, e.getMessage)
-                  throw e
-              }
-            }
-
-            //TODO Repository config
-            override def getRepositoryClient(): Option[OperatorRepository] = Some(new RepositoryClient("10.0.89.38", 8088))
-            //TODO UnionServer
-            override def loadRemoteDataFrame(baseUrl: String, path: String, credentials: Credentials): Option[DataFrame] = ???
-          }
-          response.sendDataFrame(transformTree.execute(flowExecutionContext))
-        }
-        case _ => response.sendError(500, s"illegal DftpGetStreamRequest: $request")
-      }
-    }
-  }
-
   override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
     this.serverContext = serverContext
     anchor.hook(new EventHandler {
@@ -107,12 +35,92 @@ class DacpCookModule() extends DftpModule with Logging {
 
       override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
-          case r: RequireGetStreamRequestParserEvent => r.add(getStreamRequestParseService)
-          case r: RequireGetStreamHandlerEvent => r.add(getMethodService)
+          case r: RequireGetStreamRequestParserEvent => r.holder.set {
+            old =>
+              new GetStreamRequestParser {
+                val COOK_TICKET: Byte = 3
+
+                override def accepts(token: Array[Byte]): Boolean = {
+                  true
+                }
+
+                override def parse(bytes: Array[Byte], principal: UserPrincipal): DftpGetStreamRequest = {
+                  val buffer = java.nio.ByteBuffer.wrap(bytes)
+                  val typeId: Byte = buffer.get()
+
+                  typeId match {
+                    case COOK_TICKET =>
+                      val len = buffer.getInt()
+                      val b = new Array[Byte](len)
+                      buffer.get(b)
+                      val ticketContent = new String(b, StandardCharsets.UTF_8)
+                      val transformOp = TransformTree.fromJsonString(ticketContent)
+                      new DacpCookStreamRequest {
+                        override def getUserPrincipal(): UserPrincipal = principal
+
+                        override def getTransformTree: TransformOp = transformOp
+                      }
+
+                    case _ => old.parse(bytes, principal)
+                  }
+                }
+              }
+          }
+
+          case r: RequireGetStreamHandlerEvent => r.holder.set {
+            old =>
+              new GetStreamHandler {
+
+                override def accepts(request: DftpGetStreamRequest): Boolean = {
+                  request match {
+                    case _: DacpCookStreamRequest => true
+                    case _ => false
+                  }
+                }
+
+                override def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
+                  request match {
+                    case request: DacpCookStreamRequest => {
+                      val transformTree = request.getTransformTree
+                      val userPrincipal = request.getUserPrincipal()
+                      val flowExecutionContext: FlowExecutionContext = new FlowExecutionContext {
+
+                        override def fairdHome: String = serverContext.getDftpHome().getOrElse("./")
+
+                        override def pythonHome: String = sys.env
+                          .getOrElse("PYTHON_HOME", throw new Exception("PYTHON_HOME environment variable is not set"))
+
+                        override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
+                          try {
+                            Some(dataFrameProviderHub.getDataFrame(dataFrameNameUrl, userPrincipal)(serverContext))
+                          } catch {
+                            case e: IllegalAccessException => response.sendError(403, e.getMessage)
+                              throw e
+                            case e: Exception => response.sendError(500, e.getMessage)
+                              throw e
+                          }
+                        }
+
+                        //TODO Repository config
+                        override def getRepositoryClient(): Option[OperatorRepository] = Some(new RepositoryClient("10.0.89.38", 8088))
+
+                        //TODO UnionServer
+                        override def loadRemoteDataFrame(baseUrl: String, path: String, credentials: Credentials): Option[DataFrame] = ???
+                      }
+                      response.sendDataFrame(transformTree.execute(flowExecutionContext))
+                    }
+
+                    case _ => old.doGetStream(request, response)
+                  }
+                }
+              }
+          }
+
           case _ =>
         }
       }
     })
+
     anchor.hook(new EventSource {
       override def init(eventHub: EventHub): Unit = {
         eventHub.fireEvent(RequireDataFrameProviderEvent(dataFrameProviderHub))

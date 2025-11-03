@@ -53,8 +53,8 @@ class DftpServer(config: DftpServerConfig) extends Logging {
     Location.forGrpcInsecure(config.host, config.port)
   }
 
-  private val kernel = new KernelModule()
-  private val modules = new Modules(new ServerContext() {
+  private val kernelModule = new KernelModule()
+  protected val modules = new Modules(new ServerContext() {
 
     override def getHost(): String = config.host
 
@@ -64,8 +64,6 @@ class DftpServer(config: DftpServerConfig) extends Logging {
 
     override def getDftpHome(): Option[String] = config.dftpHome
   })
-
-  def addModule(module: DftpModule): Modules = modules.addModule(module)
 
   private val authenticatedUserMap = new ConcurrentHashMap[String, UserPrincipal]()
 
@@ -158,7 +156,7 @@ class DftpServer(config: DftpServerConfig) extends Logging {
         .build()
     }
 
-    modules.addModule(kernel)
+    modules.addModule(kernelModule)
     modules.init()
   }
 
@@ -166,7 +164,7 @@ class DftpServer(config: DftpServerConfig) extends Logging {
     override def authenticate(serverAuthSender: ServerAuthHandler.ServerAuthSender, iterator: util.Iterator[Array[Byte]]): Boolean = {
       try {
         val cred = CodecUtils.decodeCredentials(iterator.next())
-        val authenticatedUser = kernel.authenticate(cred)
+        val authenticatedUser = kernelModule.authenticate(cred)
         val token = UUID.randomUUID().toString()
         authenticatedUserMap.put(token, authenticatedUser)
         serverAuthSender.send(CodecUtils.encodeString(token))
@@ -208,7 +206,7 @@ class DftpServer(config: DftpServerConfig) extends Logging {
           authenticatedUserMap.get(callContext.peerIdentity())
       }
 
-      kernel.doAction(actionRequest, actionResponse)
+      kernelModule.doAction(actionRequest, actionResponse)
     }
 
     /**
@@ -284,9 +282,9 @@ class DftpServer(config: DftpServerConfig) extends Logging {
       }
 
       val authenticatedUser = authenticatedUserMap.get(callContext.peerIdentity())
-      val request: DftpGetStreamRequest = kernel.parseGetStreamRequest(ticket.getBytes, authenticatedUser)
+      val request: DftpGetStreamRequest = kernelModule.parseGetStreamRequest(ticket.getBytes, authenticatedUser)
 
-      kernel.getStream(request, response)
+      kernelModule.getStream(request, response)
     }
 
     override def acceptPut(
@@ -332,7 +330,7 @@ class DftpServer(config: DftpServerConfig) extends Logging {
               }
           }
 
-          kernel.putStream(request, response)
+          kernelModule.putStream(request, response)
         }
       }
     }
@@ -353,9 +351,11 @@ class DftpServer(config: DftpServerConfig) extends Logging {
 }
 
 object DftpServer {
-  def start(config: DftpServerConfig, modules: Array[DftpModule]): DftpServer = {
-    val server = new DftpServer(config)
-    modules.foreach(server.addModule(_))
+  def start(config: DftpServerConfig, modulesDefined: Array[DftpModule]): DftpServer = {
+    val server = new DftpServer(config) {
+      modulesDefined.foreach(modules.addModule(_))
+    }
+
     server.start()
     server
   }

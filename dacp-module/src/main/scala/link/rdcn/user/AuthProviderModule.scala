@@ -9,6 +9,7 @@ class AuthProviderModule(authProvider: AuthProvider) extends DftpModule {
 
   override def init(anchor: Anchor, serverContext: ServerContext): Unit =
     anchor.hook(new EventHandler {
+      //FIXME: 建议分开hook
     override def accepts(event: CrossModuleEvent): Boolean =
       event.isInstanceOf[RequireAuthProviderEvent] ||
         event.isInstanceOf[RequireAuthenticatorEvent]
@@ -18,7 +19,7 @@ class AuthProviderModule(authProvider: AuthProvider) extends DftpModule {
         case require: RequireAuthProviderEvent =>
           require.add(authProvider)
         case require: RequireAuthenticatorEvent =>
-          require.add(authProvider)
+          require.holder.set(authProvider)
         case _ =>
       }
     }
@@ -37,23 +38,15 @@ class CompositeAuthProvider extends AuthProvider {
   def add(service: AuthProvider): Unit = services += service
 
   override def authenticate(credentials: Credentials): UserPrincipal = {
-    val request = new AuthenticationRequest {
-      override def getCredentials: Credentials = credentials
-    }
-    services.find(_.accepts(request)).map(_.authenticate(credentials)).find(_ != null).orNull
+    services.find(_.accepts(credentials)).map(_.authenticate(credentials)).find(_ != null).orNull
   }
 
   def checkPermission(user: UserPrincipal,
                       dataFrameName: String,
                       opList: List[DataOperationType] = List.empty): Boolean = {
-    val request = new AuthProviderRequest {
-      override def getCredentials: Credentials = null
-
-      override def getUserPrincipal(): UserPrincipal = user
-    }
-    services.find(_.accepts(request)).exists(_.checkPermission(user, dataFrameName, opList))
+    services.exists(_.checkPermission(user, dataFrameName, opList))
   }
 
-  override def accepts(request: AuthenticationRequest): Boolean = services.exists(_.accepts(request))
+  override def accepts(credentials: Credentials): Boolean = ???
 }
 

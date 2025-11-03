@@ -86,7 +86,7 @@ class DacpCatalogModule() extends DftpModule {
 
       override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
-          case r: RequireActionHandlerEvent => r.add(actionMethodService)
+          case r: RequireActionHandlerEvent => r.holder.set(actionMethodService)
           case _ =>
         }
       }
