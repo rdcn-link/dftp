@@ -2,7 +2,7 @@ package link.rdcn.server
 
 
 import link.rdcn.client.DftpClient
-import link.rdcn.server.TestDataGenerator.getOutputDir
+import link.rdcn.server.ServerTestDataGenerator.{baseDir, binDir, csvDir, getOutputDir}
 import link.rdcn.server.module.{BaseDftpModule, DirectoryDataSourceModule, RequireAuthenticatorEvent}
 import link.rdcn.struct.StructType
 import link.rdcn.struct.ValueType.StringType
@@ -31,15 +31,8 @@ object DftpServerTest {
   val port = 3101
   val baseUrl = s"dftp://$host:$port"
 
-  val resourceUrl = getClass.getProtectionDomain.getCodeSource.getLocation
-  val testClassesDir = new File(resourceUrl.toURI)
-  val baseDir = getOutputDir("test_output")
-  // 生成的临时目录结构
-  val binDir = Paths.get(baseDir, "bin").toString
-  val csvDir = Paths.get(baseDir, "csv").toString
-
   //必须在DfInfos前执行一次
-  TestDataGenerator.generateTestData(binDir, csvDir, baseDir)
+  ServerTestDataGenerator.generateTestData(binDir, csvDir, baseDir)
 
   @BeforeAll
   def startServer(): Unit = {
@@ -186,7 +179,7 @@ class DftpServerTest {
 class MockAuthModule extends DftpModule{
 
   private val authenticationService = new AuthenticationService {
-    override def accepts(request: AuthenticationRequest): Boolean = true
+    override def accepts(request: Credentials): Boolean = true
 
     override def authenticate(credentials: user.Credentials): user.UserPrincipal =
       UserPrincipalWithCredentials(credentials)
