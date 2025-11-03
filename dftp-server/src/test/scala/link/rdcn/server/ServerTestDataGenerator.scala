@@ -6,15 +6,20 @@
  */
 package link.rdcn.server
 
-import link.rdcn.server.DftpServerTest.testClassesDir
-
-import java.io.{BufferedWriter, FileOutputStream, FileWriter}
+import java.io.{BufferedWriter, File, FileOutputStream, FileWriter}
 import java.nio.file.{Files, Paths}
 
 
-object TestDataGenerator {
+object ServerTestDataGenerator {
   val binFileCount = 3
   val csvFileCount = 3
+
+  val resourceUrl = getClass.getProtectionDomain.getCodeSource.getLocation
+  val testClassesDir = new File(resourceUrl.toURI)
+  val baseDir = getOutputDir("test_output")
+  // 生成的临时目录结构
+  val binDir = Paths.get(baseDir, "bin").toString
+  val csvDir = Paths.get(baseDir, "csv").toString
 
   def generateTestData(binDir: String, csvDir: String, baseDir: String): Unit = {
     println("Starting test data generation...")
