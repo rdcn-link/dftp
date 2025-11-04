@@ -1,10 +1,7 @@
 package link.rdcn.server.module
 
-import link.rdcn.server.{AccessLogger, ActionHandler, Anchor, CrossModuleEvent, DftpActionRequest, DftpActionResponse, DftpGetStreamRequest, DftpGetStreamResponse, DftpModule, DftpPutStreamRequest, DftpPutStreamResponse, DftpRequest, DftpResponse, EventHub, EventSource, GetStreamHandler, GetStreamRequestParser, PutStreamHandler, ServerContext}
-import link.rdcn.struct.DataFrame
+import link.rdcn.server._
 import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials}
-
-import scala.collection.mutable.ArrayBuffer
 
 class KernelModule extends DftpModule {
   private val authHolder = new ObjectHolder[AuthenticationService]
@@ -45,8 +42,8 @@ class KernelModule extends DftpModule {
   }
 
   def authenticate(credentials: Credentials): UserPrincipal = {
-    authHolder.invoke(_.authenticate(credentials), {
-      UserPrincipalWithCredentials(credentials) //FIXME
+    authHolder.invoke(authService => authService.authenticate(credentials.asInstanceOf[authService.C])
+      , {UserPrincipalWithCredentials(credentials) //FIXME
     })
   }
 

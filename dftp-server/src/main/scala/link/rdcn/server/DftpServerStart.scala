@@ -1,7 +1,7 @@
 package link.rdcn.server
 
-import link.rdcn.server.module.{AuthModule, BaseDftpModule, DirectoryDataSourceModule, RequireAuthenticatorEvent}
-import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials}
+import link.rdcn.server.module.{BaseDftpModule, DirectoryDataSourceModule, RequireAuthenticatorEvent, UserPasswordAuthModule}
+import link.rdcn.user.{AuthenticationService, Credentials, UserPasswordAuthService, UserPrincipal, UserPrincipalWithCredentials, UsernamePassword}
 
 import java.io.{File, FileInputStream, InputStreamReader}
 import java.util.Properties
@@ -22,17 +22,17 @@ object DftpServerStart {
       props.getProperty("dftp.host.port").toInt, Some(dftpHome))
     val server = new DftpServer(dftpServerConfig) {
       modules.addModule(new BaseDftpModule)
-        .addModule(new AuthModule(authenticationService))
+        .addModule(new UserPasswordAuthModule(userPasswordAuthService))
         .addModule(new DirectoryDataSourceModule)
     }
     server.startBlocking()
   }
 
-  private val authenticationService = new AuthenticationService {
-    override def authenticate(credentials: Credentials): UserPrincipal =
+  private val userPasswordAuthService = new UserPasswordAuthService {
+    override def authenticate(credentials: UsernamePassword): UserPrincipal =
       UserPrincipalWithCredentials(credentials)
 
-    override def accepts(credentials: Credentials): Boolean = true
+    override def accepts(credentials: UsernamePassword): Boolean = true
   }
 
   private def loadProperties(path: String): Properties = {

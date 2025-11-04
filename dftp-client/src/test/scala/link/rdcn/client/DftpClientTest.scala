@@ -1,8 +1,8 @@
 package link.rdcn.server
 
 import link.rdcn.client.DftpClient
-import link.rdcn.server.module.{BaseDftpModule, DirectoryDataSourceModule, RequireAuthenticatorEvent}
-import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials}
+import link.rdcn.server.module.{BaseDftpModule, DirectoryDataSourceModule, UserPasswordAuthModule}
+import link.rdcn.user.{UserPasswordAuthService, UserPrincipal, UserPrincipalWithCredentials, UsernamePassword}
 import org.junit.jupiter.api.{AfterAll, BeforeAll, Test}
 
 /**
@@ -11,40 +11,22 @@ import org.junit.jupiter.api.{AfterAll, BeforeAll, Test}
  * @Data 2025/9/25 19:13
  * @Modified By:
  */
-
-
-class AuthModule extends DftpModule {
-  private val authenticationService = new AuthenticationService {
-    override def accepts(credentials: Credentials): Boolean = true
-
-    override def authenticate(credentials: Credentials): UserPrincipal =
-      UserPrincipalWithCredentials(credentials)
-  }
-
-  override def init(anchor: Anchor, serverContext: ServerContext): Unit =
-    anchor.hook(new EventHandler {
-      override def accepts(event: CrossModuleEvent): Boolean = event.isInstanceOf[RequireAuthenticatorEvent]
-
-      override def doHandleEvent(event: CrossModuleEvent): Unit = {
-        event match {
-          case r: RequireAuthenticatorEvent => r.holder.set(authenticationService)
-          case _ =>
-        }
-      }
-    })
-
-  override def destroy(): Unit = {}
-}
-
-
 object DftpServerTest{
 
   var server: DftpServer = _
 
+  private val userPasswordAuthService = new UserPasswordAuthService {
+    override def authenticate(credentials: UsernamePassword): UserPrincipal =
+      UserPrincipalWithCredentials(credentials)
+
+    override def accepts(credentials: UsernamePassword): Boolean = true
+  }
+
   @BeforeAll
   def startServer(): Unit = {
     val directoryDataSourceModule = new DirectoryDataSourceModule
-    val modules = Array(directoryDataSourceModule, new BaseDftpModule, new AuthModule)
+    val modules = Array(directoryDataSourceModule, new BaseDftpModule,
+      new UserPasswordAuthModule(userPasswordAuthService))
     server = DftpServer.start(DftpServerConfig("0.0.0.0", 3102, Some("data")), modules)
   }
 

@@ -5,7 +5,7 @@ import link.rdcn.client.DacpClient
 import link.rdcn.cook.DacpCookModule
 import link.rdcn.recipe.{ExecutionResult, Flow, SourceNode, Transformer11}
 import link.rdcn.server.ServerContext
-import link.rdcn.server.module.{AuthModule, BaseDftpModule, DataFrameProviderModule, DataFrameProviderService}
+import link.rdcn.server.module.{UserPasswordAuthModule, BaseDftpModule, DataFrameProviderModule, DataFrameProviderService}
 import link.rdcn.server.{DftpServer, DftpServerConfig}
 import link.rdcn.struct.ValueType.StringType
 import link.rdcn.struct._
@@ -119,14 +119,11 @@ object DacpClientTest{
     }
   }
 
-  val authenticationService = new AuthenticationService {
-    override def accepts(credentials: Credentials): Boolean = true
-
-    /**
-     * 用户认证，成功返回认证后的保持用户登录状态的凭证
-     */
-    override def authenticate(credentials: Credentials): UserPrincipal =
+  private val userPasswordAuthService = new UserPasswordAuthService {
+    override def authenticate(credentials: UsernamePassword): UserPrincipal =
       UserPrincipalWithCredentials(credentials)
+
+    override def accepts(credentials: UsernamePassword): Boolean = true
   }
 
   @BeforeAll
@@ -137,7 +134,7 @@ object DacpClientTest{
       new DacpCatalogModule,
       new DataFrameProviderModule(dataFrameProviderService),
       new CatalogServiceModule(catalogService),
-      new AuthModule(authenticationService),
+      new UserPasswordAuthModule(userPasswordAuthService),
       new PermissionServiceModule(permissionService)
     )
     server = DftpServer.start(DftpServerConfig("0.0.0.0", 3102).withProtocolScheme("dacp"), modules)
