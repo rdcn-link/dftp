@@ -1,10 +1,11 @@
 package link.rdcn.optree
 
-import link.rdcn.catalog.{DacpCatalogModule, DataProvider, DataProviderModule}
+import link.rdcn.catalog.{CatalogService, CatalogServiceModule, CatalogServiceRequest, DacpCatalogModule}
 import link.rdcn.client.DacpClient
 import link.rdcn.cook.DacpCookModule
 import link.rdcn.recipe.{ExecutionResult, Flow, SourceNode, Transformer11}
-import link.rdcn.server.module.{BaseDftpModule, DataFrameProviderRequest}
+import link.rdcn.server.ServerContext
+import link.rdcn.server.module.{AuthModule, BaseDftpModule, DataFrameProviderModule, DataFrameProviderService}
 import link.rdcn.server.{DftpServer, DftpServerConfig}
 import link.rdcn.struct.ValueType.StringType
 import link.rdcn.struct._
@@ -16,7 +17,7 @@ import org.junit.jupiter.api.{AfterAll, BeforeAll, Test}
 object DacpClientTest{
 
   var server: DftpServer = _
-  val dataProvider = new DataProvider {
+  val catalogService = new CatalogService {
 
     override def listDataSetNames(): List[String] = List("DataSet")
 
@@ -58,18 +59,6 @@ object DacpClientTest{
 
     override def listDataFrameNames(dataSetId: String): List[String] = List("DataFrame")
 
-    override def getDataStreamSource(dataFrameName: String): DataStreamSource = {
-
-      new DataStreamSource {
-        override def rowCount: Long = -1L
-
-        override def schema: StructType = StructType.empty.add("col1", StringType)
-
-        override def iterator: ClosableIterator[Row] =
-          ClosableIterator(Seq.range(0, 10).map(index => Row.fromSeq(Seq("id" + index))).toIterator)()
-      }
-    }
-
     override def getDocument(dataFrameName: String): DataFrameDocument = {
       new DataFrameDocument {
         override def getSchemaURL(): Option[String] = Some(s"$dataFrameName url")
@@ -95,28 +84,62 @@ object DacpClientTest{
 
     override def getDataFrameTitle(dataFrameName: String): Option[String] = Some(dataFrameName)
 
-    override def accepts(request: DataFrameProviderRequest): Boolean = true
+    override def accepts(request: CatalogServiceRequest): Boolean = true
   }
-  val authProvider = new AuthProvider {
+  val permissionService = new PermissionService {
+    override def accepts(user: UserPrincipal): Boolean = true
 
-    override def authenticate(credentials: Credentials): UserPrincipal =
-      UserPrincipalWithCredentials(credentials)
-
-    override def checkPermission(user: UserPrincipal, dataFrameName: String, opList: List[DataOperationType]): Boolean = {
+    /**
+     * 判断用户是否具有某项权限
+     *
+     * @param user          已认证用户
+     * @param dataFrameName 数据帧名称
+     * @param opList        操作类型列表（Java List）
+     * @return 是否有权限
+     */
+    override def checkPermission(user: UserPrincipal, dataFrameName: String, opList: List[DataOperationType]): Boolean =
       user.asInstanceOf[UserPrincipalWithCredentials].credentials match {
         case Credentials.ANONYMOUS => false
         case UsernamePassword(username, password) =>true
       }
-    }
+  }
 
+  val dataFrameProviderService = new DataFrameProviderService {
+    override def accepts(dataFrameUrl: String): Boolean = true
+
+    override def getDataFrame(dataFrameUrl: String, userPrincipal: UserPrincipal)(implicit ctx: ServerContext): DataFrame = {
+      new DataStreamSource {
+        override def rowCount: Long = -1L
+
+        override def schema: StructType = StructType.empty.add("col1", StringType)
+
+        override def iterator: ClosableIterator[Row] =
+          ClosableIterator(Seq.range(0, 10).map(index => Row.fromSeq(Seq("id" + index))).toIterator)()
+      }.dataFrame
+    }
+  }
+
+  val authenticationService = new AuthenticationService {
     override def accepts(credentials: Credentials): Boolean = true
+
+    /**
+     * 用户认证，成功返回认证后的保持用户登录状态的凭证
+     */
+    override def authenticate(credentials: Credentials): UserPrincipal =
+      UserPrincipalWithCredentials(credentials)
   }
 
   @BeforeAll
   def startServer(): Unit = {
-    val modules = Array(new BaseDftpModule,
-      new AuthProviderModule(authProvider), new DacpCookModule,
-      new DacpCatalogModule, new DataProviderModule(dataProvider))
+    val modules = Array(
+      new BaseDftpModule,
+      new DacpCookModule,
+      new DacpCatalogModule,
+      new DataFrameProviderModule(dataFrameProviderService),
+      new CatalogServiceModule(catalogService),
+      new AuthModule(authenticationService),
+      new PermissionServiceModule(permissionService)
+    )
     server = DftpServer.start(DftpServerConfig("0.0.0.0", 3102).withProtocolScheme("dacp"), modules)
   }
 
@@ -178,7 +201,5 @@ class DacpClientTest {
     )
     val dfs: ExecutionResult = dc.cook(transformerDAG)
     dfs.single().foreach(println)
-
   }
-
 }

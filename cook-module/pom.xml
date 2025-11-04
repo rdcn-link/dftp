@@ -7,7 +7,7 @@
         <version>0.5.0-20251028</version>
     </parent>
 
-    <artifactId>dacp-module</artifactId>
+    <artifactId>cook-module</artifactId>
     <packaging>jar</packaging>
 
     <name>dftp-cook</name>
@@ -31,11 +31,6 @@
             <artifactId>dftp-server</artifactId>
             <version>0.5.0-20251028</version>
             <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>link.rdcn</groupId>
-            <artifactId>dftp-client</artifactId>
-            <version>0.5.0-20251028</version>
         </dependency>
         <dependency>
             <groupId>com.github.serceman</groupId>

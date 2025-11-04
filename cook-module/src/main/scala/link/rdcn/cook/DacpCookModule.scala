@@ -1,13 +1,13 @@
 package link.rdcn.cook
 
 import link.rdcn.Logging
-import link.rdcn.message.DacpCookStreamRequest
 import link.rdcn.operation.TransformOp
 import link.rdcn.optree.{FlowExecutionContext, OperatorRepository, RepositoryClient, TransformTree}
-import link.rdcn.server.module.{CompositeDataFrameProvider, RequireDataFrameProviderEvent, RequireGetStreamHandlerEvent, RequireGetStreamRequestParserEvent}
+import link.rdcn.server.module.{DataFrameProviderService, ObjectHolder, RequireDataFrameProviderEvent, RequireGetStreamHandlerEvent, RequireGetStreamRequestParserEvent}
 import link.rdcn.server._
+import link.rdcn.server.exception.DataFrameNotFoundException
 import link.rdcn.struct.DataFrame
-import link.rdcn.user.{CompositeAuthProvider, Credentials, RequireAuthProviderEvent, UserPrincipal}
+import link.rdcn.user.{Credentials, PermissionService, RequirePermissionServiceEvent, UserPrincipal}
 
 import java.nio.charset.StandardCharsets
 
@@ -17,10 +17,15 @@ import java.nio.charset.StandardCharsets
  * @Data 2025/10/31 10:59
  * @Modified By:
  */
+trait DacpCookStreamRequest extends DftpGetStreamRequest{
+  def getTransformTree: TransformOp
+}
+
 class DacpCookModule() extends DftpModule with Logging {
 
   private implicit var serverContext: ServerContext = _
-  private val dataFrameProviderHub = new CompositeDataFrameProvider
+  private val dataFrameHolder = new ObjectHolder[DataFrameProviderService]
+  private val permissionHolder = new ObjectHolder[PermissionService]
 
   override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
     this.serverContext = serverContext
@@ -40,9 +45,7 @@ class DacpCookModule() extends DftpModule with Logging {
               new GetStreamRequestParser {
                 val COOK_TICKET: Byte = 3
 
-                override def accepts(token: Array[Byte]): Boolean = {
-                  true
-                }
+                override def accepts(token: Array[Byte]): Boolean = true
 
                 override def parse(bytes: Array[Byte], principal: UserPrincipal): DftpGetStreamRequest = {
                   val buffer = java.nio.ByteBuffer.wrap(bytes)
@@ -92,10 +95,16 @@ class DacpCookModule() extends DftpModule with Logging {
 
                         override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
                           try {
-                            Some(dataFrameProviderHub.getDataFrame(dataFrameNameUrl, userPrincipal)(serverContext))
+                            if(permissionHolder.invoke(!_.checkPermission(userPrincipal, dataFrameNameUrl), false)){
+                              throw new IllegalAccessException(s"You don't have permission to access this DataFrame $dataFrameNameUrl")
+                            }
+                            Some(dataFrameHolder.invoke(_.getDataFrame(dataFrameNameUrl, userPrincipal)(serverContext),
+                              throw new DataFrameNotFoundException(s"DataFrame $dataFrameNameUrl not Found")))
                           } catch {
                             case e: IllegalAccessException => response.sendError(403, e.getMessage)
                               throw e
+                            case e: DataFrameNotFoundException => response.sendError(404, e.getMessage)
+                             throw e
                             case e: Exception => response.sendError(500, e.getMessage)
                               throw e
                           }
@@ -123,7 +132,8 @@ class DacpCookModule() extends DftpModule with Logging {
 
     anchor.hook(new EventSource {
       override def init(eventHub: EventHub): Unit = {
-        eventHub.fireEvent(RequireDataFrameProviderEvent(dataFrameProviderHub))
+        eventHub.fireEvent(RequireDataFrameProviderEvent(dataFrameHolder))
+        eventHub.fireEvent(RequirePermissionServiceEvent(permissionHolder))
       }
     })
   }

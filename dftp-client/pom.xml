@@ -29,6 +29,23 @@
             <artifactId>dftp-common</artifactId>
             <version>0.5.0-20251028</version>
         </dependency>
+        <dependency>
+            <groupId>link.rdcn</groupId>
+            <artifactId>cook-module</artifactId>
+            <version>0.5.0-20251028</version>
+        </dependency>
+        <dependency>
+            <groupId>link.rdcn</groupId>
+            <artifactId>dftp-server</artifactId>
+            <version>0.5.0-20251028</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>link.rdcn</groupId>
+            <artifactId>catalog-module</artifactId>
+            <version>0.5.0-20251028</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

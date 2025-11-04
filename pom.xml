@@ -14,7 +14,8 @@
     <module>dftp-server</module>
     <module>dftp-common</module>
       <module>packaging</module>
-      <module>dacp-module</module>
+      <module>cook-module</module>
+      <module>catalog-module</module>
   </modules>
 
   <properties>

@@ -1,12 +1,9 @@
 package link.rdcn.catalog
 
 import link.rdcn.catalog.CatalogFormatter._
-import link.rdcn.client.UrlValidator
 import link.rdcn.server.ServerContext
-import link.rdcn.server.module.{DataFrameProvider, DataFrameProviderRequest}
 import link.rdcn.struct.ValueType.{LongType, RefType, StringType}
 import link.rdcn.struct._
-import link.rdcn.user.{CompositeAuthProvider, UserPrincipal}
 import org.apache.jena.rdf.model.{Model, ModelFactory}
 import org.json.JSONObject
 
@@ -18,15 +15,9 @@ import java.io.StringWriter
  * @Data 2025/7/9 17:14
  * @Modified By:
  */
-trait DataProvider extends DataFrameProvider {
+trait CatalogService {
 
-  protected val authProviderHub = new CompositeAuthProvider
-
-  final def add(authProviderHub: CompositeAuthProvider):Unit = {
-    authProviderHub.services.foreach(this.authProviderHub.add)
-  }
-
-  override def accepts(request: DataFrameProviderRequest): Boolean
+   def accepts(request: CatalogServiceRequest): Boolean
 
   /**
    * 列出所有数据集名称
@@ -60,14 +51,6 @@ trait DataProvider extends DataFrameProvider {
   def listDataFrameNames(dataSetId: String): List[String]
 
   /**
-   * 获取数据帧的数据流
-   *
-   * @param dataFrameName 数据帧名（如 /mnt/a.csv)
-   * @return 数据流源
-   */
-  def getDataStreamSource(dataFrameName: String): DataStreamSource
-
-  /**
    * 获取数据帧详细信息
    *
    * @param dataFrameName 数据帧名
@@ -87,25 +70,11 @@ trait DataProvider extends DataFrameProvider {
 
   def getDataFrameTitle(dataFrameName: String): Option[String]
 
-  final override def getDataFrame(dataFrameUrl: String, userPrincipal: UserPrincipal)(implicit ctx: ServerContext): DataFrame = {
-    UrlValidator.extractPath(dataFrameUrl) match {
-      case "/listDataSets" => doListDataSets(ctx.baseUrl)
-      case path if path.startsWith("/listDataFrames") =>
-        doListDataFrames(path, ctx.baseUrl)
-      case path if path.startsWith("/listHosts") =>
-        doListHostInfo(ctx)
-      case _ =>
-        if(authProviderHub.checkPermission(userPrincipal, dataFrameUrl))
-          getDataStreamSource(dataFrameUrl).dataFrame
-        else throw new IllegalAccessException(s"No permission to access this DataFrame $dataFrameUrl.")
-    }
-  }
-
   /**
    * 输入链接（实现链接）： dacp://0.0.0.0:3101/listDataSets
    * 返回链接： dacp://0.0.0.0:3101/listDataFrames/dataSetName
    * */
-  private def doListDataSets(baseUrl: String): DataFrame = {
+  final def doListDataSets(baseUrl: String): DataFrame = {
     val stream = listDataSetNames().map(dsName => {
       val model: Model = ModelFactory.createDefaultModel
       getDataSetMetaData(dsName, model)
@@ -124,7 +93,7 @@ trait DataProvider extends DataFrameProvider {
    * 输入链接（实现链接）： dacp://0.0.0.0:3101/listDataFrames/dataSetName
    * 返回链接： dacp://0.0.0.0:3101/dataFrameName
    * */
-  private def doListDataFrames(listDataFrameUrl: String, baseUrl: String): DataFrame = {
+  final def doListDataFrames(listDataFrameUrl: String, baseUrl: String): DataFrame = {
     val dataSetName = listDataFrameUrl.stripPrefix("/listDataFrames/")
     val schema = StructType.empty.add("name", StringType)
       .add("size", LongType)
@@ -151,7 +120,7 @@ trait DataProvider extends DataFrameProvider {
   /**
    * 输入链接(实现链接)： dacp://0.0.0.0:3101/listHosts
    * */
-  private def doListHostInfo(serverContext: ServerContext): DataFrame = {
+  final def doListHostInfo(serverContext: ServerContext): DataFrame = {
     val schema = StructType.empty.add("hostInfo", StringType).add("resourceInfo", StringType)
     val stream = Seq((getHostInfoString(serverContext), getHostResourceString()))
       .map(Row.fromTuple(_)).toIterator

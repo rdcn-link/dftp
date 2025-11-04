@@ -1,10 +1,9 @@
 package link.rdcn.server.module
 
 import link.rdcn.server._
+import link.rdcn.server.exception.DataFrameNotFoundException
 import link.rdcn.struct.DataFrame
-import link.rdcn.user.UserPrincipal
-
-import scala.collection.mutable.ArrayBuffer
+import link.rdcn.user.{UserPrincipal}
 
 /**
  * @Author renhao
@@ -12,7 +11,7 @@ import scala.collection.mutable.ArrayBuffer
  * @Data 2025/10/31 18:43
  * @Modified By:
  */
-class DataFrameProviderModule(dataFrameProvider: DataFrameProvider) extends DftpModule {
+class DataFrameProviderModule(dataFrameProvider: DataFrameProviderService) extends DftpModule {
 
   override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
     anchor.hook(new EventHandler {
@@ -21,7 +20,22 @@ class DataFrameProviderModule(dataFrameProvider: DataFrameProvider) extends Dftp
 
       override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
-          case r: RequireDataFrameProviderEvent => r.add(dataFrameProvider)
+          case r: RequireDataFrameProviderEvent =>
+            r.holder.set(old => {
+              new DataFrameProviderService {
+                override def accepts(dataFrameUrl: String): Boolean =
+                  dataFrameProvider.accepts(dataFrameUrl) || old !=null && old.accepts(dataFrameUrl)
+
+                override def getDataFrame(dataFrameUrl: String, userPrincipal: UserPrincipal)
+                                         (implicit ctx: ServerContext): DataFrame = {
+                  if(dataFrameProvider.accepts(dataFrameUrl))
+                    dataFrameProvider.getDataFrame(dataFrameUrl, userPrincipal)
+                  else if(old!=null && old.accepts(dataFrameUrl))
+                    old.getDataFrame(dataFrameUrl, userPrincipal)
+                  else throw new DataFrameNotFoundException(s"DataFrame $dataFrameUrl not found")
+                }
+              }
+            })
         }
       }
     })
@@ -30,37 +44,10 @@ class DataFrameProviderModule(dataFrameProvider: DataFrameProvider) extends Dftp
   override def destroy(): Unit = {}
 }
 
-trait DataFrameProviderRequest {
-  def getDataFrameUrl: String
-}
+trait DataFrameProviderService{
+  def accepts(dataFrameUrl: String): Boolean
 
-object DataFrameProviderRequest {
-  def create(dataFrameUrl: String): DataFrameProviderRequest = {
-    new DataFrameProviderRequest {
-      override def getDataFrameUrl: String = dataFrameUrl
-    }
-  }
-}
-
-trait DataFrameProvider{
   def getDataFrame(dataFrameUrl: String, userPrincipal: UserPrincipal)(implicit ctx: ServerContext): DataFrame
-  def accepts(request: DataFrameProviderRequest): Boolean
 }
 
-class CompositeDataFrameProvider extends DataFrameProvider{
-  private val dataFrameProviders = new ArrayBuffer[DataFrameProvider]
-
-  override def accepts(request: DataFrameProviderRequest): Boolean =
-    dataFrameProviders.exists(_.accepts(request))
-
-  override def getDataFrame(dataFrameUrl: String, userPrincipal: UserPrincipal)(implicit ctx: ServerContext): DataFrame = {
-    val request = DataFrameProviderRequest.create(dataFrameUrl)
-    dataFrameProviders.find(_.accepts(request)).map(_.getDataFrame(dataFrameUrl, userPrincipal)).orNull
-  }
-
-  def add(dataFrameProvider: DataFrameProvider) = dataFrameProviders.append(dataFrameProvider)
-}
-
-case class RequireDataFrameProviderEvent(composite: CompositeDataFrameProvider) extends CrossModuleEvent{
-  def add(dataFrameProvider: DataFrameProvider) = composite.add(dataFrameProvider)
-}
+case class RequireDataFrameProviderEvent(holder: ObjectHolder[DataFrameProviderService]) extends CrossModuleEvent

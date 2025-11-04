@@ -84,7 +84,7 @@ object StructType {
    * 例如: "schema(id: IntType, name: StringType)"
    */
   def fromString(schemaString: String): StructType = {
-    if (schemaString == "schema()") {
+    if (schemaString == "schema()" || schemaString == "") {
       return StructType.empty
     }
 

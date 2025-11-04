@@ -1,11 +1,8 @@
 package link.rdcn.user
 
-trait AuthProvider extends AuthenticationService {
+trait PermissionService{
 
-  /**
-   * 用户认证，成功返回认证后的保持用户登录状态的凭证
-   */
-  def authenticate(credentials: Credentials): UserPrincipal
+  def accepts(user: UserPrincipal): Boolean
 
   /**
    * 判断用户是否具有某项权限
@@ -18,9 +15,5 @@ trait AuthProvider extends AuthenticationService {
   def checkPermission(user: UserPrincipal,
                       dataFrameName: String,
                       opList: List[DataOperationType] = List.empty): Boolean
-}
-
-trait AuthProviderRequest {
-  def getUserPrincipal(): UserPrincipal
 }
 

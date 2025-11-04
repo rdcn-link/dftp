@@ -3,6 +3,7 @@ package link.rdcn.server.module
 import link.rdcn.client.UrlValidator
 import link.rdcn.operation.{ExecutionContext, TransformOp}
 import link.rdcn.server._
+import link.rdcn.server.exception.DataFrameNotFoundException
 import link.rdcn.struct.{BlobRegistry, DataFrame, DefaultDataFrame, Row, StructType}
 import link.rdcn.user.UserPrincipal
 import link.rdcn.util.DataUtils
@@ -11,7 +12,7 @@ import java.nio.charset.StandardCharsets
 
 class BaseDftpModule extends DftpModule {
 
-  private val dataFrameProviderHub = new CompositeDataFrameProvider
+  private val dataFrameHolder = new ObjectHolder[DataFrameProviderService]
   private var serverContext: ServerContext = _
 
   private val eventHandlerGetStream = new EventHandler {
@@ -22,13 +23,13 @@ class BaseDftpModule extends DftpModule {
     override def doHandleEvent(event: CrossModuleEvent): Unit = {
       event match {
         case require: RequireGetStreamHandlerEvent =>
-          require.holder.set(
+          require.holder.set(old => {
             new GetStreamHandler {
               override def accepts(request: DftpGetStreamRequest): Boolean = {
                 request match {
                   case _: DacpGetBlobStreamRequest => true
                   case _: DftpGetPathStreamRequest => true
-                  case _ => false
+                  case other => old!=null && old.accepts(other)
                 }
               }
 
@@ -48,13 +49,17 @@ class BaseDftpModule extends DftpModule {
                       })
                     }
                   }
-                  case r: DftpGetPathStreamRequest => {
+                  case r: DftpGetPathStreamRequest =>
                     val dataFrame = r.getTransformOp().execute(new ExecutionContext {
                       override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
                         try {
-                          Some(dataFrameProviderHub.getDataFrame(dataFrameNameUrl, r.getUserPrincipal())(serverContext))
+                          Some(dataFrameHolder.invoke(_.getDataFrame(dataFrameNameUrl, r.getUserPrincipal())(serverContext),
+                             throw new DataFrameNotFoundException(s"DataFrame $dataFrameNameUrl not found")
+                          ))
                         } catch {
                           case e: IllegalAccessException => response.sendError(403, e.getMessage)
+                            throw e
+                          case e: DataFrameNotFoundException => response.sendError(404, e.getMessage)
                             throw e
                           case e: Exception => response.sendError(500, e.getMessage)
                             throw e
@@ -63,12 +68,14 @@ class BaseDftpModule extends DftpModule {
                       }
                     })
                     response.sendDataFrame(dataFrame)
-                  }
-                  case _ =>
+                  case other => if(old!=null && old.accepts(other)) {
+                    old.doGetStream(request, response)
+                  }else
                     response.sendError(500, s"illegal DftpGetStreamRequest except DacpGetBlobStreamRequest but get $request")
                 }
               }
-            })
+            }
+          })
 
         case _ =>
       }
@@ -142,7 +149,7 @@ class BaseDftpModule extends DftpModule {
     anchor.hook(eventHandlerGetStream)
     anchor.hook(new EventSource {
       override def init(eventHub: EventHub): Unit =
-        eventHub.fireEvent(RequireDataFrameProviderEvent(dataFrameProviderHub))
+        eventHub.fireEvent(RequireDataFrameProviderEvent(dataFrameHolder))
     })
   }
 

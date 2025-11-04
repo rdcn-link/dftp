@@ -1,6 +1,6 @@
 package link.rdcn.client
 
-import link.rdcn.message.CookTicket
+import link.rdcn.message.DftpTicket
 import link.rdcn.operation.{DataFrameCall11, DataFrameCall21, SerializableFunction, SourceOp, TransformOp}
 import link.rdcn.optree.{FiFoFileNode, FileRepositoryBundle, LangTypeV2, RepositoryOperator, TransformFunctionWrapper, TransformerNode}
 import link.rdcn.recipe.{ExecutionResult, FifoFileBundleFlowNode, FifoFileFlowNode, Flow, FlowPath, RepositoryNode, SourceNode, Transformer11, Transformer21}
@@ -74,24 +74,24 @@ class DacpClient(host: String, port: Int, useTLS: Boolean = false) extends DftpC
   }
 
   def getDocument(dataFrameName: String): DataFrameDocument = {
-    val jsonString: String = {
-      new String(doAction(s"/getDocument/${dataFrameName}"), "UTF-8").trim match {
-        case s if s.nonEmpty => s
-        case _ => "[]"
-      }
+
+    new String(doAction(s"/getDocument/${dataFrameName}"), "UTF-8").trim match {
+      case s if s.nonEmpty =>
+        val jo = new JSONArray(s).getJSONObject(0)
+        new DataFrameDocument {
+          override def getSchemaURL(): Option[String] = Some("SchemaUrl")
+
+          override def getDataFrameTitle(): Option[String] = Some(jo.getString("DataFrameTitle"))
+
+          override def getColumnURL(colName: String): Option[String] = Some(jo.getString("ColumnUrl"))
+
+          override def getColumnAlias(colName: String): Option[String] = Some(jo.getString("ColumnAlias"))
+
+          override def getColumnTitle(colName: String): Option[String] = Some(jo.getString("ColumnTitle"))
+        }
+      case _ => DataFrameDocument.empty()
     }
-    val jo = new JSONArray(jsonString).getJSONObject(0)
-    new DataFrameDocument {
-      override def getSchemaURL(): Option[String] = Some("SchemaUrl")
 
-      override def getDataFrameTitle(): Option[String] = Some(jo.getString("DataFrameTitle"))
-
-      override def getColumnURL(colName: String): Option[String] = Some(jo.getString("ColumnUrl"))
-
-      override def getColumnAlias(colName: String): Option[String] = Some(jo.getString("ColumnAlias"))
-
-      override def getColumnTitle(colName: String): Option[String] = Some(jo.getString("ColumnTitle"))
-    }
   }
 
   def getStatistics(dataFrameName: String): DataFrameStatistics = {
@@ -203,6 +203,9 @@ class DacpClient(host: String, port: Int, useTLS: Boolean = false) extends DftpC
     val schemaAndIter = getStream(new Ticket(CookTicket(transformOpStr).encodeTicket()))
     val stream = schemaAndIter._2.map(seq => Row.fromSeq(seq))
     (schemaAndIter._1, ClosableIterator(stream)())
+  }
+  private case class CookTicket(ticketContent: String) extends DftpTicket {
+    override val typeId: Byte = 3
   }
 }
 
