@@ -133,7 +133,7 @@ class ServerUtilsTest {
       () => ServerUtils.arrowSchemaToStructType(arrowSchema)
     )
 
-    assertEquals(s"Unsupported Arrow type: ${unsupportedType}", exception.getMessage, "Exception message should indicate unsupported Arrow type")
+    assertEquals(s"Unsupported Arrow type: ${unsupportedType}", exception.getMessage, "exception message should indicate unsupported Arrow type")
   }
 
   @Test

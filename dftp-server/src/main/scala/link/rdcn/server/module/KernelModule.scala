@@ -63,8 +63,7 @@ class KernelModule extends DftpModule {
     })
   }
 
-  override def destroy(): Unit = {
-  }
+  override def destroy(): Unit = {}
 }
 
 class ObjectHolder[T] {

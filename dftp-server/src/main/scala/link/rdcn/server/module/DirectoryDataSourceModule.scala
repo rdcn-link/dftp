@@ -2,6 +2,7 @@ package link.rdcn.server.module
 
 import link.rdcn.client.UrlValidator
 import link.rdcn.server._
+import link.rdcn.server.exception.DataFrameNotFoundException
 import link.rdcn.struct.ValueType.RefType
 import link.rdcn.struct.{Blob, DFRef, DataFrame, DataStreamSource, DefaultDataFrame, Row, StructType}
 import link.rdcn.user.UserPrincipal
@@ -76,12 +77,17 @@ class DirectoryDataSourceModule extends DftpModule {
       override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
           case require: RequireDataFrameProviderEvent =>
-            require.add(new DataFrameProvider{
-              override def getDataFrame(dataFrameUrl: String, user: UserPrincipal)(implicit ctx: ServerContext): DataFrame =
-                getDataFrameByUrl(dataFrameUrl, ctx)
+            require.holder.set(old => {
+              new DataFrameProviderService{
+                override def getDataFrame(dataFrameUrl: String, user: UserPrincipal)(implicit ctx: ServerContext): DataFrame = {
+                  if(isInDataDirectory(UrlValidator.extractPath(dataFrameUrl))) getDataFrameByUrl(dataFrameUrl, ctx)
+                  else if(old!=null && old.accepts(dataFrameUrl)) old.getDataFrame(dataFrameUrl, user)
+                  else throw new DataFrameNotFoundException(s"DataFrame $dataFrameUrl not found")
+                }
 
-              override def accepts(request: DataFrameProviderRequest): Boolean = {
-                isInDataDirectory(UrlValidator.extractPath(request.getDataFrameUrl))
+                override def accepts(dataFrameUrl: String): Boolean = {
+                  isInDataDirectory(UrlValidator.extractPath(dataFrameUrl)) || old!=null && old.accepts(dataFrameUrl)
+                }
               }
             })
           case _ =>
