@@ -1,19 +1,23 @@
-package link.rdcn.server
+package link.rdcn.client
 
-
-import link.rdcn.client.DftpClient
-import link.rdcn.server.ServerTestDataGenerator.{baseDir, binDir, csvDir, getOutputDir}
-import link.rdcn.server.module.{AuthModule, BaseDftpModule, DirectoryDataSourceModule, RequireAuthenticatorEvent}
-import link.rdcn.struct.StructType
-import link.rdcn.struct.ValueType.StringType
-import link.rdcn.user
+import link.rdcn.DftpClientTestBase.getLine
+import link.rdcn.DftpClientTestProvider.{baseDir, binDir, csvDir, dc}
+import link.rdcn.client.DftpClientTest.baseUrl
+import link.rdcn.server.module.{AuthModule, BaseDftpModule, DirectoryDataSourceModule}
+import link.rdcn.server.{DftpServer, DftpServerConfig}
+import link.rdcn.struct.ValueType.{DoubleType, LongType, StringType}
+import link.rdcn.struct._
 import link.rdcn.user._
+import link.rdcn.util.CodecUtils
+import link.rdcn.{ActionModule, DftpClientTestDataGenerator, PutModule, user}
 import org.apache.arrow.flight.FlightRuntimeException
+import org.json.JSONObject
 import org.junit.jupiter.api.Assertions.{assertEquals, assertNotNull, assertThrows, assertTrue}
 import org.junit.jupiter.api.{AfterAll, BeforeAll, Test}
 
-import java.io.File
+import java.io.{File, PrintWriter, StringWriter}
 import java.nio.file.Paths
+import scala.io.{BufferedSource, Source}
 
 
 /**
@@ -23,8 +27,7 @@ import java.nio.file.Paths
  * @Modified By:
  */
 
-// --- 测试服务器启动与关闭 ---
-object DftpServerTest {
+object DftpClientTest {
 
   var server: DftpServer = _
   val host = "0.0.0.0"
@@ -32,7 +35,7 @@ object DftpServerTest {
   val baseUrl = s"dftp://$host:$port"
 
   //必须在DfInfos前执行一次
-  ServerTestDataGenerator.generateTestData(binDir, csvDir, baseDir)
+  DftpClientTestDataGenerator.generateTestData(binDir, csvDir, baseDir)
 
   val authenticationService = new AuthenticationService {
     override def accepts(request: Credentials): Boolean = true
@@ -45,7 +48,7 @@ object DftpServerTest {
   def startServer(): Unit = {
     val directoryDataSourceModule = new DirectoryDataSourceModule
     directoryDataSourceModule.setRootDirectory(new File(baseDir))
-    val modules = Array(directoryDataSourceModule, new BaseDftpModule, new AuthModule(authenticationService))
+    val modules = Array(directoryDataSourceModule, new BaseDftpModule, new AuthModule(authenticationService), new PutModule, new ActionModule)
     server = DftpServer.start(DftpServerConfig("0.0.0.0", 3101, Some("data")), modules)
   }
 
@@ -58,14 +61,14 @@ object DftpServerTest {
 }
 
 
-class DftpServerTest {
+class DftpClientTest {
+  val client = DftpClient.connect(baseUrl)
 
   // --- 客户端连接与认证测试 ---
 
   @Test
   def clientConnectAndLoginAnonymousTest(): Unit = {
     // 匿名登录 (默认)
-    val client = DftpClient.connect(DftpServerTest.baseUrl)
     assertNotNull(client, "匿名连接客户端不应为空")
   }
 
@@ -73,22 +76,9 @@ class DftpServerTest {
   def clientConnectAndLoginSuccessTest(): Unit = {
     // 使用特定凭证成功登录
     val validCreds = UsernamePassword("test_user", "test_pass")
-    val client = DftpClient.connect(DftpServerTest.baseUrl, validCreds)
+    val client = DftpClient.connect(baseUrl, validCreds)
     assertNotNull(client, "有效凭证连接客户端不应为空")
   }
-
-//  @Test
-//  def clientConnectAndLoginFailedTest(): Unit = {
-//    // 使用无效凭证登录，根据 DftpClient 的实现，它会在 login 时抛出 FlightRuntimeException
-//    val invalidCreds = UsernamePassword("wrong_user", "wrong_pass")
-//
-//    val exception = assertThrows(classOf[FlightRuntimeException], () => {
-//      DftpClient.connect(DftpServerTest.baseUrl, invalidCreds)
-//      ()
-//    }, "无效凭证连接应抛出 FlightRuntimeException")
-//
-//    assertTrue(exception.getMessage.contains("UNAUTHENTICATED"), "异常消息应包含 'UNAUTHENTICATED'")
-//  }
 
   @Test
   def clientConnectInvalidUrlTest(): Unit = {
@@ -105,17 +95,16 @@ class DftpServerTest {
 
   @Test
   def getStreamTest(): Unit = {
-    val client = DftpClient.connect(DftpServerTest.baseUrl)
     // 使用完整 URL 获取
-    val df = client.get(s"${DftpServerTest.baseUrl}/csv/data_1.csv")
+    val df = client.get(s"${baseUrl}/csv/data_1.csv")
 
     // 验证 Schema
-    val expectedSchema = StructType.empty.add("id", StringType).add("value", StringType)
+    val expectedSchema = StructType.empty.add("id", LongType).add("value", DoubleType)
     assertEquals(expectedSchema, df.schema, "DataFrame 的 Schema 不匹配")
 
     // 验证数据
     val rows = df.collect()
-    assertEquals(10001, rows.length, "DataFrame 的行数不匹配")
+    assertEquals(10000, rows.length, "DataFrame 的行数不匹配")
   }
 
 
@@ -123,11 +112,9 @@ class DftpServerTest {
 
   @Test
   def getStreamNotFoundTest(): Unit = {
-    val client = DftpClient.connect(DftpServerTest.baseUrl)
-
     // 获取不存在的数据源，服务器应返回 404 NOT_FOUND，客户端捕获为 FlightRuntimeException
     val exception = assertThrows(classOf[FlightRuntimeException], () => {
-      client.get(s"${DftpServerTest.baseUrl}/non_existent_data").collect()
+      client.get(s"${baseUrl}/non_existent_data").collect()
       ()
     }, "获取不存在的数据应抛出 FlightRuntimeException")
 
@@ -136,7 +123,7 @@ class DftpServerTest {
 
   @Test
   def getStreamInvalidClientUrlTest(): Unit = {
-    val client = DftpClient.connect(DftpServerTest.baseUrl)
+    val client = DftpClient.connect(baseUrl)
 
     // 客户端会检查 URL 的 host 和 port
     val exception = assertThrows(classOf[IllegalArgumentException], () => {
@@ -148,37 +135,36 @@ class DftpServerTest {
 
   }
 
+  @Test
+  def testGet(): Unit = {
+    val source: BufferedSource = Source.fromFile(Paths.get(csvDir, "data_1.csv").toString)
+    val expectedOutput = source.getLines().toSeq.tail.mkString("\n") + "\n"
+    val dataFrame = client.get("dftp://0.0.0.0:3101/csv/data_1.csv")
+    val stringWriter = new StringWriter()
+    val printWriter = new PrintWriter(stringWriter)
+    dataFrame.foreach { row =>
+      printWriter.write(getLine(row))
+    }
+    printWriter.flush()
+    val actualOutput = stringWriter.toString
+    assertEquals(expectedOutput, actualOutput)
+    source.close()
+  }
 
-//  // --- PutStream (client.put) 测试 ---
-//
-//  @Test
-//  def putTestEmpty(): Unit = {
-//    val client = DftpClient.connect(DftpServerTest.baseUrl)
-//    val result: Array[Byte] = client.put(DataFrame.empty())
-//
-//    val resultJson = new JSONObject(CodecUtils.decodeString(result))
-//    assertEquals("success", resultJson.getString("status"), "Put 空 DataFrame 的状态不为 'success'")
-//    assertEquals(0, resultJson.getInt("rows_received"), "Put 空 DataFrame 接收到的行数应为 0")
-//
-//  }
-//
-//  @Test
-//  def putTestWithData(): Unit = {
-//    val client = DftpClient.connect(DftpServerTest.baseUrl)
-//
-//    val schema = StructType.empty.add("id", LongType).add("name", StringType)
-//    val rows = Seq(
-//      Row(1L, "Alice"),
-//      Row(2L, "Bob")
-//    ).toIterator
-//    val df = DefaultDataFrame(schema, rows)
-//
-//    val result: Array[Byte] = client.put(df)
-//
-//    val resultJson = new JSONObject(CodecUtils.decodeString(result))
-//    assertEquals("success", resultJson.getString("status"), "Put 2行数据 的状态不为 'success'")
-//    assertEquals(2L, resultJson.getInt("rows_received"), "Put 2行数据 接收到的行数应为 2")
-//
-//  }
+
+  @Test
+  def testdoAction(): Unit = {
+    val ackBytes: Array[Byte] = client.doAction("actionName")
+    assertEquals("success", CodecUtils.decodeString(ackBytes))
+  }
+
+  @Test
+  def testPut(): Unit = {
+    val dataStreamSource: DataStreamSource = DataStreamSource.filePath(new File(""))
+    val dataFrame: DataFrame = DefaultDataFrame(dataStreamSource.schema, dataStreamSource.iterator)
+    val batchSize = 100
+    val ackBytes: Array[Byte] = client.put(dataFrame, batchSize)
+    assertEquals("success", CodecUtils.decodeString(ackBytes))
+  }
 }
 

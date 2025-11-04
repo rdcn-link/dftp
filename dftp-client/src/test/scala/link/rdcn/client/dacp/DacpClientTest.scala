@@ -1,16 +1,11 @@
-package link.rdcn.client
+package link.rdcn.client.dacp
 
-<<<<<<<< HEAD:cook-module/src/test/scala/link/rdcn/client/DacpClientTest.scala
-import link.rdcn.catalog.{DacpCatalogModule, DataProvider, DataProviderModule}
-========
 import link.rdcn.catalog.{CatalogService, CatalogServiceModule, CatalogServiceRequest, DacpCatalogModule}
 import link.rdcn.client.DacpClient
->>>>>>>> origin/main:dftp-client/src/test/scala/link/rdcn/client/DacpClientTest.scala
 import link.rdcn.cook.DacpCookModule
 import link.rdcn.recipe.{ExecutionResult, Flow, SourceNode, Transformer11}
-import link.rdcn.server.ServerContext
 import link.rdcn.server.module.{AuthModule, BaseDftpModule, DataFrameProviderModule, DataFrameProviderService}
-import link.rdcn.server.{DftpServer, DftpServerConfig}
+import link.rdcn.server.{DftpServer, DftpServerConfig, ServerContext}
 import link.rdcn.struct.ValueType.StringType
 import link.rdcn.struct._
 import link.rdcn.user._
