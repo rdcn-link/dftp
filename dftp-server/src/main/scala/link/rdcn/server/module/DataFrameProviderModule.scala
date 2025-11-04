@@ -32,7 +32,7 @@ class DataFrameProviderModule(dataFrameProvider: DataFrameProviderService) exten
                     dataFrameProvider.getDataFrame(dataFrameUrl, userPrincipal)
                   else if(old!=null && old.accepts(dataFrameUrl))
                     old.getDataFrame(dataFrameUrl, userPrincipal)
-                  else throw new DataFrameNotFoundException(s"DataFrame $dataFrameUrl not found")
+                  else throw new DataFrameNotFoundException(dataFrameUrl)
                 }
               }
             })

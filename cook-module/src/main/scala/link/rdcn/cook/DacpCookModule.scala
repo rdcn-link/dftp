@@ -5,7 +5,7 @@ import link.rdcn.operation.TransformOp
 import link.rdcn.optree.{FlowExecutionContext, OperatorRepository, RepositoryClient, TransformTree}
 import link.rdcn.server.module.{DataFrameProviderService, ObjectHolder, RequireDataFrameProviderEvent, RequireGetStreamHandlerEvent, RequireGetStreamRequestParserEvent}
 import link.rdcn.server._
-import link.rdcn.server.exception.DataFrameNotFoundException
+import link.rdcn.server.exception.{DataFrameAccessDeniedException, DataFrameNotFoundException}
 import link.rdcn.struct.DataFrame
 import link.rdcn.user.{Credentials, PermissionService, RequirePermissionServiceEvent, UserPrincipal}
 
@@ -96,12 +96,12 @@ class DacpCookModule() extends DftpModule with Logging {
                         override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
                           try {
                             if(permissionHolder.invoke(!_.checkPermission(userPrincipal, dataFrameNameUrl), false)){
-                              throw new IllegalAccessException(s"You don't have permission to access this DataFrame $dataFrameNameUrl")
+                              throw new DataFrameAccessDeniedException(dataFrameNameUrl)
                             }
                             Some(dataFrameHolder.invoke(_.getDataFrame(dataFrameNameUrl, userPrincipal)(serverContext),
-                              throw new DataFrameNotFoundException(s"DataFrame $dataFrameNameUrl not Found")))
+                              throw new DataFrameNotFoundException(dataFrameNameUrl)))
                           } catch {
-                            case e: IllegalAccessException => response.sendError(403, e.getMessage)
+                            case e: DataFrameAccessDeniedException => response.sendError(403, e.getMessage)
                               throw e
                             case e: DataFrameNotFoundException => response.sendError(404, e.getMessage)
                              throw e

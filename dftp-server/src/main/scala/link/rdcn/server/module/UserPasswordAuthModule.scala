@@ -1,5 +1,6 @@
 package link.rdcn.server.module
 
+import link.rdcn.server.exception.AuthenticationFailedException
 import link.rdcn.server.{Anchor, CrossModuleEvent, DftpModule, EventHandler, ServerContext}
 import link.rdcn.user.{AuthenticationService, Credentials, UserPasswordAuthService, UserPrincipal, UserPrincipalWithCredentials, UsernamePassword}
 
@@ -22,7 +23,7 @@ class UserPasswordAuthModule(userPasswordAuthService: UserPasswordAuthService) e
                     case u: UsernamePassword =>
                       userPasswordAuthService.accepts(u) || {
                         if(old!=null && old.isInstanceOf[UserPasswordAuthService])
-                          old.accepts(credentials.asInstanceOf[old.C]) else false
+                          old.asInstanceOf[UserPasswordAuthService].accepts(u) else false
                       }
                     case Credentials.ANONYMOUS => true
                     case _ => Option(old).exists(authService =>
@@ -36,11 +37,11 @@ class UserPasswordAuthModule(userPasswordAuthService: UserPasswordAuthService) e
                       if(userPasswordAuthService.accepts(u)) userPasswordAuthService.authenticate(u)
                       else if(old!=null && old.isInstanceOf[UserPasswordAuthService])
                         old.authenticate(credentials.asInstanceOf[old.C])
-                      else throw new SecurityException(s"$credentials Authentication failed")
+                      else throw new AuthenticationFailedException(credentials)
                     case Credentials.ANONYMOUS => UserPrincipalWithCredentials(Credentials.ANONYMOUS)
                     case _ => if(old!=null && old.accepts(credentials.asInstanceOf[old.C]))
                       old.authenticate(credentials.asInstanceOf[old.C])
-                      else throw new SecurityException(s"$credentials Authentication failed")
+                      else throw new AuthenticationFailedException(credentials)
                   }
                 }
               }

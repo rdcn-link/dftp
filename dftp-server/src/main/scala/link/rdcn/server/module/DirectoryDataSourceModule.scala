@@ -82,7 +82,7 @@ class DirectoryDataSourceModule extends DftpModule {
                 override def getDataFrame(dataFrameUrl: String, user: UserPrincipal)(implicit ctx: ServerContext): DataFrame = {
                   if(isInDataDirectory(UrlValidator.extractPath(dataFrameUrl))) getDataFrameByUrl(dataFrameUrl, ctx)
                   else if(old!=null && old.accepts(dataFrameUrl)) old.getDataFrame(dataFrameUrl, user)
-                  else throw new DataFrameNotFoundException(s"DataFrame $dataFrameUrl not found")
+                  else throw new DataFrameNotFoundException(dataFrameUrl)
                 }
 
                 override def accepts(dataFrameUrl: String): Boolean = {

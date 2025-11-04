@@ -3,7 +3,7 @@ package link.rdcn.server.module
 import link.rdcn.client.UrlValidator
 import link.rdcn.operation.{ExecutionContext, TransformOp}
 import link.rdcn.server._
-import link.rdcn.server.exception.DataFrameNotFoundException
+import link.rdcn.server.exception.{DataFrameAccessDeniedException, DataFrameNotFoundException}
 import link.rdcn.struct.{BlobRegistry, DataFrame, DefaultDataFrame, Row, StructType}
 import link.rdcn.user.UserPrincipal
 import link.rdcn.util.DataUtils
@@ -54,10 +54,10 @@ class BaseDftpModule extends DftpModule {
                       override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
                         try {
                           Some(dataFrameHolder.invoke(_.getDataFrame(dataFrameNameUrl, r.getUserPrincipal())(serverContext),
-                             throw new DataFrameNotFoundException(s"DataFrame $dataFrameNameUrl not found")
+                             throw new DataFrameNotFoundException(dataFrameNameUrl)
                           ))
                         } catch {
-                          case e: IllegalAccessException => response.sendError(403, e.getMessage)
+                          case e: DataFrameAccessDeniedException => response.sendError(403, e.getMessage)
                             throw e
                           case e: DataFrameNotFoundException => response.sendError(404, e.getMessage)
                             throw e
