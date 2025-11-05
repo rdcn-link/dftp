@@ -45,7 +45,10 @@ class DacpCookModule() extends DftpModule with Logging {
               new GetStreamRequestParser {
                 val COOK_TICKET: Byte = 3
 
-                override def accepts(token: Array[Byte]): Boolean = true
+                override def accepts(token: Array[Byte]): Boolean = {
+                  val typeId = token(0)
+                  typeId == COOK_TICKET
+                }
 
                 override def parse(bytes: Array[Byte], principal: UserPrincipal): DftpGetStreamRequest = {
                   val buffer = java.nio.ByteBuffer.wrap(bytes)

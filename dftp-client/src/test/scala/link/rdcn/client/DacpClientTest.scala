@@ -119,7 +119,7 @@ object DacpClientTest{
     }
   }
 
-  private val userPasswordAuthService = new UserPasswordAuthService {
+  val userPasswordAuthService = new UserPasswordAuthService {
     override def authenticate(credentials: UsernamePassword): UserPrincipal =
       UserPrincipalWithCredentials(credentials)
 

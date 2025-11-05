@@ -17,6 +17,29 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
+    <dependencies>
+        <dependency>
+            <groupId>link.rdcn</groupId>
+            <artifactId>dftp-server</artifactId>
+            <version>${project.parent.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>link.rdcn</groupId>
+            <artifactId>cook-module</artifactId>
+            <version>${project.parent.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>link.rdcn</groupId>
+            <artifactId>catalog-module</artifactId>
+            <version>${project.parent.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.scala-lang</groupId>
+            <artifactId>scala-library</artifactId>
+            <version>2.12.8</version>
+        </dependency>
+    </dependencies>
+
     <profiles>
         <profile>
             <id>server-unix-dist</id>
@@ -120,23 +143,6 @@
                     </plugin>
                 </plugins>
             </build>
-            <dependencies>
-                <dependency>
-                    <groupId>link.rdcn</groupId>
-                    <artifactId>dftp-common</artifactId>
-                    <version>${project.parent.version}</version>
-                </dependency>
-                <dependency>
-                    <groupId>link.rdcn</groupId>
-                    <artifactId>dftp-server</artifactId>
-                    <version>${project.parent.version}</version>
-                </dependency>
-                <dependency>
-                    <groupId>org.scala-lang</groupId>
-                    <artifactId>scala-library</artifactId>
-                    <version>2.12.8</version>
-                </dependency>
-            </dependencies>
         </profile>
         <profile>
             <id>server-win-dist</id>

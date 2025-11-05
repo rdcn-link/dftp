@@ -88,7 +88,8 @@ class DacpCatalogModule() extends DftpModule {
     anchor.hook(new EventHandler {
       override def accepts(event: CrossModuleEvent): Boolean = {
         event match {
-          case r: RequireActionHandlerEvent => true
+          case _: RequireActionHandlerEvent => true
+          case _: RequireGetStreamHandlerEvent => true
           case _ => false
         }
       }

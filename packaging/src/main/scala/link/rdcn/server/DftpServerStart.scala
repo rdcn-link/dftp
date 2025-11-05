@@ -1,7 +1,7 @@
 package link.rdcn.server
 
-import link.rdcn.server.module.{BaseDftpModule, DirectoryDataSourceModule, RequireAuthenticatorEvent, UserPasswordAuthModule}
-import link.rdcn.user.{AuthenticationService, Credentials, UserPasswordAuthService, UserPrincipal, UserPrincipalWithCredentials, UsernamePassword}
+import link.rdcn.server.module.{BaseDftpModule, DirectoryDataSourceModule, UserPasswordAuthModule}
+import link.rdcn.user.{UserPasswordAuthService, UserPrincipal, UserPrincipalWithCredentials, UsernamePassword}
 
 import java.io.{File, FileInputStream, InputStreamReader}
 import java.util.Properties

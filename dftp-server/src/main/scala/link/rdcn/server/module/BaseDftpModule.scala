@@ -71,7 +71,7 @@ class BaseDftpModule extends DftpModule {
                   case other => if(old!=null && old.accepts(other)) {
                     old.doGetStream(request, response)
                   }else
-                    response.sendError(500, s"illegal DftpGetStreamRequest except DacpGetBlobStreamRequest but get $request")
+                    response.sendError(500, s"illegal DftpGetStreamRequest except DacpGetStreamRequest but get $request")
                 }
               }
             }
