@@ -37,7 +37,7 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
     try {
       actionResultIter.next().getBody
     } catch {
-      case e: Exception => Array.empty
+      case e: Exception => throw e
     }
   }
 

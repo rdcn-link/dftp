@@ -13,9 +13,9 @@ object ConfigKeys {
   // === 自定义配置项 ===
   val FAIRD_HOST_NAME = "faird.host.name"
   val FAIRD_HOST_TITLE = "faird.host.title"
-  val FAIRD_HOST_POSITION = "faird.host.position"
+  val FAIRD_HOST_POSITION = "dftp.host.position"
   val FAIRD_HOST_DOMAIN = "faird.host.domain"
-  val FAIRD_HOST_PORT = "faird.host.port"
+  val FAIRD_HOST_PORT = "dftp.host.port"
 
   // === 日志配置 ===
   val LOGGING_FILE_NAME = "logging.file.name"
