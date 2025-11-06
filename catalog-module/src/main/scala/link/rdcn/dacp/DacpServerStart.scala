@@ -1,5 +1,8 @@
-package link.rdcn.server
+package link.rdcn.dacp
 
+import link.rdcn.dacp.catalog.{DacpCatalogModule, DirectoryCatalogModule}
+import link.rdcn.dacp.cook.DacpCookModule
+import link.rdcn.server.{DftpServer, DftpServerConfig}
 import link.rdcn.server.module.{BaseDftpModule, DirectoryDataSourceModule, UserPasswordAuthModule}
 import link.rdcn.user.{UserPasswordAuthService, UserPrincipal, UserPrincipalWithCredentials, UsernamePassword}
 
@@ -10,26 +13,31 @@ import java.util.Properties
 /**
  * @Author renhao
  * @Description:
- * @Data 2025/10/28 16:12
+ * @Data 2025/11/6 16:57
  * @Modified By:
  */
+object DacpServerStart {
 
-object DftpServerStart {
   def main(args: Array[String]): Unit = {
-    if (args.length < 1) sys.error("need set Dftp Home")
-    val dftpHome = args(0)
-    val props = loadProperties(dftpHome + File.separator + "conf" + File.separator + "dacp.conf")
-    val dftpServerConfig = DftpServerConfig(props.getProperty("dftp.host.position"),
-      props.getProperty("dftp.host.port").toInt, Some(dftpHome))
+    if (args.length < 1) sys.error("need set Dacp Home")
+    val dacpHome = args(0)
+    val props = loadProperties(dacpHome + File.separator + "conf" + File.separator + "dacp.conf")
+    val dftpServerConfig = DftpServerConfig(props.getProperty("dacp.host.position"),
+      props.getProperty("dacp.host.port").toInt, Some(dacpHome))
 
-    val dataPathFile = Paths.get(dftpHome,"data").toFile
+    val dataPathFile = Paths.get(dacpHome,"data").toFile
     val directoryDataSourceModule = new DirectoryDataSourceModule
     directoryDataSourceModule.setRootDirectory(dataPathFile)
+    val directoryCatalogModule = new DirectoryCatalogModule
+    directoryCatalogModule.setRootDirectory(dataPathFile)
 
     val server = new DftpServer(dftpServerConfig) {
       modules.addModule(new BaseDftpModule)
         .addModule(new UserPasswordAuthModule(userPasswordAuthService))
         .addModule(new DirectoryDataSourceModule)
+        .addModule(new DacpCookModule)
+        .addModule(new DacpCatalogModule)
+        .addModule(directoryCatalogModule)
     }
     server.startBlocking()
   }
