@@ -1,9 +1,10 @@
-package link.rdcn.server
+package link.rdcn
 
+import link.rdcn.DftpServerStartTest.{baseUrl, testFileContent, testFileName}
 import link.rdcn.client.DftpClient
-import link.rdcn.server.DftpServerStartTest.{baseUrl, testFileContent, testFileName}
 import link.rdcn.server.module.{AuthModule, BaseDftpModule, DirectoryDataSourceModule}
-import link.rdcn.struct.ValueType.StringType
+import link.rdcn.server.{DftpServer, DftpServerConfig, DftpServerStart}
+import link.rdcn.struct.ValueType.{DoubleType, LongType, StringType}
 import link.rdcn.struct.{Row, StructType}
 import link.rdcn.user._
 import org.junit.jupiter.api.Assertions.{assertEquals, assertNotNull, assertThrows, assertTrue}
@@ -30,7 +31,7 @@ object DftpServerStartTest {
     // --- DftpServerStart 所需的模拟 dftpHome 环境 ---
     homeDir = new File(getResourcePath(""))
     val dftpHome = homeDir.getAbsolutePath
-    val confFile = new File(Paths.get(dftpHome,"conf", "dftp.conf").toString)
+    val confFile = new File(Paths.get(dftpHome, "conf", "dftp.conf").toString)
 
     val props = new Properties()
     props.load(new InputStreamReader(new FileInputStream(confFile), "UTF-8"))
@@ -117,7 +118,7 @@ class DftpServerStartTest {
       assertNotNull(df, "DataFrame 不应为空")
 
       // DirectoryDataSourceModule 将文件内容作为单列 "text" 返回
-      val expectedSchema = StructType.empty.add("id", StringType).add("value", StringType)
+      val expectedSchema = StructType.empty.add("id", LongType).add("value", DoubleType)
       assertEquals(expectedSchema, df.schema, "DirectoryDataSourceModule 的 Schema 不匹配")
 
       val rows = df.collect()
