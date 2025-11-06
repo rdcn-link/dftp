@@ -14,11 +14,6 @@ import org.junit.jupiter.api.{BeforeEach, Test}
 
 import scala.collection.mutable.ArrayBuffer
 
-/**
- * 针对 KernelModule 的单元测试
- * @Author: Gemini
- * @Date: 2025-11-06
- */
 class KernelModuleTest {
 
   // --- 模拟的“世界” (Anchor, EventHub, Context) ---

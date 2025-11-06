@@ -84,11 +84,6 @@ class MockDataFrameProviderServiceForDirectory(name: String) extends DataFramePr
 }
 
 
-/**
- * 针对 DirectoryDataSourceModule 的单元测试和集成测试
- * @Author: Gemini
- * @Date: 2025-11-06
- */
 class DirectoryDataSourceModuleTest {
 
   // JUnit 5 会为每个测试注入一个唯一的临时目录
