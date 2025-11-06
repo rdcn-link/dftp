@@ -15,17 +15,6 @@ import org.junit.jupiter.api.{Disabled, Test}
 
 import java.io.IOException
 
-/**
- * 针对 AuthPlatform 的测试用例.
- *
- * 警告: AuthPlatform 中的方法会调用真实的、硬编码的网络 API (api.opendatachain.cn).
- * 因此, 这些是 "集成测试", 而不是 "单元测试".
- * 它们依赖于网络连接, 并且可能因为外部 API 变更或服务中断而失败.
- *
- * @Author: Gemini
- * @Date: 2025-11-04
- */
-
 class AuthPlatformTest {
 
   /**

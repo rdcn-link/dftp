@@ -14,11 +14,6 @@ import org.junit.jupiter.api.Assertions.{assertEquals, assertNotNull, assertTrue
 import org.junit.jupiter.api.Test
 
 
-/**
- * 针对 CatalogFormatter 的单元测试
- * @Author: Gemini
- * @Date: 2025-11-05
- */
 class CatalogFormatterTest {
   val mockStatistics = new DataFrameStatistics{
 

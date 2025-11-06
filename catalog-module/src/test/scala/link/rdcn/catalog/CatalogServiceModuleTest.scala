@@ -36,11 +36,6 @@ class MockAnchor extends Anchor {
  */
 class OtherMockEvent extends CrossModuleEvent
 
-/**
- * 针对 CatalogServiceModule 的单元测试
- * @Author: Gemini
- * @Date: 2025-11-05
- */
 class CatalogServiceModuleTest {
 
   private var mockService: CatalogService = _

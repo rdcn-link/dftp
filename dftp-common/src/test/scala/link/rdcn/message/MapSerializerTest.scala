@@ -22,7 +22,7 @@ class MapSerializerTest {
   def testEncodeDecodeRoundTrip(): Unit = {
     // 准备一个包含所有支持类型的复杂 Map
     val originalMap: Map[String, Any] = Map(
-      "stringValue" -> "Hello Gemini",
+      "stringValue" -> "Hello World",
       "intValue" -> 123,
       "doubleValue" -> 99.9,
       "booleanValue" -> true,

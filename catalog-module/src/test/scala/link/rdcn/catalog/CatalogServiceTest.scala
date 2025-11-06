@@ -58,11 +58,6 @@ class MockCatalogServiceImpl(schemaToReturn: Option[StructType]) extends Catalog
 }
 
 
-/**
- * 针对 CatalogService trait 中具体方法的单元测试
- * @Author: Gemini
- * @Date: 2025-11-05
- */
 class CatalogServiceTest {
 
   val baseUrl = "dftp://test-host:1234"

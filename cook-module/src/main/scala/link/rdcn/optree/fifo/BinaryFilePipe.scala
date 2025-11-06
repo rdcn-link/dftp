@@ -1,9 +1,9 @@
 package link.rdcn.optree.fifo
 
 import link.rdcn.struct.{DataFrame, DefaultDataFrame, Row, StructType}
+
 import java.nio.file.{Files, Paths, StandardOpenOption}
 import java.nio.ByteBuffer
-
 import java.io._
 /**
  * @Author renhao
@@ -56,12 +56,7 @@ case class BinaryFilePipe(file: File) extends FilePipe (file){
 
     override def next(): Array[Byte] = {
       if (!hasNext) throw new NoSuchElementException("No more data")
-
-      val result = if (bytesRead == buffer.length) {
-        buffer
-      } else {
-        buffer.take(bytesRead)
-      }
+      val result = buffer.take(bytesRead)
 
       bytesRead = inputStream.read(buffer)
       if (bytesRead == -1) {

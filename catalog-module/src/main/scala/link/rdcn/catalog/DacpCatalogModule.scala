@@ -78,7 +78,7 @@ class DacpCatalogModule() extends DftpModule {
         }
       }catch {
         case e: Exception =>
-          response.sendError(500, e.getMessage)
+          response.sendError(404, e.getMessage)
           throw e
       }
     }
@@ -89,6 +89,7 @@ class DacpCatalogModule() extends DftpModule {
       override def accepts(event: CrossModuleEvent): Boolean = {
         event match {
           case r: RequireActionHandlerEvent => true
+          case r: RequireGetStreamHandlerEvent => true
           case _ => false
         }
       }

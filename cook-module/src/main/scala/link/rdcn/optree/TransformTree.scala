@@ -103,7 +103,7 @@ case class TransformerNode(transformFunctionWrapper: TransformFunctionWrapper, i
   extends TransformOp {
 
   def contain(transformerNode: TransformerNode): Boolean = {
-    transformerNode == this || inputTransforms.exists(op => {
+    (transformerNode eq this) || inputTransforms.exists(op => {
       if(op.isInstanceOf[TransformerNode])
         op.asInstanceOf[TransformerNode].contain(transformerNode)
       else false
