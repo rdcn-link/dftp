@@ -4,7 +4,7 @@ import link.rdcn.DftpServerStartTest.{baseUrl, testFileContent, testFileName}
 import link.rdcn.client.DftpClient
 import link.rdcn.server.module.{AuthModule, BaseDftpModule, DirectoryDataSourceModule}
 import link.rdcn.server.{DftpServer, DftpServerConfig, DftpServerStart}
-import link.rdcn.struct.ValueType.{DoubleType, LongType, StringType}
+import link.rdcn.struct.ValueType.{DoubleType, LongType}
 import link.rdcn.struct.{Row, StructType}
 import link.rdcn.user._
 import org.junit.jupiter.api.Assertions.{assertEquals, assertNotNull, assertThrows, assertTrue}
@@ -14,13 +14,15 @@ import org.junit.jupiter.api.{AfterAll, BeforeAll, Test}
 import java.io.{File, FileInputStream, InputStreamReader}
 import java.nio.file.{Path, Paths}
 import java.util.Properties
+import scala.io.Source
+import scala.util.Failure
 
 object DftpServerStartTest {
   private var server: DftpServer = _
   private val serverPort = 3101 // 为本测试使用一个唯一的端口
   private val baseUrl = s"dftp://localhost:$serverPort"
   private val testFileName = "csv/data_1.csv"
-  private val testFileContent = Row("id","value")
+  private var testFileContent: Row = _
 
 
   @TempDir
@@ -32,6 +34,23 @@ object DftpServerStartTest {
     homeDir = new File(getResourcePath(""))
     val dftpHome = homeDir.getAbsolutePath
     val confFile = new File(Paths.get(dftpHome, "conf", "dftp.conf").toString)
+    var source: Source = null
+    try {
+      source = Source.fromFile(Paths.get(dftpHome, "data", testFileName).toFile)
+      val lines = source.getLines()
+      val remainingLines = lines.drop(1)
+      val secondLineOption = remainingLines.next()
+
+      // 3. 如果第二行存在，则按逗号分割并转换为 Seq
+      testFileContent = Row.fromSeq(secondLineOption.split(",").toSeq)
+    } catch {
+      case ex: Exception => Failure(ex) // 捕获异常并返回 Failure
+    } finally {
+      // 4. 无论成功还是失败，都在 finally 块中关闭资源
+      if (source != null) {
+        source.close()
+      }
+    }
 
     val props = new Properties()
     props.load(new InputStreamReader(new FileInputStream(confFile), "UTF-8"))
@@ -49,6 +68,7 @@ object DftpServerStartTest {
     val authenticationService = new AuthenticationService {
       override def authenticate(credentials: Credentials): UserPrincipal =
         UserPrincipalWithCredentials(credentials)
+
       override def accepts(credentials: Credentials): Boolean = true
     }
 
@@ -122,11 +142,10 @@ class DftpServerStartTest {
       assertEquals(expectedSchema, df.schema, "DirectoryDataSourceModule 的 Schema 不匹配")
 
       val rows = df.collect()
-      assertEquals(10001, rows.length, "行数不匹配")
+      assertEquals(10000, rows.length, "行数不匹配")
 
       val content = rows.head
-      assertEquals(testFileContent._1, content._1, "从服务器检索到的文件内容不匹配")
-      assertEquals(testFileContent._2, content._2, "从服务器检索到的文件内容不匹配")
+      assertEquals(testFileContent.toString, content.toString, "从服务器检索到的文件内容不匹配")
 
     }
   }

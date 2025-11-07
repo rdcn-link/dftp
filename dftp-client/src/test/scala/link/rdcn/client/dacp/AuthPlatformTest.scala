@@ -11,7 +11,7 @@ import link.rdcn.client.AuthPlatform
 import link.rdcn.user.UsernamePassword
 import org.json.JSONException
 import org.junit.jupiter.api.Assertions.{assertNotNull, assertThrows, assertTrue, fail}
-import org.junit.jupiter.api.{Disabled, Test}
+import org.junit.jupiter.api.Test
 
 import java.io.IOException
 

@@ -18,14 +18,6 @@ trait CommonTestProvider {
 }
 
 object CommonTestProvider {
-  val permissions = Map(
-    adminUsername -> Set("/csv/data_1.csv", "/bin",
-      "/csv/data_2.csv", "/csv/data_1.csv", "/csv/invalid.csv", "/excel/data.xlsx")
-    //      .map(path => prefix + path)
-  )
-  val baseDirString = Paths.get( "src", "test", "resources").toString
-  val subDirString: String = "data"
-
   val baseDir = getOutputDir("test_output")
   // 生成的临时目录结构
   val binDir = Paths.get(baseDir, "bin").toString

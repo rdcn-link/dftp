@@ -6,8 +6,8 @@
  */
 package link.rdcn.recipe
 
-import link.rdcn.optree.FileRepositoryBundle
-import org.junit.jupiter.api.Assertions.{assertEquals, assertNotNull, assertThrows, assertTrue}
+import link.rdcn.OtherNode
+import org.junit.jupiter.api.Assertions.{assertEquals, assertThrows, assertTrue}
 import org.junit.jupiter.api.Test
 
 class FlowTest {
@@ -17,10 +17,10 @@ class FlowTest {
   val nodeB: FlowNode = OtherNode("B")
   val nodeC: FlowNode = OtherNode("C")
   val nodeD: FlowNode = OtherNode("D")
-  val nodeE: FlowNode = FifoFileBundleFlowNode(null) // 类型合法即可
+  val nodeE: FlowNode = FifoFileBundleFlowNode(null, null, null, null) // 类型合法即可
 
   /**
-   * 测试 Flow.pipe() 工厂方法（ happy path ）
+   * 测试 Flow.pipe() 工厂方法
    */
   @Test
   def testFlowPipe_HappyPath(): Unit = {
@@ -269,10 +269,3 @@ class FlowTest {
     assertTrue(ex.getMessage.contains("Cycle detected: node 'B' is revisited"), "异常消息应指明在 'B' 处检测到循环")
   }
 }
-/**
- * 模拟 Flow.scala 所需的依赖
- */
-trait FlowNode
-case class SourceNode(path: String) extends FlowNode
-case class FifoFileBundleFlowNode(bundle: FileRepositoryBundle) extends FlowNode
-case class OtherNode(name: String) extends FlowNode

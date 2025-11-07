@@ -7,10 +7,10 @@
 package link.rdcn.optree.fifo
 
 import link.rdcn.struct.StructType
-import org.junit.jupiter.api.Assertions.{assertArrayEquals, assertEquals, assertFalse, assertNotNull, assertThrows, assertTrue}
+import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.condition.{DisabledOnOs, OS}
-import org.junit.jupiter.api.{AfterEach, BeforeEach, Test}
 import org.junit.jupiter.api.io.TempDir
+import org.junit.jupiter.api.{BeforeEach, Test}
 
 import java.io.File
 import java.nio.file.{Files, Paths}

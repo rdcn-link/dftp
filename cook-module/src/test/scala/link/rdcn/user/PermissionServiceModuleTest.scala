@@ -6,15 +6,16 @@
  */
 package link.rdcn.user
 
+import link.rdcn.server.EventHandler
 import link.rdcn.server.module.ObjectHolder
-import link.rdcn.server.{Anchor, CrossModuleEvent, EventHandler, ServerContext}
-import org.junit.jupiter.api.Assertions.{assertEquals, assertFalse, assertNotNull, assertSame, assertTrue}
+import link.rdcn._
+import org.junit.jupiter.api.Assertions.{assertEquals, assertFalse, assertNotNull, assertTrue}
 import org.junit.jupiter.api.{BeforeEach, Test}
 
 class PermissionServiceModuleTest {
 
-  private var mockOldService: MockPermissionService = _
-  private var mockInnerService: MockPermissionService = _
+  private var mockOldService: MockPermissionServiceForPermissionServiceTest = _
+  private var mockInnerService: MockPermissionServiceForPermissionServiceTest = _
   private var moduleToTest: PermissionServiceModule = _
   private var mockAnchor: MockAnchor = _
   private var hookedEventHandler: EventHandler = _
@@ -22,8 +23,8 @@ class PermissionServiceModuleTest {
   @BeforeEach
   def setUp(): Unit = {
     // 1. 准备: 创建两个不同的模拟服务
-    mockOldService = new MockPermissionService("OldService")
-    mockInnerService = new MockPermissionService("InnerService")
+    mockOldService = new MockPermissionServiceForPermissionServiceTest("OldService")
+    mockInnerService = new MockPermissionServiceForPermissionServiceTest("InnerService")
 
     // 2. 准备: 创建被测模块，将 'innerService' 传入构造函数
     moduleToTest = new PermissionServiceModule(mockInnerService)
@@ -201,73 +202,5 @@ class PermissionServiceModuleTest {
     assertTrue(mockInnerService.checkPermissionCalled, "InnerService.checkPermission 应被调用 (即使 old 为 null)")
     assertEquals(ops, mockInnerService.opsChecked, "InnerService 检查了错误的 opList")
   }
-}
-
-
-/**
- * 模拟一个 Anchor，用于捕获被 hook 的 EventHandler
- * (与 CatalogServiceModuleTest.scala 中的 MockAnchor 相同)
- */
-class MockAnchor extends Anchor {
-  var hookedHandler: EventHandler = null
-
-  override def hook(service: EventHandler): Unit = {
-    this.hookedHandler = service
-  }
-
-  // 提供一个空实现以满足 trait
-  override def hook(service: link.rdcn.server.EventSource): Unit = {}
-
-}
-
-/**
- * 模拟一个 ServerContext
- * (与 CatalogServiceModuleTest.scala 中的 MockServerContext 相同)
- */
-class MockServerContext extends ServerContext {
-  override def getHost(): String = "mock-host"
-  override def getPort(): Int = 1234
-  override def getProtocolScheme(): String = "dftp"
-  override def getDftpHome(): Option[String] = None
-}
-
-/**
- * 模拟一个不相关的事件
- */
-class OtherMockEvent extends CrossModuleEvent
-
-/**
- * 模拟一个 UserPrincipal
- */
-case object MockUser extends UserPrincipal {
-  def getName: String = "MockUser"
-}
-
-/**
- * 模拟 PermissionService，用于跟踪调用
- */
-class MockPermissionService(name: String) extends PermissionService {
-  var acceptsUser: Boolean = false
-  var permissionResult: Boolean = false
-  var acceptsCalled: Boolean = false
-  var checkPermissionCalled: Boolean = false
-  var userChecked: UserPrincipal = null
-  var dataFrameChecked: String = null
-  var opsChecked: List[DataOperationType] = null
-
-  override def accepts(user: UserPrincipal): Boolean = {
-    acceptsCalled = true
-    acceptsUser
-  }
-
-  override def checkPermission(user: UserPrincipal, dataFrameName: String, opList: List[DataOperationType]): Boolean = {
-    checkPermissionCalled = true
-    userChecked = user
-    dataFrameChecked = dataFrameName
-    opsChecked = opList
-    permissionResult
-  }
-
-  override def toString: String = s"MockPermissionService($name)"
 }
 

@@ -1,20 +1,11 @@
 package link.rdcn
 
-import com.sun.management.OperatingSystemMXBean
-import link.rdcn.struct.ValueType._
 import link.rdcn.struct._
-import link.rdcn.user.UserPrincipal
-import org.apache.arrow.flight.CallStatus
-import org.apache.arrow.vector.types.FloatingPointPrecision
-import org.apache.arrow.vector.types.pojo.{ArrowType, Field, FieldType, Schema}
-import org.json.JSONObject
 
 import java.io.File
-import java.lang.management.ManagementFactory
 import java.net.URI
 import java.nio.file.{Files, Path, Paths}
-import java.util.{Collections, UUID}
-import scala.collection.JavaConverters.seqAsJavaListConverter
+import java.util.concurrent.atomic.AtomicInteger
 
 
 /** *
@@ -31,17 +22,8 @@ object CommonTestBase {
   val csvFileCount = 3
   val excelFileCount = 3
 
-  val adminUsername = "admin@instdb.cn"
-  val adminPassword = "admin001"
-  val userUsername = "user"
-  val userPassword = "user"
-  val anonymousUsername = "ANONYMOUS"
-
-  //生成Token
-  val genToken = () => UUID.randomUUID().toString
   val resourceUrl = getClass.getProtectionDomain.getCodeSource.getLocation
   val testClassesDir = new File(resourceUrl.toURI)
-  val demoBaseDir = Paths.get( "src", "test", "resources").toString
 
 
   def getOutputDir(subDirs: String*): String = {
@@ -70,105 +52,6 @@ object CommonTestBase {
     } else {
       Seq.empty
     }
-  }
-
-  def getLine(row: Row): String = {
-    val delimiter = ","
-    row.toSeq.map(_.toString).mkString(delimiter) + '\n'
-  }
-
-  def convertStructTypeToArrowSchema(structType: StructType): Schema = {
-    val fields: List[Field] = structType.columns.map { column =>
-      val arrowFieldType = column.colType match {
-        case IntType =>
-          new FieldType(column.nullable, new ArrowType.Int(32, true), null)
-        case LongType =>
-          new FieldType(column.nullable, new ArrowType.Int(64, true), null)
-        case FloatType =>
-          new FieldType(column.nullable, new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE), null)
-        case DoubleType =>
-          new FieldType(column.nullable, new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE), null)
-        case StringType =>
-          new FieldType(column.nullable, ArrowType.Utf8.INSTANCE, null)
-        case BooleanType =>
-          new FieldType(column.nullable, ArrowType.Bool.INSTANCE, null)
-        case BinaryType =>
-          new FieldType(column.nullable, new ArrowType.Binary(), null)
-        case RefType =>
-          val metadata = new java.util.HashMap[String, String]()
-          metadata.put("logicalType", "Url")
-          new FieldType(column.nullable, ArrowType.Utf8.INSTANCE, null, metadata)
-        case BlobType =>
-          val metadata = new java.util.HashMap[String, String]()
-          metadata.put("logicalType", "blob")
-          new FieldType(column.nullable, new ArrowType.Binary(), null, metadata)
-        case _ =>
-          throw new UnsupportedOperationException(s"Unsupported type: ${column.colType}")
-      }
-
-      new Field(column.name, arrowFieldType, Collections.emptyList())
-    }.toList
-
-    new Schema(fields.asJava)
-  }
-
-  def sendErrorWithFlightStatus(code: Int, message: String): UserPrincipal = {
-    val status = code match {
-      case 400 => CallStatus.INVALID_ARGUMENT
-      case 401 => CallStatus.UNAUTHENTICATED
-      case 403 => CallStatus.UNAUTHORIZED
-      case 404 => CallStatus.NOT_FOUND
-      case 408 => CallStatus.TIMED_OUT
-      case 409 => CallStatus.ALREADY_EXISTS
-      case 500 => CallStatus.INTERNAL
-      case 501 => CallStatus.UNIMPLEMENTED
-      case 503 => CallStatus.UNAVAILABLE
-      case _ => CallStatus.UNKNOWN
-    }
-    throw status.withDescription(message).toRuntimeException
-  }
-
-  def doListHostInfo(): DataFrame = {
-    val schema = StructType.empty.add("name", StringType).add("resourceInfo", StringType)
-    val hostName = "hostName"
-    val stream = Seq((hostName, getHostResourceString()))
-      .map(Row.fromTuple(_)).toIterator
-    DefaultDataFrame(schema, stream)
-  }
-
-  def getHostResourceString(): String = {
-    val jo = new JSONObject()
-    getResourceStatusString.foreach(kv => jo.put(kv._1, kv._2))
-    jo.toString()
-  }
-
-  def getResourceStatusString(): Map[String, String] = {
-    val osBean = ManagementFactory.getOperatingSystemMXBean
-      .asInstanceOf[OperatingSystemMXBean]
-    val runtime = Runtime.getRuntime
-
-    val cpuLoadPercent = (osBean.getSystemCpuLoad * 100).formatted("%.2f")
-    val availableProcessors = osBean.getAvailableProcessors
-
-    val totalMemory = runtime.totalMemory() / 1024 / 1024 // MB
-    val freeMemory = runtime.freeMemory() / 1024 / 1024 // MB
-    val maxMemory = runtime.maxMemory() / 1024 / 1024 // MB
-    val usedMemory = totalMemory - freeMemory
-
-    val systemMemoryTotal = osBean.getTotalPhysicalMemorySize / 1024 / 1024 // MB
-    val systemMemoryFree = osBean.getFreePhysicalMemorySize / 1024 / 1024 // MB
-    val systemMemoryUsed = systemMemoryTotal - systemMemoryFree
-    Map(
-      "cpu.cores" -> s"$availableProcessors",
-      "cpu.usage.percent" -> s"$cpuLoadPercent%",
-      "jvm.memory.max.mb" -> s"$maxMemory MB",
-      "jvm.memory.total.mb" -> s"$totalMemory MB",
-      "jvm.memory.used.mb" -> s"$usedMemory MB",
-      "jvm.memory.free.mb" -> s"$freeMemory MB",
-      "system.memory.total.mb" -> s"$systemMemoryTotal MB",
-      "system.memory.used.mb" -> s"$systemMemoryUsed MB",
-      "system.memory.free.mb" -> s"$systemMemoryFree MB"
-    )
   }
 
   case class DataFrameInfo(
@@ -248,5 +131,8 @@ object CommonTestBase {
   }
 
 }
-
+class CloseTracker {
+  val count = new AtomicInteger(0)
+  val callback: () => Unit = () => count.incrementAndGet()
+}
 

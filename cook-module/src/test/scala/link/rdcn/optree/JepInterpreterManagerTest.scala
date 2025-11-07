@@ -16,7 +16,6 @@ import java.nio.file.Paths
 
 class JepInterpreterManagerTest {
 
-  // JUnit 5 会为每个测试注入一个唯一的临时目录
   @TempDir
   var tempDir: File = _
 

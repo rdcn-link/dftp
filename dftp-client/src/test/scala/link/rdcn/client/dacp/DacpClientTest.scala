@@ -155,7 +155,7 @@ class DacpClientTest {
   def catalogModuleTest(): Unit = {
     val dc = DacpClient.connect("dacp://0.0.0.0:3102")
     println("数据帧列表-----------------")
-    dc.listDataFrameNames("/abc").foreach(println)
+    dc.listDataFrameNames("DataSet").foreach(println)
     println("数据集列表-----------------")
     dc.listDataSetNames().foreach(println)
     println("数据帧元数据信息-----------------")

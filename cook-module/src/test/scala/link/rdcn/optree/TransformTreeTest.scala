@@ -10,16 +10,13 @@ import link.rdcn.operation._
 import link.rdcn.optree.fifo.RowFilePipe
 import link.rdcn.struct.ValueType.{IntType, StringType}
 import link.rdcn.struct._
-import link.rdcn.user.Credentials
+import link.rdcn.{MockFlowExecutionContextForTransformTree, MockReleasableTransformerNode, MockTransformFunctionWrapper, MockTransformOpForTransformTree}
 import org.json.JSONObject
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 
 import java.io.File
-import java.util.concurrent.atomic.AtomicBoolean
-import scala.collection.mutable.ArrayBuffer
-import scala.concurrent.Future
 
 class TransformTreeTest {
 
@@ -284,69 +281,4 @@ class TransformTreeTest {
     assertEquals(expectedDfSchema, resultDf.schema, "FiFoFileNode 返回的 Schema 不匹配")
     assertEquals(expectedData, resultData, "FiFoFileNode 未能从管道文件中正确读取数据")
   }
-}
-
-/**
- * 用于测试 TransformerNode.release() 的模拟类
- */
-class MockReleasableTransformerNode(name: String) extends TransformerNode(null) {
-  val released = new AtomicBoolean(false)
-  override def release(): Unit = released.set(true)
-  override def toJson: JSONObject = new JSONObject().put("type", "MockTransformerNode").put("name", name)
-}
-
-/**
- * 模拟的 TransformFunctionWrapper
- */
-class MockTransformFunctionWrapper(name: String, dfToReturn: DataFrame) extends TransformFunctionWrapper {
-  var applyCalledWith: Seq[DataFrame] = null
-  var applyCalledContext: FlowExecutionContext = null
-
-  override def toJson: JSONObject = new JSONObject().put("type", "MockFunction").put("name", name)
-
-  override def applyToDataFrames(inputs: Seq[DataFrame], ctx: FlowExecutionContext): DataFrame = {
-    this.applyCalledWith = inputs
-    this.applyCalledContext = ctx
-    dfToReturn
-  }
-}
-
-/**
- * 模拟的 TransformOp
- */
-case class MockTransformOpForTransformTree(name: String, dfToReturn: DataFrame) extends TransformOp {
-  var executeCalled = false
-  var executeContext: ExecutionContext = null
-
-  override def execute(ctx: ExecutionContext): DataFrame = {
-    this.executeCalled = true
-    this.executeContext = ctx
-    dfToReturn
-  }
-  override def operationType: String = "MockOp"
-  override def toJson: JSONObject = new JSONObject().put("type", "MockOp").put("name", name)
-
-  override var inputs: Seq[TransformOp] = Seq.empty
-}
-/**
- * 模拟的 FlowExecutionContext
- */
-class MockFlowExecutionContextForTransformTree(asyncEnabled: Boolean = false) extends FlowExecutionContext {
-  var registeredFutures = new ArrayBuffer[TransformOp]()
-  var remoteDataFrames = Map[String, DataFrame]()
-
-  override def fairdHome: String = "/mock/faird/home"
-  override def pythonHome: String = "/mock/python/home"
-  override def isAsyncEnabled: Boolean = asyncEnabled
-
-  override def registerAsyncResult(transformOp: TransformOp, future: Future[DataFrame], thread: Thread): Unit = {
-    registeredFutures.append(transformOp)
-  }
-
-  override def loadRemoteDataFrame(baseUrl: String, path: String, credentials: Credentials): Option[DataFrame] = {
-    remoteDataFrames.get(baseUrl + path)
-  }
-
-  override def getRepositoryClient(): Option[OperatorRepository] = None
-  override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = None
 }

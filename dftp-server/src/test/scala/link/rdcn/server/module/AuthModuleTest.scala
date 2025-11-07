@@ -6,9 +6,9 @@
  */
 package link.rdcn.server.module
 
-import link.rdcn.server.{Anchor, CrossModuleEvent, EventHandler, ServerContext}
-import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal}
-import org.junit.jupiter.api.Assertions.{assertEquals, assertFalse, assertNotNull, assertThrows, assertTrue}
+import link.rdcn.server._
+import link.rdcn.user.AuthenticationService
+import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{BeforeEach, Test}
 
 
@@ -204,68 +204,4 @@ class AuthModuleTest {
     assertTrue(mockInnerService.authenticateCalled, "InnerService.authenticate 应被调用 (即使 old 为 null)")
     assertEquals(MockCredentials, mockInnerService.credsChecked, "InnerService 检查了错误的凭证")
   }
-}
-
-/**
- * 模拟一个 Anchor，用于捕获被 hook 的 EventHandler
- */
-class MockAnchor extends Anchor {
-  var hookedHandler: EventHandler = null
-
-  override def hook(service: EventHandler): Unit = {
-    this.hookedHandler = service
-  }
-
-  // 提供一个空实现以满足 trait
-  override def hook(service: link.rdcn.server.EventSource): Unit = {}
-}
-
-/**
- * 模拟一个 ServerContext
- */
-class MockServerContext extends ServerContext {
-  override def getHost(): String = "mock-host"
-  override def getPort(): Int = 1234
-  override def getProtocolScheme(): String = "dftp"
-  override def getDftpHome(): Option[String] = None
-}
-
-/**
- * 模拟一个不相关的事件
- */
-class OtherMockEvent extends CrossModuleEvent
-
-/**
- * 模拟一个 UserPrincipal
- */
-case object MockUser extends UserPrincipal {
-  def getName: String = "MockUser"
-}
-
-/**
- * 模拟一个 Credentials
- */
-case object MockCredentials extends Credentials
-
-/**
- * 模拟 AuthenticationService，用于跟踪调用
- */
-class MockAuthenticationService(name: String) extends AuthenticationService {
-  var acceptsCreds: Boolean = false
-  var userToReturn: UserPrincipal = MockUser
-  var acceptsCalled: Boolean = false
-  var authenticateCalled: Boolean = false
-  var credsChecked: Credentials = null
-
-  override def accepts(credentials: Credentials): Boolean = {
-    acceptsCalled = true
-    acceptsCreds
-  }
-  override def authenticate(credentials: Credentials): UserPrincipal = {
-    authenticateCalled = true
-    credsChecked = credentials
-    userToReturn
-  }
-
-  override def toString: String = s"MockAuthenticationService($name)"
 }

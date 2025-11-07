@@ -1,17 +1,16 @@
 package link.rdcn.client
 
 import link.rdcn.DftpClientTestBase.getLine
-import link.rdcn.DftpClientTestProvider.{baseDir, binDir, csvDir, dc}
+import link.rdcn.DftpClientTestProvider.{baseDir, binDir, csvDir}
 import link.rdcn.client.DftpClientTest.baseUrl
 import link.rdcn.server.module.{AuthModule, BaseDftpModule, DirectoryDataSourceModule}
 import link.rdcn.server.{DftpServer, DftpServerConfig}
-import link.rdcn.struct.ValueType.{DoubleType, LongType, StringType}
+import link.rdcn.struct.ValueType.{DoubleType, LongType}
 import link.rdcn.struct._
 import link.rdcn.user._
 import link.rdcn.util.CodecUtils
 import link.rdcn.{ActionModule, DftpClientTestDataGenerator, PutModule, user}
 import org.apache.arrow.flight.FlightRuntimeException
-import org.json.JSONObject
 import org.junit.jupiter.api.Assertions.{assertEquals, assertNotNull, assertThrows, assertTrue}
 import org.junit.jupiter.api.{AfterAll, BeforeAll, Test}
 

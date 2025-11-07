@@ -1,20 +1,12 @@
 package link.rdcn
 
-import com.sun.management.OperatingSystemMXBean
-import link.rdcn.struct.ValueType._
+import link.rdcn.client.dacp.MockCatalogData.mockDF
+import link.rdcn.server.module.{ObjectHolder, RequireGetStreamHandlerEvent}
+import link.rdcn.server._
 import link.rdcn.struct._
-import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal}
-import org.apache.arrow.flight.CallStatus
-import org.apache.arrow.vector.types.FloatingPointPrecision
-import org.apache.arrow.vector.types.pojo.{ArrowType, Field, FieldType, Schema}
-import org.json.JSONObject
 
 import java.io.File
-import java.lang.management.ManagementFactory
-import java.net.URI
-import java.nio.file.{Files, Path, Paths}
-import java.util.{Collections, UUID}
-import scala.collection.JavaConverters.seqAsJavaListConverter
+import java.nio.file.{Files, Paths}
 
 
 /** *
@@ -32,9 +24,6 @@ object DftpClientTestBase {
 
   val adminUsername = "admin@instdb.cn"
   val adminPassword = "admin001"
-  val userUsername = "user"
-  val userPassword = "user"
-  val anonymousUsername = "ANONYMOUS"
 
   val resourceUrl = getClass.getProtectionDomain.getCodeSource.getLocation
   val testClassesDir = new File(resourceUrl.toURI)
@@ -45,32 +34,58 @@ object DftpClientTestBase {
     outDir.toString
   }
 
-  /**
-   *
-   * @param resourceName
-   * @return test下名为resourceName的文件夹
-   */
-  def getResourcePath(resourceName: String): String = {
-    val url = Option(getClass.getClassLoader.getResource(resourceName))
-      .orElse(Option(getClass.getResource(resourceName))) // 先到test-classes中查找，然后到classes中查找
-      .getOrElse(throw new RuntimeException(s"Resource not found: $resourceName"))
-    val nativePath: Path = Paths.get(url.toURI())
-    nativePath.toString
-  }
-
-  def listFiles(directoryPath: String): Seq[File] = {
-    val dir = new File(directoryPath)
-    if (dir.exists() && dir.isDirectory) {
-      dir.listFiles().filter(_.isFile).toSeq
-    } else {
-      Seq.empty
-    }
-  }
-
   def getLine(row: Row): String = {
     val delimiter = ","
     row.toSeq.map(_.toString).mkString(delimiter) + '\n'
   }
 
+}
+
+class MockServerContext extends ServerContext {
+  override def getHost(): String = "0.0.0.0"
+  override def getPort(): Int = 3101
+  override def getProtocolScheme(): String = "dftp"
+  override def getDftpHome(): Option[String] = None
+}
+
+
+class GetStreamModule extends DftpModule {
+  private val getStreamHolder = new ObjectHolder[GetStreamHandler]
+  private var serverContext: ServerContext = _
+  private val eventHandler = new EventHandler {
+
+    override def accepts(event: CrossModuleEvent): Boolean = true
+
+    override def doHandleEvent(event: CrossModuleEvent): Unit = {
+      event match {
+        case r: RequireGetStreamHandlerEvent => r.holder.set(old =>
+          new GetStreamHandler {
+            override def accepts(request: DftpGetStreamRequest): Boolean = request.asInstanceOf[DftpGetPathStreamRequest].getRequestURL().contains("oldStream")
+
+            override def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
+              request.asInstanceOf[DftpGetPathStreamRequest].getRequestURL() match {
+                case url if url.contains("oldStream") =>
+                  response.sendDataFrame(mockDF)
+                case url =>
+                  old.doGetStream(request, response)
+              }
+            }
+          })
+        case _ =>
+      }
+    }
+  }
+
+  override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
+    this.serverContext = serverContext
+    anchor.hook(eventHandler)
+    anchor.hook(new EventSource {
+      override def init(eventHub: EventHub): Unit =
+        eventHub.fireEvent(new RequireGetStreamHandlerEvent(getStreamHolder))
+    })
+  }
+
+  override def destroy(): Unit = {
+  }
 }
 

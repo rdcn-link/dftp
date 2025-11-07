@@ -7,14 +7,12 @@
 package link.rdcn.optree
 
 import jep.SubInterpreter
-import link.rdcn.operation.{ExecutionContext, TransformOp}
 import link.rdcn.struct.{DataFrame, DefaultDataFrame, StructType}
-import link.rdcn.user.Credentials
+import link.rdcn.{MockFlowExecutionContext, MockTransformerNode}
 import org.json.JSONObject
 import org.junit.jupiter.api.Assertions.{assertEquals, assertFalse, assertNotSame, assertTrue}
 import org.junit.jupiter.api.{BeforeEach, Disabled, Test}
 
-import java.util.concurrent.atomic.AtomicBoolean
 import scala.concurrent.Future
 
 
@@ -152,41 +150,4 @@ class FlowExecutionContextTest {
       interpreter.foreach(_.close())
     }
   }
-}
-/**
- * 模拟的 TransformerNode，用于测试 'contain' 和 'release' 逻辑
- */
-class MockTransformerNode(transformFunctionWrapper: TransformFunctionWrapper) extends TransformerNode(transformFunctionWrapper) {
-  // 用于测试 'contain' 逻辑
-  var childToContain: TransformOp = _
-
-  // 用于测试 'release' 逻辑
-  val released = new AtomicBoolean(false)
-
-  // --- TransformerNode 抽象方法实现 ---
-  override def contain(op: TransformerNode): Boolean = op == childToContain
-  override def release(): Unit = released.set(true)
-
-  // --- TransformOp 抽象方法实现 ---
-  override def execute(context: ExecutionContext): DataFrame =
-    DefaultDataFrame(StructType.empty,Iterator.empty) // 仅为模拟，不执行
-  def getInputs(): Seq[TransformOp] = Seq.empty // 仅为模拟
-}
-
-/**
- * MockFlowExecutionContext，用于测试 FlowExecutionContext trait
- */
-class MockFlowExecutionContext extends FlowExecutionContext {
-  // --- 抽象方法实现 ---
-  override def fairdHome: String = "/mock/faird/home"
-  override def pythonHome: String = {
-    // 尝试查找系统中的 python.home，否则返回模拟路径
-    // 这是 JEP 集成测试所必需的
-    val pyHome = System.getProperty("python.home")
-    if (pyHome != null) pyHome else "/mock/python/home"
-  }
-
-  override def loadRemoteDataFrame(baseUrl: String, path: String, credentials: Credentials): Option[DataFrame] = None
-  override def getRepositoryClient(): Option[OperatorRepository] = None
-  override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = None
 }

@@ -6,7 +6,8 @@
  */
 package link.rdcn.catalog
 
-import link.rdcn.server.ServerContext
+import link.rdcn.catalog.MockCatalogData.{mockDoc, mockStats}
+import link.rdcn.server.{Anchor, CrossModuleEvent, EventHandler, ServerContext}
 import link.rdcn.struct.ValueType.{IntType, StringType}
 import link.rdcn.struct.{DataFrame, DataFrameDocument, DataFrameStatistics, DefaultDataFrame, Row, StructType}
 import org.apache.jena.rdf.model.{Model, ModelFactory}
@@ -76,3 +77,64 @@ object MockCatalogData {
     writer.toString
   }
 }
+/**
+ * 模拟一个 Anchor，用于捕获被 hook 的 EventHandler
+ */
+class MockAnchor extends Anchor {
+  var hookedHandler: EventHandler = null
+
+  // 模拟 Anchor 的 hook(EventHandler) 方法
+  override def hook(service: EventHandler): Unit = {
+    this.hookedHandler = service
+  }
+
+  // 提供一个空实现以满足 trait
+  override def hook(service: link.rdcn.server.EventSource): Unit = {}
+
+}
+
+
+
+/**
+ * 模拟一个不相关的事件，用于测试 'accepts' 方法
+ */
+class OtherMockEvent extends CrossModuleEvent
+
+/**
+ * 模拟 CatalogService 的实现，为所有抽象方法提供可预测的返回值
+ */
+class MockCatalogServiceImpl(schemaToReturn: Option[StructType]) extends CatalogService {
+
+  // --- 模拟抽象方法的实现 ---
+
+  override def accepts(request: CatalogServiceRequest): Boolean = true
+
+  override def listDataSetNames(): List[String] = List("dataset1", "dataset2")
+
+  override def getDataSetMetaData(dataSetId: String, rdfModel: Model): Unit = {
+    // 添加一些可预测的 RDF 数据
+    val resource = rdfModel.createResource(s"http://example.org/set/$dataSetId")
+    val property = rdfModel.createProperty("http://example.org/prop#name")
+    resource.addProperty(property, s"Mock Name for $dataSetId")
+  }
+
+  override def getDataFrameMetaData(dataFrameName: String, rdfModel: Model): Unit = {
+    // 未被测方法使用，提供空实现
+  }
+
+  override def listDataFrameNames(dataSetId: String): List[String] =
+    List(s"${dataSetId}_table_a", s"${dataSetId}_table_b")
+
+  override def getDocument(dataFrameName: String): DataFrameDocument =
+    mockDoc
+
+  override def getStatistics(dataFrameName: String): DataFrameStatistics =
+    mockStats
+
+  override def getSchema(dataFrameName: String): Option[StructType] =
+    this.schemaToReturn // 返回在构造时指定的 Schema
+
+  override def getDataFrameTitle(dataFrameName: String): Option[String] =
+    Some(s"Title for $dataFrameName")
+}
+

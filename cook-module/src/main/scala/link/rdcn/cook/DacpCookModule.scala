@@ -77,7 +77,7 @@ class DacpCookModule() extends DftpModule with Logging {
                 override def accepts(request: DftpGetStreamRequest): Boolean = {
                   request match {
                     case _: DacpCookStreamRequest => true
-                    case _ => false
+                    case _ => old!=null && old.accepts(request)
                   }
                 }
 

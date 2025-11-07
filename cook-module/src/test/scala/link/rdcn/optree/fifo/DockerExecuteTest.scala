@@ -29,10 +29,7 @@ class DockerExecuteTest {
 
   private var dockerClient: DockerClient = _
 
-  /**
-   * 在每个测试方法执行前运行。
-   * 核心职责：确保名为 'jyg-container' 的容器正在运行，并准备好测试脚本。
-   */
+
   @BeforeEach
   def setUp(): Unit = {
     val config = DefaultDockerClientConfig.createDefaultConfigBuilder().build()

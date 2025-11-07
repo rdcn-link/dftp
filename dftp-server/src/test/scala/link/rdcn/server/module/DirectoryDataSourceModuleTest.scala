@@ -6,11 +6,10 @@
  */
 package link.rdcn.server.module
 
-import link.rdcn.server.exception.DataFrameNotFoundException
 import link.rdcn.server._
+import link.rdcn.server.exception.DataFrameNotFoundException
 import link.rdcn.struct.ValueType.{BlobType, LongType, RefType, StringType}
 import link.rdcn.struct._
-import link.rdcn.user.UserPrincipal
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.io.TempDir
 import org.junit.jupiter.api.{BeforeEach, Test}
@@ -18,71 +17,6 @@ import org.junit.jupiter.api.{BeforeEach, Test}
 import java.io._
 import java.nio.charset.StandardCharsets
 import scala.collection.mutable.ArrayBuffer
-
-// --- 模拟对象 (必需的依赖, 复用自 DataFrameProviderModuleTest) ---
-
-/**
- * 模拟一个 Anchor，用于捕获被 hook 的 EventHandler
- */
-class MockAnchorForDirectory extends Anchor {
-  var hookedHandler: EventHandler = null
-
-  override def hook(service: EventHandler): Unit = {
-    this.hookedHandler = service
-  }
-
-  override def hook(service: EventSource): Unit = ???
-}
-
-/**
- * 模拟一个 ServerContext
- */
-class MockServerContextForDirectory extends ServerContext {
-  override def getHost(): String = "mock-host"
-  override def getPort(): Int = 1234
-  override def getProtocolScheme(): String = "dftp"
-  // baseUrl 必须以 / 结尾
-  override def baseUrl: String = "dftp://mock-host:1234/"
-  override def getDftpHome(): Option[String] = None
-}
-
-/**
- * 模拟一个不相关的事件
- */
-class OtherMockEventForDirectory extends CrossModuleEvent
-
-/**
- * 模拟一个 UserPrincipal
- */
-case object MockUserForDirectory extends UserPrincipal {
-  def getName: String = "MockUserForDirectory"
-}
-
-/**
- * 模拟 DataFrameProviderService，用于测试链式调用 (old service)
- */
-class MockDataFrameProviderServiceForDirectory(name: String) extends DataFrameProviderService {
-  var acceptsUrl: Boolean = false
-  var dfToReturn: DataFrame = DefaultDataFrame(StructType.empty, Iterator.empty)
-  var acceptsCalled: Boolean = false
-  var getDataFrameCalled: Boolean = false
-  var urlChecked: String = null
-
-  override def accepts(dataFrameUrl: String): Boolean = {
-    acceptsCalled = true
-    acceptsUrl
-  }
-
-  override def getDataFrame(dataFrameUrl: String, userPrincipal: UserPrincipal)
-                           (implicit ctx: ServerContext): DataFrame = {
-    getDataFrameCalled = true
-    urlChecked = dataFrameUrl
-    dfToReturn
-  }
-
-  override def toString: String = s"MockDataFrameProviderServiceForDirectory($name)"
-}
-
 
 class DirectoryDataSourceModuleTest {
 

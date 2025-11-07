@@ -6,35 +6,12 @@
  */
 package link.rdcn.catalog
 
+import link.rdcn.server.EventHandler
 import link.rdcn.server.module.ObjectHolder
-import link.rdcn.server.{Anchor, CrossModuleEvent, EventHandler, ServerContext}
 import link.rdcn.struct.{DataFrameDocument, DataFrameStatistics, StructType}
 import org.apache.jena.rdf.model.Model
-import org.junit.jupiter.api.Assertions.{assertEquals, assertFalse, assertNotNull, assertSame, assertTrue}
+import org.junit.jupiter.api.Assertions.{assertFalse, assertNotNull, assertSame, assertTrue}
 import org.junit.jupiter.api.{BeforeEach, Test}
-
-/**
- * 模拟一个 Anchor，用于捕获被 hook 的 EventHandler
- */
-class MockAnchor extends Anchor {
-  var hookedHandler: EventHandler = null
-
-  // 模拟 Anchor 的 hook(EventHandler) 方法
-  override def hook(service: EventHandler): Unit = {
-    this.hookedHandler = service
-  }
-
-  // 提供一个空实现以满足 trait
-  override def hook(service: link.rdcn.server.EventSource): Unit = {}
-
-}
-
-
-
-/**
- * 模拟一个不相关的事件，用于测试 'accepts' 方法
- */
-class OtherMockEvent extends CrossModuleEvent
 
 class CatalogServiceModuleTest {
 
@@ -162,3 +139,5 @@ class CatalogServiceModuleTest {
     moduleToTest.destroy()
   }
 }
+
+

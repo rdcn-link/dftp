@@ -7,9 +7,8 @@
 package link.rdcn.catalog
 
 import link.rdcn.catalog.ConfigKeys.{FAIRD_HOST_PORT, FAIRD_HOST_POSITION}
-import link.rdcn.server.ServerContext
 import link.rdcn.struct.{DataFrameDocument, DataFrameStatistics, StructType}
-import org.json.{JSONArray, JSONObject}
+import org.json.JSONObject
 import org.junit.jupiter.api.Assertions.{assertEquals, assertNotNull, assertTrue}
 import org.junit.jupiter.api.Test
 

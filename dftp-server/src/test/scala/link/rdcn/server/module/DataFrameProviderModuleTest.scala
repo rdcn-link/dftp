@@ -7,11 +7,10 @@
 package link.rdcn.server.module
 
 import link.rdcn.server.exception.DataFrameNotFoundException
-import link.rdcn.server.{Anchor, CrossModuleEvent, EventHandler, EventSource, ServerContext}
+import link.rdcn.server._
 import link.rdcn.struct.ValueType.StringType
 import link.rdcn.struct.{DataFrame, DefaultDataFrame, Row, StructType}
-import link.rdcn.user.UserPrincipal
-import org.junit.jupiter.api.Assertions.{assertEquals, assertFalse, assertNotNull, assertThrows, assertTrue}
+import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{BeforeEach, Test}
 
 /**
@@ -227,67 +226,4 @@ class DataFrameProviderModuleTest {
   }
 }
 
-/**
- * 模拟一个 Anchor，用于捕获被 hook 的 EventHandler
- * (复用自 AuthModuleTest)
- */
-class MockFlowForProvider extends Anchor {
-  var hookedHandler: EventHandler = null
-
-  override def hook(service: EventHandler): Unit = {
-    this.hookedHandler = service
-  }
-
-  override def hook(service: EventSource): Unit = ???
-}
-
-/**
- * 模拟一个 ServerContext
- * (复用自 AuthModuleTest)
- */
-class MockServerContextForProvider extends ServerContext {
-  override def getHost(): String = "mock-host"
-  override def getPort(): Int = 1234
-  override def getProtocolScheme(): String = "dftp"
-  override def getDftpHome(): Option[String] = None
-}
-
-/**
- * 模拟一个不相关的事件
- * (复用自 AuthModuleTest)
- */
-class OtherMockEventForProvider extends CrossModuleEvent
-
-/**
- * 模拟一个 UserPrincipal
- * (复用自 AuthModuleTest)
- */
-case object MockUserForProvider extends UserPrincipal {
-  def getName: String = "MockUserForProvider"
-}
-
-/**
- * 模拟 DataFrameProviderService，用于跟踪调用
- */
-class MockDataFrameProviderService(name: String) extends DataFrameProviderService {
-  var acceptsUrl: Boolean = false
-  var dfToReturn: DataFrame = DefaultDataFrame(StructType.empty, Iterator.empty)
-  var acceptsCalled: Boolean = false
-  var getDataFrameCalled: Boolean = false
-  var urlChecked: String = null
-
-  override def accepts(dataFrameUrl: String): Boolean = {
-    acceptsCalled = true
-    acceptsUrl
-  }
-
-  override def getDataFrame(dataFrameUrl: String, userPrincipal: UserPrincipal)
-                           (implicit ctx: ServerContext): DataFrame = {
-    getDataFrameCalled = true
-    urlChecked = dataFrameUrl
-    dfToReturn
-  }
-
-  override def toString: String = s"MockDataFrameProviderService($name)"
-}
 

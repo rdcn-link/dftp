@@ -3,7 +3,7 @@ package link.rdcn.server.module
 import link.rdcn.server._
 import link.rdcn.server.exception.DataFrameNotFoundException
 import link.rdcn.struct.DataFrame
-import link.rdcn.user.{UserPrincipal}
+import link.rdcn.user.UserPrincipal
 
 /**
  * @Author renhao

@@ -7,56 +7,11 @@
 package link.rdcn.catalog
 
 // 导入被测代码所依赖的 CatalogFormatter 方法
-import link.rdcn.catalog.CatalogFormatter._
-import link.rdcn.catalog.MockCatalogData.{mockDoc, mockStats}
-import link.rdcn.server.ServerContext
 import link.rdcn.struct.ValueType.{LongType, RefType, StringType}
 import link.rdcn.struct._
-import org.apache.jena.rdf.model.{Model, ModelFactory}
 import org.json.JSONObject
-import org.junit.jupiter.api.Assertions.{assertEquals, assertNotNull, assertThrows, assertTrue}
+import org.junit.jupiter.api.Assertions.{assertEquals, assertTrue}
 import org.junit.jupiter.api.Test
-
-import java.io.StringWriter
-
-/**
- * 模拟 CatalogService 的实现，为所有抽象方法提供可预测的返回值
- */
-class MockCatalogServiceImpl(schemaToReturn: Option[StructType]) extends CatalogService {
-
-  // --- 模拟抽象方法的实现 ---
-
-  override def accepts(request: CatalogServiceRequest): Boolean = true
-
-  override def listDataSetNames(): List[String] = List("dataset1", "dataset2")
-
-  override def getDataSetMetaData(dataSetId: String, rdfModel: Model): Unit = {
-    // 添加一些可预测的 RDF 数据
-    val resource = rdfModel.createResource(s"http://example.org/set/$dataSetId")
-    val property = rdfModel.createProperty("http://example.org/prop#name")
-    resource.addProperty(property, s"Mock Name for $dataSetId")
-  }
-
-  override def getDataFrameMetaData(dataFrameName: String, rdfModel: Model): Unit = {
-    // 未被测方法使用，提供空实现
-  }
-
-  override def listDataFrameNames(dataSetId: String): List[String] =
-    List(s"${dataSetId}_table_a", s"${dataSetId}_table_b")
-
-  override def getDocument(dataFrameName: String): DataFrameDocument =
-    mockDoc
-
-  override def getStatistics(dataFrameName: String): DataFrameStatistics =
-    mockStats
-
-  override def getSchema(dataFrameName: String): Option[StructType] =
-    this.schemaToReturn // 返回在构造时指定的 Schema
-
-  override def getDataFrameTitle(dataFrameName: String): Option[String] =
-    Some(s"Title for $dataFrameName")
-}
-
 
 class CatalogServiceTest {
 
@@ -111,15 +66,15 @@ class CatalogServiceTest {
 
     val df = mockService.doListHostInfo(mockContext)
 
-    // 1. 验证 Schema
+    // 验证 Schema
     val expectedSchema = StructType.empty
       .add("hostInfo", StringType)
       .add("resourceInfo", StringType)
 
-    // 遵守 [2025-09-26] 规范：(expected, actual, message)
+
     assertEquals(expectedSchema, df.schema, "doListHostInfo 返回的 Schema 不匹配")
 
-    // 2. 验证数据
+    // 验证数据
     val rows = df.collect()
     assertEquals(1, rows.length, "doListHostInfo 应只返回 1 行")
 
@@ -147,7 +102,7 @@ class CatalogServiceTest {
 
     val df = mockService.doListDataFrames(s"/listDataFrames/$dataSetName", baseUrl)
 
-    // 1. 验证 Schema
+    // 验证 Schema
     val expectedSchema = StructType.empty
       .add("name", StringType)
       .add("size", LongType)
@@ -157,10 +112,10 @@ class CatalogServiceTest {
       .add("statistics", StringType)
       .add("dataFrame", RefType)
 
-    // 遵守 [2025-09-26] 规范：(expected, actual, message)
+
     assertEquals(expectedSchema, df.schema, "doListDataFrames 返回的 Schema 不匹配")
 
-    // 2. 验证数据
+    // 验证数据
     val rows = df.collect()
     assertEquals(2, rows.length, "doListDataFrames 返回的行数不匹配 (应为 2)")
 
@@ -187,30 +142,5 @@ class CatalogServiceTest {
     assertEquals("dftp://test-host:1234/dataset1_table_a", row1._7.asInstanceOf[DFRef].url,
       "第一行 'dataFrame' (Ref) 列的 URL 不匹配")
   }
-//
-//  /**
-//   * 测试 doListDataFrames - 当 Schema 不为空时
-//   * 这将触发 CatalogFormatter.getDataFrameDocumentJsonString 中的已知 Bug
-//   * (即调用了 Row.scala 中不存在的 toJsonObject 方法)
-//   */
-//  @Test
-//  def testDoListDataFrames_WithNonEmptySchema_Fails(): Unit = {
-//    val mockService = new MockCatalogServiceImpl(
-//      schemaToReturn = Some(StructType.empty.add("col1", StringType))
-//    )
-//    val dataSetName = "dataset1"
-//
-//    val df = mockService.doListDataFrames(s"/listDataFrames/$dataSetName", baseUrl)
-//
-//    // 验证：调用 .collect() 时应抛出异常
-//    val exception = assertThrows(classOf[Exception], () => {
-//      df.collect() // 触发迭代器执行
-//      ()
-//    }, "当 Schema 不为空时，doListDataFrames 应抛出异常")
-//
-//    // 遵守 [2025-09-26] 规范：(expected, actual, message)
-//    // 验证这是否是我们预期的 Bug
-//    assertTrue(exception.isInstanceOf[NoSuchMethodError],
-//      "异常应为 NoSuchMethodError (因为 row.toJsonObject 不存在)")
-//  }
 }
+

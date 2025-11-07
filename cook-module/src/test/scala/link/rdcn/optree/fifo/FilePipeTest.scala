@@ -10,16 +10,16 @@ import link.rdcn.optree.fifo.FilePipeTest.{pipe, testFile}
 import link.rdcn.struct.ValueType.StringType
 import link.rdcn.struct.{DataFrame, DefaultDataFrame, Row, StructType}
 import org.junit.jupiter.api.Assertions.{assertEquals, assertFalse, assertNotNull, assertTrue}
-import org.junit.jupiter.api.{BeforeAll, BeforeEach, Test}
 import org.junit.jupiter.api.condition.{DisabledOnOs, OS}
 import org.junit.jupiter.api.io.TempDir
+import org.junit.jupiter.api.{BeforeAll, Test}
 
 import java.io.File
 import java.nio.file.Files
 import scala.util.Random
 
 object FilePipeTest {
-  // JUnit 5 会为每个测试注入一个唯一的临时目录
+
   @TempDir
   var tempDir: File = _
 

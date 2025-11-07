@@ -8,20 +8,17 @@ package link.rdcn.optree.fifo
 
 import link.rdcn.struct.ValueType.StringType
 import link.rdcn.struct.{Row, StructType}
-import link.rdcn.util.DataUtils
-import org.junit.jupiter.api.Assertions.{assertEquals, assertFalse, assertNotNull, assertThrows, assertTrue}
-import org.junit.jupiter.api.{BeforeEach, Test}
+import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.condition.{DisabledOnOs, OS}
 import org.junit.jupiter.api.io.TempDir
+import org.junit.jupiter.api.{BeforeEach, Test}
 
 import java.io.{File, FileWriter, PrintWriter}
 import java.nio.file.Files
-import scala.collection.JavaConverters._
 import scala.util.Random
 
 class RowFilePipeTest {
 
-  // JUnit 5 会为每个测试注入一个唯一的临时目录
   @TempDir
   var tempDir: File = _
 

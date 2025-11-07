@@ -59,8 +59,12 @@ class BaseDftpModule extends DftpModule {
                         } catch {
                           case e: IllegalAccessException => response.sendError(403, e.getMessage)
                             throw e
-                          case e: DataFrameNotFoundException => response.sendError(404, e.getMessage)
-                            throw e
+                          case e: DataFrameNotFoundException =>
+                            if(old !=null && old.accepts(request))
+                              old.doGetStream(request, response)
+                            else
+                              response.sendError(404, e.getMessage)
+                              throw e
                           case e: Exception => response.sendError(500, e.getMessage)
                             throw e
                         }

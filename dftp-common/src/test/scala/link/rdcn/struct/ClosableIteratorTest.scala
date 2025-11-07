@@ -5,12 +5,11 @@
  * @Modified By:
  */
 package link.rdcn.struct
+import link.rdcn.CloseTracker
 import org.junit.jupiter.api.Assertions.{assertEquals, assertThrows, assertTrue}
 import org.junit.jupiter.api.Test
 
-import java.util.concurrent.atomic.AtomicInteger
-
-class ClosableIteratorJunitTest {
+class ClosableIteratorTest {
   private val data = List(1, 2, 3)
 
   @Test
@@ -142,9 +141,4 @@ class ClosableIteratorJunitTest {
     // 验证 next() 中没有触发 close
     assertEquals(0, tracker.count.get(), "onClose should not be triggered during next() in FileList mode")
   }
-}
-
-class CloseTracker {
-  val count = new AtomicInteger(0)
-  val callback: () => Unit = () => count.incrementAndGet()
 }

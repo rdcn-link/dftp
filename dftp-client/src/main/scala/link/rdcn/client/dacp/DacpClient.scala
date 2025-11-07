@@ -111,7 +111,7 @@ class DacpClient(host: String, port: Int, useTLS: Boolean = false) extends DftpC
 
   def getDataFrameSize(dataFrameName: String): Long = {
     new String(doAction(s"/getDataFrameSize/${dataFrameName}"), "UTF-8").trim match {
-      case s if s.nonEmpty => s.asInstanceOf[Long]
+      case s if s.nonEmpty => s.toLong
       case _ => 0L
     }
   }

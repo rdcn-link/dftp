@@ -1,13 +1,13 @@
 package link.rdcn.client
 
-import link.rdcn.struct.ValueType.{BinaryType, BlobType, BooleanType, DoubleType, FloatType, IntType, LongType, RefType, StringType}
-import link.rdcn.struct.{ClosableIterator, Column, DFRef, DataFrame, DefaultDataFrame, Row, StructType, ValueType}
+import link.rdcn.struct.ValueType._
+import link.rdcn.struct._
 import org.apache.arrow.flight.{PutResult, Result, SyncPutListener}
 import org.apache.arrow.memory.BufferAllocator
 import org.apache.arrow.vector.ipc.ArrowStreamReader
 import org.apache.arrow.vector.types.pojo.{ArrowType, Field, FieldType, Schema}
 import org.apache.arrow.vector.types.{FloatingPointPrecision, Types}
-import org.apache.arrow.vector.{BigIntVector, BitVector, Float4Vector, Float8Vector, IntVector, VarBinaryVector, VarCharVector, VectorSchemaRoot}
+import org.apache.arrow.vector._
 
 import java.io.ByteArrayInputStream
 import java.util.Collections

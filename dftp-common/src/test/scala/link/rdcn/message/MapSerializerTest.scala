@@ -7,8 +7,8 @@
 package link.rdcn.message
 
 import com.fasterxml.jackson.core.JsonProcessingException
-import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.{assertEquals, assertNotNull, assertThrows, assertTrue}
+import org.junit.jupiter.api.Test
 
 class MapSerializerTest {
 

@@ -9,7 +9,7 @@ package link.rdcn.server.module
 import link.rdcn.server._
 import link.rdcn.struct.DataFrame
 import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials}
-import org.junit.jupiter.api.Assertions.{assertEquals, assertFalse, assertNotNull, assertThrows, assertTrue}
+import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{BeforeEach, Test}
 
 import scala.collection.mutable.ArrayBuffer

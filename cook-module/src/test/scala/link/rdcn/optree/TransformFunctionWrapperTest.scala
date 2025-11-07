@@ -1,18 +1,16 @@
 package link.rdcn.optree
 
 import jep.SharedInterpreter
-import link.rdcn.operation.{ExecutionContext, FunctionSerializer, GenericFunctionCall, SharedInterpreterManager, TransformOp}
-import link.rdcn.optree.fifo.{DockerContainer, DockerExecute}
+import link.rdcn.operation.{ExecutionContext, GenericFunctionCall, SharedInterpreterManager}
+import link.rdcn.optree.fifo.DockerContainer
 import link.rdcn.struct._
 import link.rdcn.user.Credentials
 // 修复：添加 JUnit 断言
-import org.junit.jupiter.api.Assertions.{assertEquals, assertNotNull, assertThrows, assertTrue}
-import org.junit.jupiter.api.{BeforeEach, Disabled, Test}
-import org.json.JSONObject
+import org.junit.jupiter.api.Assertions.{assertEquals, assertThrows}
+import org.junit.jupiter.api.{Disabled, Test}
 
 import java.io.File
 import java.nio.file.Paths
-import scala.collection.JavaConverters._
 
 /**
  * @Author renhao

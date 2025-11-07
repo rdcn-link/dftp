@@ -11,14 +11,16 @@ import link.rdcn.client.DftpClient
 import link.rdcn.client.DftpClientTest.baseUrl
 import link.rdcn.client.dacp.DacpCatalogModuleTest.{catalogService, client}
 import link.rdcn.client.dacp.DacpClientTest.authenticationService
+import link.rdcn.client.dacp.MockCatalogData.mockDF
+import link.rdcn.server._
 import link.rdcn.server.module.{AuthModule, BaseDftpModule}
-import link.rdcn.server.{DftpServer, DftpServerConfig, ServerContext}
 import link.rdcn.struct.ValueType.{IntType, StringType}
 import link.rdcn.struct._
+import link.rdcn.{GetStreamModule, MockServerContext}
 import org.apache.arrow.flight.FlightRuntimeException
 import org.apache.jena.rdf.model.{Model, ModelFactory}
 import org.junit.jupiter.api.Assertions.{assertEquals, assertNotNull, assertThrows, assertTrue}
-import org.junit.jupiter.api.{AfterAll, BeforeAll, Disabled, Test}
+import org.junit.jupiter.api.{AfterAll, BeforeAll, Test}
 
 import java.io.{ByteArrayInputStream, StringWriter}
 import java.nio.charset.StandardCharsets
@@ -71,6 +73,7 @@ object DacpCatalogModuleTest {
     val modules = Array(
       new BaseDftpModule,
       new DacpCatalogModule,
+      new GetStreamModule(),
       new CatalogServiceModule(catalogService),
       new AuthModule(authenticationService),
     )
@@ -219,17 +222,16 @@ class DacpCatalogModuleTest {
   }
 
   @Test
-  @Disabled("需要实现多个Holder的请求传递")
   def testStreamHandlerChaining(): Unit = {
     // 这个测试验证 DacpCatalogModule 是否正确地将请求传递给了 "old" handler
     val path = "/oldStream"
     val df = client.get(path)
-    val expectedDF = DefaultDataFrame(StructType.empty, Iterator.empty)
+    val expectedDF = mockDF
     val actualRows = df.collect()
     val expectedRows = expectedDF.collect()
 
     assertEquals(expectedDF.schema, df.schema, "GetStream 链式调用返回的 Schema 不匹配")
-    assertEquals(expectedRows.head._1, actualRows.head._1, "GetStream 链式调用返回的内容不匹配")
+    assertEquals(expectedRows.toString(), actualRows.toString(), "GetStream 链式调用返回的内容不匹配")
   }
 
   @Test
@@ -250,6 +252,9 @@ class DacpCatalogModuleTest {
  */
 object MockCatalogData {
   val mockSchema: StructType = StructType.empty.add("id", IntType).add("name", StringType)
+  def mockDF: DataFrame = DefaultDataFrame(
+    mockSchema, Seq(Row(1,"data")).iterator
+  )
   val mockTitle: String = "My Mock Table"
   val mockStats: DataFrameStatistics = new DataFrameStatistics {
 
@@ -297,11 +302,3 @@ object MockCatalogData {
     writer.toString
   }
 }
-
-class MockServerContext extends ServerContext {
-  override def getHost(): String = "0.0.0.0"
-  override def getPort(): Int = 3101
-  override def getProtocolScheme(): String = "dftp"
-  override def getDftpHome(): Option[String] = None
-}
-
