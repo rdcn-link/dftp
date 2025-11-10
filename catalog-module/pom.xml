@@ -109,7 +109,6 @@
                                     <attach>false</attach>
                                     <finalName>dacp-server-${project.parent.version}</finalName>
                                     <appendAssemblyId>true</appendAssemblyId>
-                                    <includeEmptyDirectories>true</includeEmptyDirectories>
                                     <outputDirectory>${project.build.directory}</outputDirectory>
                                     <descriptors>
                                         <descriptor>src/main/assemblies/unix-dist.xml</descriptor>
@@ -223,7 +222,6 @@
                         <configuration>
                             <attach>false</attach>
                             <finalName>dacp-server-${project.parent.version}</finalName>
-                            <includeEmptyDirectories>true</includeEmptyDirectories>
                             <appendAssemblyId>true</appendAssemblyId>
                             <outputDirectory>${project.build.directory}</outputDirectory>
                             <archive>
