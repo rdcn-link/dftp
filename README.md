@@ -25,88 +25,247 @@ DACP is based on the **Apache Arrow Flight protocol** to achieve standardized st
 - **Cross-Environment Compatibility**: Designed for scientific and distributed computing, enabling seamless data sharing between nodes, processes, and heterogeneous systems.
 - **Extensible Protocol**: Supports custom authentication, data operations, and metadata exchange (via RDF/XML and JSON) for domain-specific requirements.
 
+# Getting Started
 
+## Prerequisites
 
-## Getting Started
+- **Java 11+**
+- **Scala 2.12+** (for Scala API)
 
-### Prerequisites
+---
 
-- Java 8+
-- Scala 2.12+ (for Scala API)
+## Installation
 
-### Installation
+### DFTP (DataFrame Transfer Protocol)
 
-#### Maven
+Add the following dependencies to your Maven `pom.xml`:
 
 ```xml
 <dependency>
-  <groupId>link.rdcn</groupId>
-  <artifactId>dftp</artifactId>
-  <version>0.5.0-20250917</version>
+    <groupId>link.rdcn</groupId>
+    <artifactId>dftp-server</artifactId>
+    <version>0.5.0-20251028</version>
+</dependency>
+
+<dependency>
+    <groupId>link.rdcn</groupId>
+    <artifactId>dftp-client</artifactId>
+    <version>0.5.0-20251028</version>
 </dependency>
 ```
+### DACP (Data Access and Collaboration Protocol)
+Add the following dependencies to your Maven `pom.xml`:
 
-### Usage
+```xml
+<dependency>
+    <groupId>link.rdcn</groupId>
+    <artifactId>catalog-module</artifactId>
+    <version>0.5.0-20251028</version>
+</dependency>
 
-##### Server Implementation
-
-```scala
-val dftpServer = new DftpServer()
-  .setAuthHandler(new AuthenticatedProvider)
-  .setServiceHandler(new DftpServiceHandler)
-  .setProtocolSchema("dftp")  // Custom protocol schema
+<dependency>
+    <groupId>link.rdcn</groupId>
+    <artifactId>cook-module</artifactId>
+    <version>0.5.0-20251028</version>
+</dependency>
 ```
+### DFTP Usage
+#### Server Deployment (Packaged Distribution)
+A quick way to deploy DFTP server is using the packaged distribution, which does not require writing Scala code:
+```bash
+cd packaging
+# Package the server
+mvn clean package -P server-unix-dist
 
-### Client Operations
+# Unpack the generated tarball in your local directory, e.g. /usr/local/
+tar -zxvf dftp-server-<version>.tar.gz
+cd /usr/local/dftp-server-<version>
+```
+#### Modify configuration (example):
+```text
+# Example dftp.conf
+dftp.host.position=0.0.0.0
+dftp.host.port=3101
+```
+#### Start the server:
+```bash
+bin/dftp-control.sh start
+```
+> After server startup, the data source is automatically taken from the `data` directory under the installation directory.
+Clients can then connect using DftpClient as described in the client operations section.
 
-#### Connection
-
+#### DFTP Server Implementation
 ```scala
-// Anonymous login
-val dftpClient = DftpClient.connect("dftp://ip:3101", Credentials.ANONYMOUS)
+val userPasswordAuthService = new UserPasswordAuthService {
+  override def authenticate(credentials: UsernamePassword): UserPrincipal = {
+    // Perform authentication
+    UserPrincipalWithCredentials(credentials)
+  }
+  // Return true if this module should handle the given credentials
+  override def accepts(credentials: UsernamePassword): Boolean = true
+}
 
-// Username/password login
+val directoryDataSourceModule = new DirectoryDataSourceModule
+// Set the root directory of the data source
+directoryDataSourceModule.setRootDirectory(new File(baseDir))
+
+val modules = Array(
+  directoryDataSourceModule,
+  new BaseDftpModule,
+  new UserPasswordAuthModule(userPasswordAuthService),
+  new PutModule,
+  new ActionModule
+)
+
+// Start the DFTP server
+dftpServer = DftpServer.start(DftpServerConfig("0.0.0.0"), modules)
+```
+#### DFTP Client Operations
+##### Connect
+```scala
+// Connect using anonymous login
+val dftpClient = DftpClient.connect("dftp://0.0.0.0:3101", Credentials.ANONYMOUS)
+
+// Connect using username/password authentication
 val dftpClient = DftpClient.connect(
-"dftp://ip:3101",
-UsernamePassword("user", "password")
+  "dftp://0.0.0.0:3101",
+  UsernamePassword("user", "password")
 )
 ```
-
-### Data Operations
-
+##### Data Operations
 ```scala
-// Get DataFrame from resource
-val df = dftpClient.get("dftp://ip:3101/resourcePath")
+// Retrieve a DataFrame from a remote resource
+val df = dftpClient.get("dftp://0.0.0.0:3101/resourcePath")
 
 // Transformations
 val dfMap = df.map(row => row._1).limit(10)
-
 val dfFilter = df.filter(row => row._1 > 100).limit(10)
-
 val dfSelect = df.select("col0", "col1").limit(10)
 
-// Actions
-df.collect()  // Retrieve all data
-df.foreach(row => process(row))  // Process each row
+df.collect()                       // Retrieve all data
+df.foreach(row => process(row))     // Process each row individually
 ```
 
-### API Reference
+### DACP Usage
+#### Server Deployment (Packaged Distribution)
+DACP server can be deployed in a similar way to DFTP.
+```bash
+cd catalog-module
+# Package the server
+mvn clean package -P server-unix-dist
 
-#### DftpServer
+# Unpack the generated tarball
+tar -zxvf dacp-server-<version>.tar.gz
+cd /usr/local/dacp-server-<version>
+```
+#### Modify configuration (example):
+```text
+dacp.host.position=0.0.0.0
+dacp.host.port=3101
+```
+#### Start the server:
+```bash
+bin/dacp-control.sh start
+```
+> After server startup, the data source is automatically taken from the `data` directory under the installation directory.
+Clients can then connect using DacpClient as described in the client operations section.
 
-| Method                | Description                       |
-| --------------------- | --------------------------------- |
-| `setAuthHandler()`    | Sets authentication provider      |
-| `setServiceHandler()` | Sets service implementation       |
-| `setProtocolSchema()` | Configures custom protocol schema |
 
-#### DftpClient
+#### DACP Server Implementation
+```scala
+val directoryCatalogModule = new DirectoryCatalogModule()
+directoryCatalogModule.setRootDirectory(new File(baseDir))
 
-| Method      | Returns    | Description                                           |
-| ----------- | ---------- | ----------------------------------------------------- |
-| `connect()` | DftpClient | Establishes connection                                |
-| `get()`     | DataFrame  | Retrieves resource as DataFrame                       |
-| `put()`     | String     | Uploads data to server (takes DataFrame as parameter) |
+val permissionService = new PermissionService {
+  override def accepts(user: UserPrincipal): Boolean = true
+
+  // Validate whether the user has permission to perform certain operations
+  override def checkPermission(user: UserPrincipal, dataFrameName: String, opList: List[DataOperationType]): Boolean =
+    user.asInstanceOf[UserPrincipalWithCredentials].credentials match {
+      case Credentials.ANONYMOUS => false
+      case UsernamePassword(username, password) => true
+    }
+}
+
+val modules = Array(
+  new BaseDftpModule,
+  new DacpCookModule,
+  new DacpCatalogModule,
+  new DirectoryDataSourceModule,
+  directoryCatalogModule,
+  new UserPasswordAuthModule(userPasswordAuthService), // Refer to DFTP server implementation
+  new PermissionServiceModule(permissionService)
+)
+
+// Start the DACP server
+server = DftpServer.start(
+  DftpServerConfig("0.0.0.0", 3101)
+    .withProtocolScheme("dacp"),
+  modules
+)
+```
+#### DACP Client Operations
+##### Connection
+```scala
+// Connect using anonymous login
+val dacpClient = DacpClient.connect("dacp://0.0.0.0:3101", Credentials.ANONYMOUS)
+
+// Connect using username/password authentication
+val dacpClient = DacpClient.connect(
+  "dacp://0.0.0.0:3101",
+  UsernamePassword("user", "password")
+)
+```
+##### Metadata Operations
+```scala
+// List all available datasets
+dacpClient.listDataSetNames()
+
+// Retrieve dataset metadata
+dacpClient.getDataSetMetaData("dataSet")
+
+// List all data frames under a dataset
+dacpClient.listDataFrameNames("dataSet")
+
+// Retrieve metadata for a specific data frame
+dacpClient.getDataFrameMetaData("/dataFramePath")
+
+// Retrieve schema of a data frame
+dacpClient.getSchema("/dataFramePath")
+
+// Retrieve data frame size
+dacpClient.getDataFrameSize("/dataFramePath")
+
+// Retrieve the DataFrameDocument associated with the data frame
+dacpClient.getDocument("/dataFramePath")
+
+// Retrieve statistical information of a data frame
+dacpClient.getStatistics("/dataFramePath")
+```
+##### Cook Operation
+```scala
+// Define a custom transformer
+val udf = new Transformer11 {
+  override def transform(dataFrame: DataFrame): DataFrame = {
+    dataFrame.limit(5)
+  }
+}
+
+// Define a simple transformation DAG
+val transformerDAG = Flow(
+  Map(
+    "A" -> SourceNode("/dataFrame"),
+    "B" -> udf
+  ),
+  Map(
+    "A" -> Seq("B")
+  )
+)
+
+// Execute the transformation flow
+val dfs: ExecutionResult = dacpClient.cook(transformerDAG)
+dfs.single().foreach(println)
+```
 
 ## Powered by Apache Arrow Flight
 
