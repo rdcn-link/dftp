@@ -50,7 +50,19 @@ class DacpServerProxy(targetServerUrl: String) {
       }
     }
 
-    override def init(anchor: Anchor, serverContext: ServerContext): Unit = ???
+    override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
+      anchor.hook(new EventHandler {
+        override def accepts(event: CrossModuleEvent): Boolean =
+          event.isInstanceOf[RequirePutStreamHandlerEvent]
+
+        override def doHandleEvent(event: CrossModuleEvent): Unit = {
+          event match {
+            case r: RequirePutStreamHandlerEvent => r.holder.set(putMethodService)
+            case _ =>
+          }
+        }
+      })
+    }
 
     override def destroy(): Unit = ???
   }
