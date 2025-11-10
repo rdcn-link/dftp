@@ -48,7 +48,7 @@
                         <artifactId>maven-shade-plugin</artifactId>
                         <version>3.2.1</version>
                         <configuration>
-                            <finalName>dftp-dist-${project.parent.version}</finalName>
+                            <finalName>dacp-dist-${project.parent.version}</finalName>
                             <outputDirectory>${project.build.directory}</outputDirectory>
                             <shadedArtifactAttached>true</shadedArtifactAttached>
                             <artifactSet>
@@ -82,7 +82,7 @@
                                         </transformer>
                                         <transformer
                                                 implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                            <mainClass>link.rdcn.server.DftpServerStart</mainClass>
+                                            <mainClass>link.rdcn.dacp.DacpServerStart</mainClass>
                                         </transformer>
                                         <transformer
                                                 implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
@@ -107,7 +107,7 @@
                                 </goals>
                                 <configuration>
                                     <attach>false</attach>
-                                    <finalName>dftp-server-${project.parent.version}</finalName>
+                                    <finalName>dacp-server-${project.parent.version}</finalName>
                                     <appendAssemblyId>true</appendAssemblyId>
                                     <includeEmptyDirectories>true</includeEmptyDirectories>
                                     <outputDirectory>${project.build.directory}</outputDirectory>
@@ -150,11 +150,6 @@
                 <dependency>
                     <groupId>link.rdcn</groupId>
                     <artifactId>cook-module</artifactId>
-                    <version>${project.parent.version}</version>
-                </dependency>
-                <dependency>
-                    <groupId>link.rdcn</groupId>
-                    <artifactId>catalog-module</artifactId>
                     <version>${project.parent.version}</version>
                 </dependency>
                 <dependency>
@@ -206,7 +201,7 @@
                                         </transformer>
                                         <transformer
                                                 implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                            <mainClass>link.rdcn.server.DftpServerStart</mainClass>
+                                            <mainClass>link.rdcn.server.DacpServerStart</mainClass>
                                         </transformer>
                                         <transformer
                                                 implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
@@ -227,7 +222,7 @@
                         <artifactId>maven-assembly-plugin</artifactId>
                         <configuration>
                             <attach>false</attach>
-                            <finalName>dftp-server-${project.parent.version}</finalName>
+                            <finalName>dacp-server-${project.parent.version}</finalName>
                             <includeEmptyDirectories>true</includeEmptyDirectories>
                             <appendAssemblyId>true</appendAssemblyId>
                             <outputDirectory>${project.build.directory}</outputDirectory>
@@ -266,11 +261,6 @@
                 <dependency>
                     <groupId>link.rdcn</groupId>
                     <artifactId>cook-module</artifactId>
-                    <version>${project.parent.version}</version>
-                </dependency>
-                <dependency>
-                    <groupId>link.rdcn</groupId>
-                    <artifactId>catalog-module</artifactId>
                     <version>${project.parent.version}</version>
                 </dependency>
                 <dependency>
