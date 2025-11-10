@@ -34,7 +34,28 @@ class DacpServerProxy(targetServerUrl: String) {
     }
   }
 
-  private val dacpCatalogProxyModule = new DftpModule {
+  private val putStreamProxyModule = new DftpModule {
+    private val putMethodService = new PutStreamHandler {
+      override def accepts(request: DftpPutStreamRequest): Boolean = true
+
+      override def doPutStream(request: DftpPutStreamRequest, response: DftpPutStreamResponse): Unit = {
+        val internalClient = getInternalClient(request.getUserPrincipal()
+          .asInstanceOf[ProxyUserPrincipal].credentials)
+        try{
+          val resultBytes = internalClient.put(request.getDataFrame())
+          response.sendData(resultBytes)
+        }catch {
+          case e: Exception => response.sendError(500, e.getMessage)
+        }
+      }
+    }
+
+    override def init(anchor: Anchor, serverContext: ServerContext): Unit = ???
+
+    override def destroy(): Unit = ???
+  }
+
+  private val actionProxyModule = new DftpModule {
     private val actionMethodService = new ActionHandler {
       override def accepts(request: DftpActionRequest): Boolean = true
 
@@ -44,16 +65,14 @@ class DacpServerProxy(targetServerUrl: String) {
         request.getActionName() match {
           case name if name == "/getTargetServerUrl" =>
             response.sendData(targetServerUrl.getBytes("UTF-8"))
-          case name if name.startsWith("/getDataSetMetaData/") ||
-            name.startsWith("/getDataFrameMetaData/") ||
-            name.startsWith("/getDocument/") ||
-            name.startsWith("/getStatistics/") ||
-            name.startsWith("/getDataFrameSize/") ||
-            name.startsWith("/getSchema") ||
-            name.startsWith("/getDataFrameTitle") =>
-            val resultBytes: Array[Byte] = internalClient.doAction(name)
-            response.sendData(resultBytes)
-          case _ => response.sendError(404, s"unknown action: ${request.getActionName()}")
+          case _ =>
+            try{
+              val resultBytes: Array[Byte] =
+                internalClient.doAction(request.getActionName(), request.getParameterAsMap())
+              response.sendData(resultBytes)
+            }catch {
+              case e: Exception => response.sendError(500, e.getMessage)
+            }
         }
       }
     }
@@ -76,7 +95,7 @@ class DacpServerProxy(targetServerUrl: String) {
     override def destroy(): Unit = {}
   }
 
-  private val streamModule = new DftpModule {
+  private val streamProxyModule = new DftpModule {
     override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
       anchor.hook(new EventHandler {
         override def accepts(event: CrossModuleEvent): Boolean =
@@ -223,8 +242,9 @@ class DacpServerProxy(targetServerUrl: String) {
   }
 
   private val modules = Array(
-    streamModule,
-    dacpCatalogProxyModule,
+    streamProxyModule,
+    actionProxyModule,
+    putStreamProxyModule,
     authProxyModule
   )
 
@@ -233,8 +253,8 @@ class DacpServerProxy(targetServerUrl: String) {
 
   def startServerBlocking(dftpServerConfig: DftpServerConfig): Unit = {
     val server = new DftpServer(dftpServerConfig.withProtocolScheme("dacp")){
-      modules.addModule(streamModule)
-        .addModule(dacpCatalogProxyModule)
+      modules.addModule(streamProxyModule)
+        .addModule(actionProxyModule)
         .addModule(authProxyModule)
     }
     server.startBlocking()

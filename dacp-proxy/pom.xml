@@ -7,7 +7,7 @@
         <version>0.5.0-20251028</version>
     </parent>
 
-    <artifactId>proxy-module</artifactId>
+    <artifactId>dacp-proxy</artifactId>
     <packaging>jar</packaging>
 
     <name>proxy-module</name>

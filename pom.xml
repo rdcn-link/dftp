@@ -16,7 +16,7 @@
       <module>packaging</module>
       <module>cook-module</module>
       <module>catalog-module</module>
-    <module>proxy-module</module>
+    <module>dacp-proxy</module>
   </modules>
 
   <properties>
