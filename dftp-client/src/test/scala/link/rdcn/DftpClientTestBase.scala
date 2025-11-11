@@ -1,8 +1,8 @@
 package link.rdcn
 
-import link.rdcn.client.dacp.MockCatalogData.mockDF
 import link.rdcn.server.module.{ObjectHolder, RequireGetStreamHandlerEvent}
 import link.rdcn.server._
+import link.rdcn.struct.ValueType.{IntType, StringType}
 import link.rdcn.struct._
 
 import java.io.File
@@ -50,6 +50,7 @@ class MockServerContext extends ServerContext {
 
 
 class GetStreamModule extends DftpModule {
+  private val mockSchema: StructType = StructType.empty.add("id", IntType).add("name", StringType)
   private val getStreamHolder = new ObjectHolder[GetStreamHandler]
   private var serverContext: ServerContext = _
   private val eventHandler = new EventHandler {
@@ -74,6 +75,10 @@ class GetStreamModule extends DftpModule {
         case _ =>
       }
     }
+
+    def mockDF: DataFrame = DefaultDataFrame(
+      mockSchema, Seq(Row(1, "data")).iterator
+    )
   }
 
   override def init(anchor: Anchor, serverContext: ServerContext): Unit = {

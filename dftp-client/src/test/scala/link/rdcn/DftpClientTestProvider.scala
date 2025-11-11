@@ -8,8 +8,6 @@ package link.rdcn
  */
 import link.rdcn.DftpClientTestBase._
 import link.rdcn.client.DftpClient
-import link.rdcn.client.dacp.DacpCatalogModuleTest.userPasswordAuthService
-import link.rdcn.dacp.catalog.DacpCatalogModule
 import link.rdcn.server._
 import link.rdcn.server.module._
 import link.rdcn.struct._
@@ -76,7 +74,7 @@ object DftpClientTestProvider {
       val directoryDataSourceModule = new FileDirectoryDataSourceModule
       directoryDataSourceModule.setRootDirectory(new File(baseDir))
       val modules = Array(directoryDataSourceModule, new BaseDftpModule,
-        new UserPasswordAuthModule(userPasswordAuthService), new DacpCatalogModule)
+        new UserPasswordAuthModule(userPasswordAuthService))
       val s = DftpServer.start(DftpServerConfig("0.0.0.0", 3101, Some("data")), modules)
       server = Some(s)
 

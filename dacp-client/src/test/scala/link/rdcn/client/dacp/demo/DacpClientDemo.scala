@@ -1,4 +1,4 @@
-package link.rdcn.client.dacp
+package link.rdcn.client.dacp.demo
 
 import link.rdcn.client.DacpClient
 import link.rdcn.dacp.catalog.{CatalogService, CatalogServiceModule, CatalogServiceRequest, DacpCatalogModule}

@@ -8,15 +8,13 @@ package link.rdcn.client.dacp
 
 import link.rdcn.dacp.catalog._
 import link.rdcn.client.DftpClient
-import link.rdcn.client.DftpClientTest.baseUrl
-import link.rdcn.client.dacp.DacpCatalogModuleTest.{catalogService, client}
+import link.rdcn.client.dacp.DacpCatalogModuleTest.{baseUrl, catalogService, client}
 import link.rdcn.client.dacp.MockCatalogData.mockDF
 import link.rdcn.server._
-import link.rdcn.server.module.{BaseDftpModule, UserPasswordAuthModule}
+import link.rdcn.server.module.{BaseDftpModule, ObjectHolder, RequireGetStreamHandlerEvent, UserPasswordAuthModule}
 import link.rdcn.struct.ValueType.{IntType, StringType}
 import link.rdcn.struct._
 import link.rdcn.user.{UserPasswordAuthService, UserPrincipal, UserPrincipalWithCredentials, UsernamePassword}
-import link.rdcn.{GetStreamModule, MockServerContext}
 import org.apache.arrow.flight.FlightRuntimeException
 import org.apache.jena.rdf.model.{Model, ModelFactory}
 import org.junit.jupiter.api.Assertions.{assertEquals, assertNotNull, assertThrows, assertTrue}
@@ -259,7 +257,7 @@ class DacpCatalogModuleTest {
 object MockCatalogData {
   val mockSchema: StructType = StructType.empty.add("id", IntType).add("name", StringType)
   def mockDF: DataFrame = DefaultDataFrame(
-    mockSchema, Seq(Row(1,"data")).iterator
+    mockSchema, Seq(Row(1, "data")).iterator
   )
   val mockTitle: String = "My Mock Table"
   val mockStats: DataFrameStatistics = new DataFrameStatistics {
@@ -307,4 +305,56 @@ object MockCatalogData {
     model.write(writer, "RDF/XML")
     writer.toString
   }
+}
+
+class GetStreamModule extends DftpModule {
+  private val mockSchema: StructType = StructType.empty.add("id", IntType).add("name", StringType)
+  private val getStreamHolder = new ObjectHolder[GetStreamHandler]
+  private var serverContext: ServerContext = _
+  private val eventHandler = new EventHandler {
+
+    override def accepts(event: CrossModuleEvent): Boolean = true
+
+    override def doHandleEvent(event: CrossModuleEvent): Unit = {
+      event match {
+        case r: RequireGetStreamHandlerEvent => r.holder.set(old =>
+          new GetStreamHandler {
+            override def accepts(request: DftpGetStreamRequest): Boolean = request.asInstanceOf[DftpGetPathStreamRequest].getRequestURL().contains("oldStream")
+
+            override def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
+              request.asInstanceOf[DftpGetPathStreamRequest].getRequestURL() match {
+                case url if url.contains("oldStream") =>
+                  response.sendDataFrame(mockDF)
+                case url =>
+                  old.doGetStream(request, response)
+              }
+            }
+          })
+        case _ =>
+      }
+    }
+
+    def mockDF: DataFrame = DefaultDataFrame(
+      mockSchema, Seq(Row(1, "data")).iterator
+    )
+  }
+
+  override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
+    this.serverContext = serverContext
+    anchor.hook(eventHandler)
+    anchor.hook(new EventSource {
+      override def init(eventHub: EventHub): Unit =
+        eventHub.fireEvent(new RequireGetStreamHandlerEvent(getStreamHolder))
+    })
+  }
+
+  override def destroy(): Unit = {
+  }
+}
+
+class MockServerContext extends ServerContext {
+  override def getHost(): String = "0.0.0.0"
+  override def getPort(): Int = 3101
+  override def getProtocolScheme(): String = "dftp"
+  override def getDftpHome(): Option[String] = None
 }
