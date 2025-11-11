@@ -35,7 +35,7 @@ trait ServerContext {
   def getPort(): Int
   def getProtocolScheme(): String
   def getDftpHome(): Option[String]
-  def baseUrl: String = s"${getProtocolScheme()}://${getHost()}:${getPort()}/"
+  def baseUrl: String = s"${getProtocolScheme()}://${getHost()}:${getPort()}"
 }
 
 class DftpServer(config: DftpServerConfig) extends Logging {

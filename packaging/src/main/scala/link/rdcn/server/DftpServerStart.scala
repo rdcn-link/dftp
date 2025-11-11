@@ -1,6 +1,6 @@
 package link.rdcn.server
 
-import link.rdcn.server.module.{BaseDftpModule, DirectoryDataSourceModule, UserPasswordAuthModule}
+import link.rdcn.server.module.{BaseDftpModule, FileDirectoryDataSourceModule, UserPasswordAuthModule}
 import link.rdcn.user.{UserPasswordAuthService, UserPrincipal, UserPrincipalWithCredentials, UsernamePassword}
 
 import java.io.{File, FileInputStream, InputStreamReader}
@@ -23,13 +23,13 @@ object DftpServerStart {
       props.getProperty("dftp.host.port").toInt, Some(dftpHome))
 
     val dataPathFile = Paths.get(dftpHome,"data").toFile
-    val directoryDataSourceModule = new DirectoryDataSourceModule
+    val directoryDataSourceModule = new FileDirectoryDataSourceModule
     directoryDataSourceModule.setRootDirectory(dataPathFile)
 
     val server = new DftpServer(dftpServerConfig) {
       modules.addModule(new BaseDftpModule)
         .addModule(new UserPasswordAuthModule(userPasswordAuthService))
-        .addModule(new DirectoryDataSourceModule)
+        .addModule(new FileDirectoryDataSourceModule)
     }
     server.startBlocking()
   }

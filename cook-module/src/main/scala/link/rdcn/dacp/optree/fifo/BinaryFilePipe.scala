@@ -56,12 +56,7 @@ case class BinaryFilePipe(file: File) extends FilePipe (file){
 
     override def next(): Array[Byte] = {
       if (!hasNext) throw new NoSuchElementException("No more data")
-
-      val result = if (bytesRead == buffer.length) {
-        buffer
-      } else {
-        buffer.take(bytesRead)
-      }
+      val result = buffer.take(bytesRead)
 
       bytesRead = inputStream.read(buffer)
       if (bytesRead == -1) {

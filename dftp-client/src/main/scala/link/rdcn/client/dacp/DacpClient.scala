@@ -35,12 +35,10 @@ class DacpClient(host: String, port: Int, useTLS: Boolean = false) extends DftpC
   }
 
   def listDataFrameNames(dsName: String): Seq[String] = {
-    val allDataSets = get(dacpUrlPrefix + "/listDataSets")
-      .mapIterator(rows => rows.find(row => row.getAs[String](0) == dsName))
-    allDataSets.map { row =>
-      val url = row.getAs[DFRef](3).url
-      get(url).collect().map(dataRow => dataRow.getAs[String](0))
-    }.getOrElse(Seq.empty)
+    val result = ArrayBuffer[String]()
+    get(dacpUrlPrefix+ s"/listDataFrames/$dsName")
+      .foreach(row => result.append(row.getAs[String](0)))
+    result
   }
 
   def getDataSetMetaData(dsName: String): Model = {
@@ -111,7 +109,7 @@ class DacpClient(host: String, port: Int, useTLS: Boolean = false) extends DftpC
 
   def getDataFrameSize(dataFrameName: String): Long = {
     new String(doAction(s"/getDataFrameSize/${dataFrameName}"), "UTF-8").trim match {
-      case s if s.nonEmpty => s.asInstanceOf[Long]
+      case s if s.nonEmpty => s.toLong
       case _ => 0L
     }
   }

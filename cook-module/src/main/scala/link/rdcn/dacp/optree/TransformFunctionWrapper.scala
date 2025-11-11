@@ -37,7 +37,7 @@ object TransformFunctionWrapper {
       case LangTypeV2.PYTHON_CODE.name => PythonCode(jo.getString("code"))
       case LangTypeV2.JAVA_BIN.name => JavaBin(jo.getString("serializedBase64"))
       case LangTypeV2.JAVA_CODE.name => JavaCode(jo.getString("javaCodeString"))
-      case LangTypeV2.PYTHON_BIN.name => PythonBin(jo.getString("functionName"), jo.getString("whlPath"))
+      case LangTypeV2.PYTHON_BIN.name => PythonBin(jo.getString("functionName"), jo.getString("whlPath"), jo.getInt("batchSize"))
       case LangTypeV2.JAVA_JAR.name => JavaJar(jo.getString("jarPath"), jo.getString("functionName"))
       case LangTypeV2.CPP_BIN.name => CppBin(jo.getString("cppPath"))
       case LangTypeV2.REPOSITORY_OPERATOR.name => RepositoryOperator(jo.getString("functionID"))
@@ -179,6 +179,7 @@ case class PythonBin(functionName: String, whlPath: String, batchSize: Int = 100
     jo.put("type", LangTypeV2.PYTHON_BIN.name)
     jo.put("functionName", functionName)
     jo.put("whlPath", whlPath)
+    jo.put("batchSize", batchSize)
   }
   //TODO 支持对一组DataFrame的处理
   override def applyToDataFrames(input: Seq[DataFrame], ctx: FlowExecutionContext): DataFrame = {

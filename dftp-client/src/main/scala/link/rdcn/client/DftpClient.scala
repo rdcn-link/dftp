@@ -1,5 +1,6 @@
 package link.rdcn.client
 
+import link.rdcn.Logging
 import link.rdcn.client.ClientUtils.convertStructTypeToArrowSchema
 import link.rdcn.message.{BlobTicket, GetTicket, MapSerializer}
 import link.rdcn.operation._
@@ -13,7 +14,7 @@ import org.apache.arrow.vector.{VectorLoader, VectorSchemaRoot}
 
 import java.io.{File, InputStream}
 import java.util.concurrent.locks.LockSupport
-import scala.collection.JavaConverters.asScalaBufferConverter
+import scala.collection.JavaConverters.{asScalaBufferConverter, collectionAsScalaIterableConverter}
 import scala.collection.mutable
 
 /**
@@ -22,7 +23,7 @@ import scala.collection.mutable
  * @Date 2025/8/17 19:47
  * @Modified By:
  */
-class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
+class DftpClient(host: String, port: Int, useTLS: Boolean = false) extends Logging {
 
   def login(credentials: Credentials): Unit = {
     flightClient.authenticate(new FlightClientAuthHandler(credentials))
@@ -34,7 +35,7 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) {
     try {
       actionResultIter.next().getBody
     } catch {
-      case e: Exception => Array.empty
+      case e: Exception => throw e
     }
   }
 

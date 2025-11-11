@@ -3,7 +3,7 @@ package link.rdcn.dacp
 import link.rdcn.dacp.catalog.{DacpCatalogModule, DirectoryCatalogModule}
 import link.rdcn.dacp.cook.DacpCookModule
 import link.rdcn.server.{DftpServer, DftpServerConfig}
-import link.rdcn.server.module.{BaseDftpModule, DirectoryDataSourceModule, UserPasswordAuthModule}
+import link.rdcn.server.module.{BaseDftpModule, FileDirectoryDataSourceModule, UserPasswordAuthModule}
 import link.rdcn.user.{UserPasswordAuthService, UserPrincipal, UserPrincipalWithCredentials, UsernamePassword}
 
 import java.io.{File, FileInputStream, InputStreamReader}
@@ -26,7 +26,7 @@ object DacpServerStart {
       props.getProperty("dacp.host.port").toInt, Some(dacpHome))
 
     val dataPathFile = Paths.get(dacpHome,"data").toFile
-    val directoryDataSourceModule = new DirectoryDataSourceModule
+    val directoryDataSourceModule = new FileDirectoryDataSourceModule
     directoryDataSourceModule.setRootDirectory(dataPathFile)
     val directoryCatalogModule = new DirectoryCatalogModule
     directoryCatalogModule.setRootDirectory(dataPathFile)
@@ -34,7 +34,7 @@ object DacpServerStart {
     val server = new DftpServer(dftpServerConfig) {
       modules.addModule(new BaseDftpModule)
         .addModule(new UserPasswordAuthModule(userPasswordAuthService))
-        .addModule(new DirectoryDataSourceModule)
+        .addModule(new FileDirectoryDataSourceModule)
         .addModule(new DacpCookModule)
         .addModule(new DacpCatalogModule)
         .addModule(directoryCatalogModule)

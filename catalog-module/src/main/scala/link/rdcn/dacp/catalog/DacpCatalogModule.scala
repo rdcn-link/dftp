@@ -57,7 +57,7 @@ class DacpCatalogModule() extends DftpModule {
               val statistics = c.getStatistics(name.stripPrefix("/getStatistics/"))
               response.sendData(getDataFrameStatisticsString(statistics).getBytes("UTF-8"))
             }, response.sendError(404, s"unknown action: ${request.getActionName()}"))
-          case name if name.startsWith("getDataFrameSize") =>
+          case name if name.startsWith("/getDataFrameSize/") =>
             catalogServiceHolder.invoke(c => {
               val prefix: String = "/getDataFrameSize/"
               response.sendData(c.getStatistics(name.stripPrefix(prefix)).rowCount.toString.getBytes("UTF-8"))
@@ -68,7 +68,7 @@ class DacpCatalogModule() extends DftpModule {
                 .getOrElse(StructType.empty)
                 .toString.getBytes("UTF-8"))
             }, response.sendError(404, s"unknown action: ${request.getActionName()}"))
-          case name if name.startsWith("/getDataFrameTitle") =>
+          case name if name.startsWith("/getDataFrameTitle/") =>
             catalogServiceHolder.invoke(c => {
               val dfName = name.stripPrefix("/getDataFrameTitle/")
               response.sendData(c.getDataFrameTitle(dfName)

@@ -27,7 +27,10 @@ class UserPasswordAuthModule(userPasswordAuthService: UserPasswordAuthService) e
                       }
                     case Credentials.ANONYMOUS => true
                     case _ => Option(old).exists(authService =>
-                      authService.accepts(credentials.asInstanceOf[authService.C]))
+                      credentials match {
+                        case c: authService.C => authService.accepts(c)
+                        case _ => throw new Exception("unrecognized credentials")
+                      })
                   }
                 }
 
