@@ -89,7 +89,7 @@ dftp.host.port=3101
 ```
 #### Start the server:
 ```bash
-bin/dftp-control.sh start
+bin/dftp.sh start
 ```
 > After server startup, the data source is automatically taken from the `data` directory under the installation directory.
 Clients can then connect using DftpClient as described in the client operations section.
@@ -165,7 +165,7 @@ dacp.host.port=3101
 ```
 #### Start the server:
 ```bash
-bin/dacp-control.sh start
+bin/dacp.sh start
 ```
 > After server startup, the data source is automatically taken from the `data` directory under the installation directory.
 Clients can then connect using DacpClient as described in the client operations section.
@@ -252,7 +252,7 @@ val udf = new Transformer11 {
 }
 
 // Define a simple transformation DAG
-val transformerDAG = Flow(
+val recipe = Flow(
   Map(
     "A" -> SourceNode("/dataFrame"),
     "B" -> udf

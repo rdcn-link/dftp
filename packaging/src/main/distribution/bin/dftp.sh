@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# DACP Control Script
-# Filename: dacp-control.sh
-# Usage: ./dacp-control.sh [start|stop|restart|status]
+# DFTP Control Script
+# Filename: dftp.sh
+# Usage: ./dftp.sh [start|stop|restart|status]
 
-JAR_FILE="dacp-dist-0.5.0-20251028.jar"
+JAR_FILE="dftp-dist-0.5.0-20251028.jar"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 DATA_DIR="$PARENT_DIR/data"
@@ -24,22 +24,22 @@ fi
 
 start() {
     if is_running; then
-        echo "DACP server is already running (PID: $(get_pid))"
+        echo "DFTP server is already running (PID: $(get_pid))"
         return 1
     fi
 
-    echo "Starting DACP server..."
-    nohup java -jar "$PARENT_DIR/lib/$JAR_FILE" "$PARENT_DIR" > "$PARENT_DIR/logs/dacp.log" 2>&1 &
-    echo "DACP server started successfully"
+    echo "Starting DFTP server..."
+    nohup java -jar "$PARENT_DIR/lib/$JAR_FILE" "$PARENT_DIR" > "$PARENT_DIR/logs/dftp.log" 2>&1 &
+    echo "DFTP server started successfully"
 }
 
 stop() {
     if ! is_running; then
-        echo "DACP server is not currently running"
+        echo "DFTP server is not currently running"
         return 1
     fi
 
-    echo "Initiating DACP server shutdown..."
+    echo "Initiating DFTP server shutdown..."
     kill $(get_pid)
     sleep 2
     if is_running; then
@@ -47,20 +47,20 @@ stop() {
         kill -9 $(get_pid)
         sleep 1
     fi
-    echo "DACP service has stopped."
+    echo "DFTP service has stopped."
 }
 
 restart() {
-  echo "Restarting DACP server..."
+  echo "Restarting DFTP server..."
     stop
     start
 }
 
 status() {
     if is_running; then
-        echo "DACP server status: RUNNING (PID: $(get_pid))"
+        echo "DFTP server status: RUNNING (PID: $(get_pid))"
     else
-        echo "DACP server status: NOT RUNNING"
+        echo "DFTP server status: NOT RUNNING"
     fi
 }
 
