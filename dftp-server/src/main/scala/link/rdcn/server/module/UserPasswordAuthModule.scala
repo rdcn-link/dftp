@@ -55,3 +55,11 @@ class UserPasswordAuthModule(userPasswordAuthService: UserPasswordAuthService) e
 
   override def destroy(): Unit = {}
 }
+
+class DefaultUserPasswordAuthService extends UserPasswordAuthService {
+
+  override def accepts(credentials: UsernamePassword): Boolean = true
+
+  override def authenticate(credentials: UsernamePassword): UserPrincipal =
+    UserPrincipalWithCredentials(credentials)
+}

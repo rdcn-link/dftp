@@ -263,7 +263,7 @@ val recipe = Flow(
 )
 
 // Execute the transformation flow
-val dfs: ExecutionResult = dacpClient.cook(transformerDAG)
+val dfs: ExecutionResult = dacpClient.cook(recipe)
 dfs.single().foreach(println)
 ```
 
