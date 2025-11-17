@@ -50,7 +50,7 @@ class TransformOpTest {
   @Test
   def testFromJsonStringParsesMapOp(): Unit = {
     val json = createMapOpJson(mockFunctionWrapper.toJson, new JSONObject(sourceOpJson))
-    val op = TransformOp.fromJsonString(json).asInstanceOf[MapOp]
+    val op = TransformOp.fromJsonString(json).asInstanceOf[MapSlice]
     assertEquals("Map", op.operationType)
     assertTrue(op.inputs.head.isInstanceOf[SourceOp])
   }
@@ -62,7 +62,7 @@ class TransformOpTest {
       .put("function", mockFunctionWrapper.toJson)
       .put("input", new JSONArray(Collections.singletonList(new JSONObject(sourceOpJson))))
       .toString
-    val op = TransformOp.fromJsonString(json).asInstanceOf[FilterOp]
+    val op = TransformOp.fromJsonString(json).asInstanceOf[FilterSlice]
     assertEquals("Filter", op.operationType)
     assertTrue(op.inputs.head.isInstanceOf[SourceOp])
   }
@@ -74,7 +74,7 @@ class TransformOpTest {
       .put("args", new JSONArray(Collections.singletonList(10)))
       .put("input", new JSONArray(Collections.singletonList(new JSONObject(sourceOpJson))))
       .toString
-    val op = TransformOp.fromJsonString(json).asInstanceOf[LimitOp]
+    val op = TransformOp.fromJsonString(json).asInstanceOf[LimitSlice]
     assertEquals("Limit", op.operationType)
     assertEquals(10, op.n)
     assertTrue(op.inputs.head.isInstanceOf[SourceOp])
@@ -87,7 +87,7 @@ class TransformOpTest {
       .put("args", new JSONArray(Seq("col1").asJava))
       .put("input", new JSONArray(Collections.singletonList(new JSONObject(sourceOpJson))))
       .toString
-    val op = TransformOp.fromJsonString(json).asInstanceOf[SelectOp]
+    val op = TransformOp.fromJsonString(json).asInstanceOf[SelectSlice]
     assertEquals("Select", op.operationType)
     assertEquals(Seq("col1"), op.columns)
     assertTrue(op.inputs.head.isInstanceOf[SourceOp])

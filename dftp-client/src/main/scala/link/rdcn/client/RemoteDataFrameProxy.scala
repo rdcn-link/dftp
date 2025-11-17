@@ -20,21 +20,21 @@ case class RemoteDataFrameProxy(operation: TransformOp,
     val genericFunctionCall = SingleRowCall(new SerializableFunction[Row, Boolean] {
       override def apply(v1: Row): Boolean = f(v1)
     })
-    val filterOp = FilterOp(FunctionWrapper.getJavaSerialized(genericFunctionCall), operation)
+    val filterOp = FilterSlice(FunctionWrapper.getJavaSerialized(genericFunctionCall), operation)
     copy(operation = filterOp)
   }
 
   override def select(columns: String*): DataFrame = {
-    copy(operation = SelectOp(operation, columns: _*))
+    copy(operation = SelectSlice(operation, columns: _*))
   }
 
-  override def limit(n: Int): DataFrame = copy(operation = LimitOp(n, operation))
+  override def limit(n: Int): DataFrame = copy(operation = LimitSlice(n, operation))
 
   override def map(f: Row => Row): DataFrame = {
     val genericFunctionCall = SingleRowCall(new SerializableFunction[Row, Row] {
       override def apply(v1: Row): Row = f(v1)
     })
-    val mapOperationNode = MapOp(FunctionWrapper.getJavaSerialized(genericFunctionCall), operation)
+    val mapOperationNode = MapSlice(FunctionWrapper.getJavaSerialized(genericFunctionCall), operation)
     copy(operation = mapOperationNode)
   }
 

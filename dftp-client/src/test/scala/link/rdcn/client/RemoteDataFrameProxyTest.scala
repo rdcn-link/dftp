@@ -62,7 +62,7 @@ class RemoteDataFrameProxyTest extends DftpClientTestProvider {
     val expectedOutput = source.getLines().toSeq.tail.mkString("\n") + "\n"
 
 
-    assertTrue(filteredDataFrame.operation.isInstanceOf[FilterOp], "Filter should create FilterOp")
+    assertTrue(filteredDataFrame.operation.isInstanceOf[FilterSlice], "Filter should create FilterSlice")
     assertEquals(expectedOutput, actualOutput, "Filtered data must match")
   }
 
@@ -80,8 +80,8 @@ class RemoteDataFrameProxyTest extends DftpClientTestProvider {
     val actualOutput = stringWriter.toString
     val expectedOutput = source.getLines().toSeq.tail.mkString("\n") + "\n"
 
-    assertTrue(selectedDataFrame.operation.isInstanceOf[SelectOp], "Select should create SelectOp")
-    val selectOp = selectedDataFrame.operation.asInstanceOf[SelectOp]
+    assertTrue(selectedDataFrame.operation.isInstanceOf[SelectSlice], "Select should create SelectSlice")
+    val selectOp = selectedDataFrame.operation.asInstanceOf[SelectSlice]
     assertEquals(columns.toList, selectOp.columns.toList, "Selected columns must match")
     assertEquals(expectedOutput, actualOutput, "Selected data must match")
   }
@@ -101,8 +101,8 @@ class RemoteDataFrameProxyTest extends DftpClientTestProvider {
     val expectedOutput = source.getLines().take(limitN + 1).toSeq.tail.mkString("\n") + "\n"
 
 
-    assertTrue(limitedDataFrame.operation.isInstanceOf[LimitOp], "Limit should create LimitOp")
-    val limitOp = limitedDataFrame.operation.asInstanceOf[LimitOp]
+    assertTrue(limitedDataFrame.operation.isInstanceOf[LimitSlice], "Limit should create LimitSlice")
+    val limitOp = limitedDataFrame.operation.asInstanceOf[LimitSlice]
     assertEquals(limitN, limitOp.n, "Limit value must match")
     assertEquals(expectedOutput, actualOutput, "Limited data must match")
   }
@@ -120,7 +120,7 @@ class RemoteDataFrameProxyTest extends DftpClientTestProvider {
     val actualOutput = stringWriter.toString
     val expectedOutput = source.getLines().toSeq.tail.mkString("\n") + "\n"
 
-    assertTrue(mappedDataFrame.operation.isInstanceOf[MapOp], "Map should create MapOp")
+    assertTrue(mappedDataFrame.operation.isInstanceOf[MapSlice], "Map should create MapSlice")
     assertEquals(expectedOutput, actualOutput, "Mapped data must match")
   }
 
@@ -137,7 +137,7 @@ class RemoteDataFrameProxyTest extends DftpClientTestProvider {
     val actualOutput = stringWriter.toString
     val expectedOutput = source.getLines().take(11).toSeq.tail.mkString("\n") + "\n"
 
-    assertTrue(chainedDataFrame.operation.isInstanceOf[LimitOp], "Final op should be LimitOp")
+    assertTrue(chainedDataFrame.operation.isInstanceOf[LimitSlice], "Final op should be LimitSlice")
     assertEquals(expectedOutput, actualOutput, "Chain operated data must match")
   }
 
