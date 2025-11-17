@@ -7,7 +7,7 @@
 package link.rdcn.client.dacp
 
 
-import link.rdcn.client.AuthPlatform
+import link.rdcn.client.OdcAuthClient
 import link.rdcn.user.UsernamePassword
 import org.json.JSONException
 import org.junit.jupiter.api.Assertions.{assertNotNull, assertThrows, assertTrue, fail}
@@ -15,10 +15,10 @@ import org.junit.jupiter.api.Test
 
 import java.io.IOException
 
-class AuthPlatformTest {
+class OdcAuthClientTest {
 
   /**
-   * 测试 authenticate 方法在提供无效凭证时是否会失败.
+   * 测试 requestAccessToken 方法在提供无效凭证时是否会失败.
    * 这是一个网络集成测试.
    *
    * @Disabled 解释: 这是一个集成测试, 会访问真实的网络 API.
@@ -34,14 +34,14 @@ class AuthPlatformTest {
     val creds = new UsernamePassword(invalidPasswordForFairdUser1, grantType)
 
     // 执行并验证:
-    // 期望 AuthPlatform.authenticate 失败, 因为凭证无效.
+    // 期望 OdcAuthClient.requestAccessToken 失败, 因为凭证无效.
     // 失败的形式可能是:
     // - API 返回一个错误 JSON (例如: {"error": "..."}),
     // - 导致 new JSONObject(response.body()).getString("data") 抛出 JSONException.
     // - 或者是 HTTP 4xx/5xx 错误, 导致 httpClient.send() 抛出 IOException.
 
     val exception = assertThrows(classOf[Exception], () => {
-      AuthPlatform.authenticate(creds)
+      OdcAuthClient.requestAccessToken(creds)
       ()
     }, "使用无效凭证进行身份验证应抛出异常")
 
@@ -55,7 +55,7 @@ class AuthPlatformTest {
   }
 
   /**
-   * 测试 registerClient 方法.
+   * 测试 createClientCredentials 方法.
    *
    * @Disabled 解释: 此测试会修改外部生产 API, 默认禁用.
    * 必须手动启用以确认其危险操作.
@@ -68,7 +68,7 @@ class AuthPlatformTest {
 
     var clientSecret: String = null
     try {
-      clientSecret = AuthPlatform.registerClient(uniqueClientId)
+      clientSecret = OdcAuthClient.createClientCredentials(uniqueClientId)
     } catch {
       case e: Exception =>
         fail(s"注册客户端失败, 抛出意外异常: ${e.getMessage}", e)

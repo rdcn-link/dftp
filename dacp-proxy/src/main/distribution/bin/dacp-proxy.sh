@@ -17,7 +17,7 @@ start() {
     fi
 
     echo "Starting dacp-proxy server..."
-    nohup java -jar "$PARENT_DIR/lib/$JAR_FILE" "$PARENT_DIR" > "$PARENT_DIR/logs/dftp.log" 2>&1 &
+    nohup java -jar "$PARENT_DIR/lib/$JAR_FILE" "$PARENT_DIR" > "$PARENT_DIR/logs/proxy.log" 2>&1 &
     echo "dacp-proxy server started successfully"
 }
 

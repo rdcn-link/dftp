@@ -218,7 +218,7 @@ object DacpClient {
         if(useUnifiedLogin){
           credentials match {
             case AnonymousCredentials => client.login(credentials)
-            case c: UsernamePassword => client.login(AuthPlatform.authenticate(c))
+            case c: UsernamePassword => client.login(OdcAuthClient.requestAccessToken(c))
             case _ => throw new IllegalArgumentException(s"the $credentials is not supported")
           }
         }else client.login(credentials)
@@ -236,7 +236,7 @@ object DacpClient {
         if(useUnifiedLogin){
           credentials match {
             case AnonymousCredentials => client.login(credentials)
-            case c: UsernamePassword => client.login(AuthPlatform.authenticate(c))
+            case c: UsernamePassword => client.login(OdcAuthClient.requestAccessToken(c))
             case _ => throw new IllegalArgumentException(s"the $credentials is not supported")
           }
         }else client.login(credentials)

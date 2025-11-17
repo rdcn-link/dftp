@@ -180,7 +180,6 @@ class DacpClientDemo {
     val dc = DacpClient.connect("dacp://0.0.0.0:3102", UsernamePassword("admin", "admin"))
     val df = dc.get("dacp://0.0.0.0:3102/DataFrame")
     df.foreach(println)
-
   }
 
   @Test
