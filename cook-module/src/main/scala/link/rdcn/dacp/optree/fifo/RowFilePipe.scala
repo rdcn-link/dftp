@@ -6,6 +6,8 @@ import link.rdcn.util.DataUtils
 import link.rdcn.struct.ValueType.StringType
 
 import java.io.{BufferedReader, File, FileReader, FileWriter, PrintWriter}
+import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
 
 /**
  * @Author renhao
@@ -56,6 +58,14 @@ case class RowFilePipe(file: File) extends FilePipe(file) {
     ClosableIterator(iter)(() => {})
   }
 
+  def copyToFile(path: String): Future[RowFilePipe] = {
+    Future {
+      val target = RowFilePipe(new File(path))
+      target.write(read())
+      target
+    }
+  }
+
   def fromExistFile(sourceFile: File): RowFilePipe = {
     write(DataUtils.getFileLines(sourceFile))
     this
@@ -79,5 +89,7 @@ object RowFilePipe {
     pipe.create()
     pipe
   }
+
+
 
 }

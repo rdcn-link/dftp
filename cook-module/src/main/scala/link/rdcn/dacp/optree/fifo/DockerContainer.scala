@@ -9,9 +9,21 @@ case class DockerContainer(
                             imageName: Option[String] = None
                           ){
   def start(): String = {
-    if(!DockerExecute.isContainerRunning(containerName)){
+    if(imageName.nonEmpty){
+      DockerExecute.stopAndRemoveContainer(containerName)
       DockerExecute.startContainer(hostPath.get, containerPath.get, containerName, imageName.get)
-    } else containerName
+    }else if(!DockerExecute.isContainerRunning(containerName)) {
+      throw new Exception("imageName is empty")
+    }else containerName
+  }
+
+  def stop(): String = {
+    if(imageName.nonEmpty){
+      DockerExecute.stopAndRemoveContainer(containerName)
+    }else if(!DockerExecute.isContainerRunning(containerName)) {
+      throw new Exception("imageName is empty")
+    }
+    containerName
   }
 
   def toJson(): JSONObject = {

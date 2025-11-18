@@ -59,5 +59,14 @@
                 <include>dacp-dist-0.5.0-20251028.jar</include>
             </includes>
         </fileSet>
+        <fileSet>
+            <directory>src/main/distribution/plugins</directory>
+            <outputDirectory>plugins</outputDirectory>
+            <directoryMode>0755</directoryMode>
+            <fileMode>0755</fileMode>
+            <excludes>
+                <exclude>**/.keep</exclude>
+            </excludes>
+        </fileSet>
     </fileSets>
 </assembly>

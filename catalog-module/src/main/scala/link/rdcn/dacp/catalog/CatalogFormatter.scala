@@ -2,7 +2,7 @@ package link.rdcn.dacp.catalog
 
 import com.sun.management.OperatingSystemMXBean
 import ConfigKeys.{FAIRD_HOST_PORT, FAIRD_HOST_POSITION}
-import link.rdcn.server.ServerContext
+import link.rdcn.server.{ServerContext, ServerUtils}
 import link.rdcn.struct.ValueType.StringType
 import link.rdcn.struct.{DataFrameDocument, DataFrameStatistics, DataStreamSource, Row, StructType}
 import link.rdcn.util.DataUtils
@@ -71,6 +71,7 @@ object CatalogFormatter {
     val systemMemoryFree = osBean.getFreePhysicalMemorySize / 1024 / 1024 // MB
     val systemMemoryUsed = systemMemoryTotal - systemMemoryFree
     Map(
+      "net.mac.address" -> s"${ServerUtils.getFirstNonLoopBackMacAddress}",
       "cpu.cores" -> s"$availableProcessors",
       "cpu.usage.percent" -> s"$cpuLoadPercent%",
       "jvm.memory.max.mb" -> s"$maxMemory MB",

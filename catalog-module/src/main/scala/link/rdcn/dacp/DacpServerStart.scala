@@ -20,39 +20,10 @@ object DacpServerStart {
 
   def main(args: Array[String]): Unit = {
     if (args.length < 1) sys.error("need set Dacp Home")
-    val dacpHome = args(0)
-    val props = loadProperties(dacpHome + File.separator + "conf" + File.separator + "dacp.conf")
-    val dftpServerConfig = DftpServerConfig(props.getProperty("dacp.host.position"),
-      props.getProperty("dacp.host.port").toInt, Some(dacpHome))
+    val dftpHome = args(0)
 
-    val dataPathFile = Paths.get(dacpHome,"data").toFile
-    val directoryDataSourceModule = new FileDirectoryDataSourceModule
-    directoryDataSourceModule.setRootDirectory(dataPathFile)
-    val directoryCatalogModule = new DirectoryCatalogModule
-    directoryCatalogModule.setRootDirectory(dataPathFile)
-
-    val server = new DftpServer(dftpServerConfig) {
-      modules.addModule(new BaseDftpModule)
-        .addModule(new UserPasswordAuthModule(userPasswordAuthService))
-        .addModule(new FileDirectoryDataSourceModule)
-        .addModule(new DacpCookModule)
-        .addModule(new DacpCatalogModule)
-        .addModule(directoryCatalogModule)
-    }
-    server.startBlocking()
+    val configXmlFile = Paths.get(dftpHome, "conf", "dacp.xml").toFile
+    DftpServer.start(configXmlFile)
   }
 
-  private val userPasswordAuthService = new UserPasswordAuthService {
-    override def authenticate(credentials: UsernamePassword): UserPrincipal =
-      UserPrincipalWithCredentials(credentials)
-
-    override def accepts(credentials: UsernamePassword): Boolean = true
-  }
-
-  private def loadProperties(path: String): Properties = {
-    val props = new Properties()
-    val fis = new InputStreamReader(new FileInputStream(path), "UTF-8")
-    try props.load(fis) finally fis.close()
-    props
-  }
 }

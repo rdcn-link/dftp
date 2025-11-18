@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="
+           http://www.springframework.org/schema/beans
+           http://www.springframework.org/schema/beans/spring-beans.xsd">
+
+    <!-- DftpServerConfig Bean -->
+    <bean id="dftpServerConfigBean" class="link.rdcn.server.DftpServerConfigBean">
+        <property name="protocolScheme" value="dacp"/>
+        <property name="host" value="${dacp.host.position}"/>
+        <property name="port" value="${dacp.host.port}"/>
+        <property name="useTls" value="${dacp.tls.enabled}"/>
+        <property name="modules">
+            <bean class="link.rdcn.server.ModulesBean">
+                <property name="modules">
+                    <list>
+                        <!-- DftpModule Bean -->
+                        <bean class="link.rdcn.server.module.BaseDftpModule"/>
+                        <bean class="link.rdcn.server.module.UserPasswordAuthModule">
+                            <constructor-arg>
+                                <bean class="link.rdcn.server.module.DefaultUserPasswordAuthService" />
+                            </constructor-arg>
+                        </bean>
+                        <bean class="link.rdcn.dacp.cook.DacpCookModule"/>
+                        <bean class="link.rdcn.dacp.catalog.DacpCatalogModule"/>
+                        <bean class="link.rdcn.dacp.catalog.DirectoryCatalogModule">
+                            <property name="rootDirectory">
+                                <value type="java.io.File">file:${configDir}/../data</value>
+                            </property>
+                        </bean>
+                        <bean class="link.rdcn.server.module.FileDirectoryDataSourceModule">
+                            <property name="rootDirectory">
+                                <value type="java.io.File">file:${configDir}/../data</value>
+                            </property>
+                        </bean>
+                    </list>
+                </property>
+            </bean>
+        </property>
+    </bean>
+    <!-- Property placeholder 配置 -->
+    <bean class="org.springframework.context.support.PropertySourcesPlaceholderConfigurer">
+        <property name="locations">
+            <list>
+                <value>file:${configDir}/dacp.conf</value>
+            </list>
+        </property>
+        <property name="ignoreUnresolvablePlaceholders" value="true"/>
+    </bean>
+</beans>

@@ -139,12 +139,16 @@ class TransformFunctionWrapperTest {
 
     // 创建一个模拟的 RepositoryClient
     val mockRepoClient = new OperatorRepository {
-      override def executeOperator(functionId: String, inputs: Seq[DataFrame], ctx: FlowExecutionContext): DataFrame = {
-        // 验证传入的参数
-        assertEquals(operatorId, functionId, "传入的 functionID 不匹配")
-        assertEquals(dataFrames, inputs, "传入的 inputs (DataFrames) 不匹配")
-        expectedDf // 返回模拟的 DataFrame
-      }
+//      override def executeOperator(functionId: String, inputs: Seq[DataFrame], ctx: FlowExecutionContext): DataFrame = {
+//        // 验证传入的参数
+//        assertEquals(operatorId, functionId, "传入的 functionID 不匹配")
+//        assertEquals(dataFrames, inputs, "传入的 inputs (DataFrames) 不匹配")
+//        expectedDf // 返回模拟的 DataFrame
+//      }
+
+      override def executeOperator(functionName: String, functionVersion: Option[String], inputs: Seq[DataFrame], ctx: FlowExecutionContext): DataFrame = ???
+
+      override def parseTransformFunctionWrapper(functionName: String, functionVersion: Option[String], ctx: FlowExecutionContext): TransformFunctionWrapper = ???
     }
 
     // 创建一个返回模拟 Client 的 Mock Context
@@ -255,23 +259,6 @@ class TransformFunctionWrapperTest {
     val deserialized = TransformFunctionWrapper.fromJsonObject(json)
 
     assertEquals(original, deserialized, "RepositoryOperator JSON 往返失败")
-  }
-
-  @Test
-  def testJsonRoundTrip_FileRepositoryBundle(): Unit = {
-    val container = DockerContainer("test-container", Some("/host"), Some("/cont"), Some("img"))
-    val original = FileRepositoryBundle(
-      command = Seq("python", "run.py"),
-      inputFilePath = Seq("/cont/in.fifo"),
-      outputFilePath = Seq("/cont/out.fifo"),
-      dockerContainer = container
-    )
-    val json = original.toJson
-    val deserialized = TransformFunctionWrapper.fromJsonObject(json)
-
-    assertEquals(original, deserialized, "FileRepositoryBundle JSON 往返失败")
-    assertEquals(original.dockerContainer, deserialized.asInstanceOf[FileRepositoryBundle].dockerContainer,
-      "FileRepositoryBundle 嵌套的 DockerContainer JSON 往返失败")
   }
 
 

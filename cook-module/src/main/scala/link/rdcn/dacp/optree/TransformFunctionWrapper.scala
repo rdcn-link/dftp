@@ -1,18 +1,25 @@
 package link.rdcn.dacp.optree
 
-import link.rdcn.dacp.optree.fifo.{DockerContainer, DockerExecute, RowFilePipe}
+import link.rdcn.Logging
+import link.rdcn.dacp.optree.fifo.FileType.FileType
+import link.rdcn.dacp.optree.fifo._
 import link.rdcn.dacp.recipe.{Transformer11, Transformer21}
 import link.rdcn.operation.{ExecutionContext, FunctionSerializer, FunctionWrapper, GenericFunctionCall}
-import link.rdcn.struct.{ClosableIterator, DataFrame, DefaultDataFrame, Row}
+import link.rdcn.struct.ValueType.BlobType
+import link.rdcn.struct._
 import link.rdcn.util.DataUtils
 import link.rdcn.util.DataUtils.getDataFrameByStream
 import org.json.{JSONArray, JSONObject}
 
-import java.io.{BufferedReader, BufferedWriter, File, InputStreamReader, OutputStreamWriter}
+import java.io._
 import java.net.{URL, URLClassLoader}
 import java.nio.file.Paths
+import java.util
 import java.util.{Base64, ServiceLoader, UUID}
 import scala.collection.JavaConverters.{asJavaIterableConverter, asScalaBufferConverter, mapAsScalaMapConverter}
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
+import scala.util.{Failure, Success, Try}
 
 /**
  * @Author renhao
@@ -20,7 +27,7 @@ import scala.collection.JavaConverters.{asJavaIterableConverter, asScalaBufferCo
  * @Data 2025/9/18 11:16
  * @Modified By:
  */
-trait TransformFunctionWrapper extends FunctionWrapper {
+trait TransformFunctionWrapper extends FunctionWrapper with Logging {
   def toJson: JSONObject
 
   def applyToInput(input: Any, ctx: ExecutionContext): Any = {
@@ -40,17 +47,22 @@ object TransformFunctionWrapper {
       case LangTypeV2.PYTHON_BIN.name => PythonBin(jo.getString("functionName"), jo.getString("whlPath"), jo.getInt("batchSize"))
       case LangTypeV2.JAVA_JAR.name => JavaJar(jo.getString("jarPath"), jo.getString("functionName"))
       case LangTypeV2.CPP_BIN.name => CppBin(jo.getString("cppPath"))
-      case LangTypeV2.REPOSITORY_OPERATOR.name => RepositoryOperator(jo.getString("functionID"))
+      case LangTypeV2.REPOSITORY_OPERATOR.name => RepositoryOperator(jo.getString("functionName"), Try(jo.getString("functionVersion")).toOption)
       case LangTypeV2.FILE_REPOSITORY_BUNDLE.name => {
         val command = jo.getJSONArray("command").toList.asScala.map(_.toString)
-        val inputFilePath = jo.getJSONArray("inputFilePath").toList.asScala.map(_.toString)
-        val outPutFilePath = jo.getJSONArray("outputFilePath").toList.asScala.map(_.toString)
+        val inputFilePath = jo.getJSONArray("inputFilePath").toList.asScala
+          .map(_.asInstanceOf[util.HashMap[String, FileType]])
+          .map(jo => (jo.get("filePath").toString, FileType.fromString(jo.get("fileType").toString)))
+        val outPutFilePath = jo.getJSONArray("outputFilePath").toList.asScala
+          .map(_.asInstanceOf[util.HashMap[String, FileType]])
+          .map(jo => (jo.get("filePath").toString, FileType.fromString(jo.get("fileType").toString)))
         val dockerContainer = DockerContainer.fromJson(jo.getJSONObject("dockerContainer"))
 
         FileRepositoryBundle(command, inputFilePath, outPutFilePath, dockerContainer)
       }
     }
   }
+
   def getJavaSerialized(functionCall: GenericFunctionCall): JavaBin = {
     val objectBytes = FunctionSerializer.serialize(functionCall)
     val base64Str: String = java.util.Base64.getEncoder.encodeToString(objectBytes)
@@ -290,21 +302,28 @@ case class CppBin(cppPath: String) extends TransformFunctionWrapper {
   }
 }
 
-case class RepositoryOperator(functionID: String) extends TransformFunctionWrapper {
+case class RepositoryOperator(functionName: String,
+                              functionVersion: Option[String] = None) extends TransformFunctionWrapper {
 
   override def toJson: JSONObject = new JSONObject().put("type", LangTypeV2.REPOSITORY_OPERATOR.name)
-    .put("functionID", functionID)
+    .put("functionName", functionName)
+    .put("functionVersion", functionVersion.orNull)
+
+  var transformFunctionWrapper: TransformFunctionWrapper = _
 
   override def applyToDataFrames(inputs: Seq[DataFrame], ctx: FlowExecutionContext): DataFrame = {
-    ctx.getRepositoryClient().getOrElse(throw new Exception("Operator repository client not found. Please configure the client settings."))
-      .executeOperator(functionID, inputs, ctx)
+    val transformFunctionWrapper = ctx.getRepositoryClient()
+      .getOrElse(throw new Exception("Operator repository client not found. Please configure the client settings."))
+      .parseTransformFunctionWrapper(functionName, functionVersion, ctx)
+    this.transformFunctionWrapper = transformFunctionWrapper
+    transformFunctionWrapper.applyToDataFrames(inputs, ctx)
   }
 }
 
 case class FileRepositoryBundle(
                                  command: Seq[String],
-                                 inputFilePath: Seq[String],
-                                 outputFilePath: Seq[String],
+                                 inputFilePath: Seq[(String, FileType)],
+                                 outputFilePath: Seq[(String, FileType)],
                                  dockerContainer: DockerContainer
                                )
   extends TransformFunctionWrapper {
@@ -313,24 +332,96 @@ case class FileRepositoryBundle(
     val jo = new JSONObject
     jo.put("type", LangTypeV2.FILE_REPOSITORY_BUNDLE.name)
     jo.put("command", new JSONArray(command.asJava))
-    jo.put("inputFilePath", new JSONArray(inputFilePath.asJava))
-    jo.put("outputFilePath", new JSONArray(outputFilePath.asJava))
+    jo.put("inputFilePath", new JSONArray(inputFilePath.map(file =>
+      new JSONObject().put("filePath", file._1)
+        .put("fileType",file._2.toString)).asJava))
+    jo.put("outputFilePath", new JSONArray(outputFilePath.map(file =>
+      new JSONObject().put("filePath", file._1)
+        .put("fileType",file._2.toString)).asJava))
     jo.put("dockerContainer", dockerContainer.toJson())
     jo
   }
 
+  def runOperator(): DataFrame = {
+    DockerExecute.nonInteractiveExec(command.toArray, dockerContainer.containerName) //"jyg-container"
+    dockerContainer.stop()
+    if(outputFilePath.head._2 != FileType.DIRECTORY){
+      //TODO: support outputting multiple DataFrames
+      FileDataFrame(new File(outputFilePath.head._1), outputFilePath.head._2)
+    }else DataStreamSource.filePath(new File(outputFilePath.head._1)).dataFrame
+  }
+
   def deleteFiFOFile(): Unit = {
-    outputFilePath.foreach(filePath => {
-      Runtime.getRuntime.exec(Array("rm", "-rf", filePath))
+    (inputFilePath ++ outputFilePath).foreach(filePath => {
+      Runtime.getRuntime.exec(Array("rm", "-rf", filePath._1))
     })
+    if(dockerContainer.hostPath.nonEmpty){
+      Runtime.getRuntime.exec(Array("rm", "-rf", dockerContainer.hostPath.get))
+    }
   }
 
   override def applyToDataFrames(inputs: Seq[DataFrame], ctx: FlowExecutionContext): DataFrame = {
     dockerContainer.start()
-    //创建fifo文件
-    (inputFilePath ++ outputFilePath).foreach(path=>RowFilePipe.fromFilePath(path))
-    DockerExecute.nonInteractiveExec(command.toArray, dockerContainer.containerName) //"jyg-container"
-    //TODO 支持输出多个DataFrame 对应多个fifo文件
-    RowFilePipe(new File(outputFilePath.head)).dataFrame()
+    outputFilePath.foreach(path=>{
+      if(path._2 == FileType.DIRECTORY){
+        val dir = new File(path._1)
+        dir.deleteOnExit()
+        dir.mkdirs()
+      }else RowFilePipe.fromFilePath(path._1)
+    })
+    require(inputs.length == inputFilePath.length,
+      s"Operator requires ${inputFilePath.length} input file(s), but received ${inputs.length}.")
+    inputs.zip(inputFilePath).foreach( dfAndInput => {
+      dfAndInput._1 match {
+        case f: FileDataFrame =>
+          if(dfAndInput._2._1 != f.file.getAbsolutePath){
+            RowFilePipe.fromFilePath(dfAndInput._2._1)
+            RowFilePipe(f.file).copyToFile(dfAndInput._2._1)
+          }
+        case f: DataFrame => if(f.schema.columns.length == 1 && f.schema.columns.head.colType == BlobType) {
+          val blob = f.collect().head.getAs[Blob](0)
+          val file = new File(dfAndInput._2._1)
+          writeBlobToFile(blob, file)
+        }else if(f.schema == StructType.binaryStructType) {
+          val dir = Paths.get(dfAndInput._2._1).toFile
+          dir.deleteOnExit()
+          dir.mkdirs()
+          f.foreach(row => {
+            writeBlobToFile(row.getAs[Blob](6), Paths.get(dfAndInput._2._1, row.getAs[String](0)).toFile)
+          })
+        } else {
+          val future = Future {
+            RowFilePipe.fromFilePath(dfAndInput._2._1).write(f.mapIterator(iter => iter.map(row => row.toSeq.mkString(","))))
+          }
+          future onComplete{
+            case Success(value) => logger.debug(s"load ${dfAndInput._2._1} success")
+            case Failure(e) => logger.debug(s"load ${dfAndInput._2._1} faild")
+              throw e
+          }
+        }
+      }
+    })
+    //TODO: support outputting multiple DataFrames
+    if(outputFilePath.head._2 == FileType.DIRECTORY) {
+      runOperator()
+      DataStreamSource.filePath(new File(outputFilePath.head._1)).dataFrame
+    } else FileDataFrame(new File(outputFilePath.head._1), outputFilePath.head._2)
   }
+
+  private def writeBlobToFile(blob: Blob, file: File): Unit = {
+    blob.offerStream { in =>
+      val buffer = new Array[Byte](8 * 1024)
+      val out = new BufferedOutputStream(new FileOutputStream(file))
+      try {
+        Iterator
+          .continually(in.read(buffer))
+          .takeWhile(_ != -1)
+          .foreach(read => out.write(buffer, 0, read))
+      } finally {
+        in.close()
+        out.close()
+      }
+    }
+  }
+
 }

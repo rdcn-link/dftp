@@ -354,13 +354,32 @@ object DftpServer {
   }
 
   def start(configXmlFile: File): DftpServer = {
-    val context: GenericApplicationContext = new GenericApplicationContext();
-    val reader: XmlBeanDefinitionReader = new XmlBeanDefinitionReader(context);
-    reader.loadBeanDefinitions(new FileUrlResource(configXmlFile.getAbsolutePath));
-    context.refresh();
-    //TODO: convert bean to DftpServerConfig
-    val config: DftpServerConfig = context.getBean(classOf[DftpServerConfig])
-    val modules = context.getBean("modules").asInstanceOf[Array[DftpModule]]
-    start(config, modules)
+    val server = createDftpServer(configXmlFile)
+    server.start()
+    server
+  }
+
+  def startBlocking(configXmlFile: File): Unit = {
+    createDftpServer(configXmlFile).startBlocking()
+  }
+
+  private def createDftpServer(configXmlFile: File): DftpServer = {
+    val configDir = configXmlFile.getParentFile.getAbsolutePath
+    System.setProperty("configDir", configDir)
+
+    val context = new GenericApplicationContext()
+    val reader = new XmlBeanDefinitionReader(context)
+    reader.loadBeanDefinitions(new FileUrlResource(configXmlFile.getAbsolutePath))
+    context.refresh()
+
+    val configBean = context.getBean("dftpServerConfigBean").asInstanceOf[DftpServerConfigBean]
+    val config: DftpServerConfig = configBean.toDftpServerConfig
+
+    val modulesBean = configBean.modules
+    val modulesArray: Array[DftpModule] =
+      if (modulesBean != null) modulesBean.getModules else Array.empty
+    new DftpServer(config) {
+      modulesArray.foreach(modules.addModule(_))
+    }
   }
 }

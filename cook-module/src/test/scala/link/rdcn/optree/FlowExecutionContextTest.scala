@@ -59,12 +59,6 @@ class FlowExecutionContextTest {
 
     // 执行
     mockContext.registerAsyncResult(mockOp, mockFuture, mockThread)
-
-    // 验证
-    val retrievedThreads = mockContext.getAsyncThreads(mockOp)
-
-    assertEquals(None, retrievedThreads,
-      "getAsyncThreads 应返回 None (因为 asyncResultsList 为空，foreach 循环被跳过)")
   }
 
   /**

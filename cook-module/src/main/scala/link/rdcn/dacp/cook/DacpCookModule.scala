@@ -18,7 +18,7 @@ import java.nio.charset.StandardCharsets
  * @Data 2025/10/31 10:59
  * @Modified By:
  */
-trait DacpCookStreamRequest extends DftpGetStreamRequest{
+trait DacpCookStreamRequest extends DftpGetStreamRequest {
   def getTransformTree: TransformOp
 }
 
@@ -81,7 +81,7 @@ class DacpCookModule() extends DftpModule with Logging {
                 override def accepts(request: DftpGetStreamRequest): Boolean = {
                   request match {
                     case _: DacpCookStreamRequest => true
-                    case _ => old!=null && old.accepts(request)
+                    case _ => old != null && old.accepts(request)
                   }
                 }
 
@@ -99,7 +99,7 @@ class DacpCookModule() extends DftpModule with Logging {
 
                         override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
                           try {
-                            if(permissionHolder.invoke(!_.checkPermission(userPrincipal, dataFrameNameUrl), false)){
+                            if (permissionHolder.invoke(!_.checkPermission(userPrincipal, dataFrameNameUrl), false)) {
                               throw new DataFrameAccessDeniedException(dataFrameNameUrl)
                             }
                             Some(dataFrameHolder.invoke(_.getDataFrame(dataFrameNameUrl, userPrincipal)(serverContext),
@@ -108,19 +108,26 @@ class DacpCookModule() extends DftpModule with Logging {
                             case e: DataFrameAccessDeniedException => response.sendError(403, e.getMessage)
                               throw e
                             case e: DataFrameNotFoundException => response.sendError(404, e.getMessage)
-                             throw e
+                              throw e
                             case e: Exception => response.sendError(500, e.getMessage)
                               throw e
                           }
                         }
 
                         //TODO Repository config
-                        override def getRepositoryClient(): Option[OperatorRepository] = Some(new RepositoryClient("10.0.89.38", 8088))
+                        override def getRepositoryClient(): Option[OperatorRepository] = Some(new RepositoryClient("http://10.0.89.39", 8090))
 
                         //TODO UnionServer
                         override def loadRemoteDataFrame(baseUrl: String, path: String, credentials: Credentials): Option[DataFrame] = ???
                       }
-                      response.sendDataFrame(transformTree.execute(flowExecutionContext))
+                      var result: DataFrame = DataFrame.empty()
+                      try {
+                        result = transformTree.execute(flowExecutionContext)
+                      } catch {
+                        case e: Exception => response.sendError(500, e.getMessage)
+                          throw e
+                      }
+                      response.sendDataFrame(result)
                     }
 
                     case _ => old.doGetStream(request, response)

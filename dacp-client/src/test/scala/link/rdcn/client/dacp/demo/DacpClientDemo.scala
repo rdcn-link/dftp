@@ -1,19 +1,30 @@
 package link.rdcn.client.dacp.demo
 
-import link.rdcn.client.DacpClient
+import cn.cnic.operatordownload.client.OperatorClient
+import link.rdcn.client.dacp.demo.DacpClientDemo._
+import link.rdcn.client.{DacpClient, UrlValidator}
 import link.rdcn.dacp.catalog.{CatalogService, CatalogServiceModule, CatalogServiceRequest, DacpCatalogModule}
 import link.rdcn.dacp.cook.DacpCookModule
-import link.rdcn.dacp.recipe.{ExecutionResult, Flow, SourceNode, Transformer11}
+import link.rdcn.dacp.optree.RepositoryClient
+import link.rdcn.dacp.optree.fifo.{DockerContainer, FileType}
+import link.rdcn.dacp.recipe._
 import link.rdcn.dacp.user.{DataOperationType, PermissionService, PermissionServiceModule}
-import link.rdcn.server.ServerContext
+import link.rdcn.dacp.utils.FileUtils
 import link.rdcn.server.module.{BaseDftpModule, DataFrameProviderModule, DataFrameProviderService, UserPasswordAuthModule}
-import link.rdcn.server.{DftpServer, DftpServerConfig}
+import link.rdcn.server.{DftpServer, DftpServerConfig, ServerContext}
 import link.rdcn.struct.ValueType.StringType
 import link.rdcn.struct._
 import link.rdcn.user._
 import org.apache.jena.rdf.model.{Model, ModelFactory, Resource}
 import org.apache.jena.vocabulary.RDF
+import org.json.{JSONArray, JSONObject}
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.{AfterAll, BeforeAll, Test}
+
+import java.io.File
+import java.nio.file.{Path, Paths}
+import scala.concurrent.Await
+import scala.concurrent.duration.DurationInt
 
 object DacpClientDemo{
 
@@ -102,14 +113,35 @@ object DacpClientDemo{
     override def accepts(dataFrameUrl: String): Boolean = true
 
     override def getDataFrame(dataFrameUrl: String, userPrincipal: UserPrincipal)(implicit ctx: ServerContext): DataFrame = {
-      new DataStreamSource {
-        override def rowCount: Long = -1L
+      dataFrameUrl match {
+//      op4/geo_entropy.csv
+        case url if UrlValidator.extractPath(url) == "/geo_entropy.csv" =>
+          val csvFile = new java.io.File("/data2/work/ncdc/faird/temp/op4/geo_entropy.csv")
+          DataStreamSource.csv(csvFile,Some(","), false).dataFrame
+        case url if UrlValidator.extractPath(url) == "/2019年中国榆林市沟道信息.csv" =>
+          val csvFile = new java.io.File("/data2/work/ncdc/faird/temp/op1/2019年中国榆林市沟道信息.csv")
+          DataStreamSource.csv(csvFile,Some(","), false).dataFrame
+        case url if UrlValidator.extractPath(url) == "/2019年中国榆林市30m数字高程数据集.tif" =>
+          val tifFile = new java.io.File("/data2/work/ncdc/faird/temp/op1/2019年中国榆林市30m数字高程数据集.tif")
+          DataFrame.fromSeq(Seq(Blob.fromFile(tifFile)))
+        case url if UrlValidator.extractPath(url) == "/csv/data_1.csv" =>
+          val csvFile = new java.io.File("/data2/work/ncdc/faird/dftp-dacp/dftp-client/src/test/resources/data/csv/data_1.csv")
+          DataStreamSource.csv(csvFile,Some(","), false).dataFrame
+        case url if UrlValidator.extractPath(url) == "/op2/labels" =>
+          val dirFile = new java.io.File("/data2/work/ncdc/faird/temp/op2/labels")
+          DataStreamSource.filePath(dirFile).dataFrame
+        case url if UrlValidator.extractPath(url) == "/op2/tfw" =>
+          val dirFile = new java.io.File("/data2/work/ncdc/faird/temp/op2/tfw")
+          DataStreamSource.filePath(dirFile).dataFrame
+        case _ => new DataStreamSource {
+          override def rowCount: Long = -1L
 
-        override def schema: StructType = StructType.empty.add("col1", StringType)
+          override def schema: StructType = StructType.empty.add("col1", StringType)
 
-        override def iterator: ClosableIterator[Row] =
-          ClosableIterator(Seq.range(0, 10).map(index => Row.fromSeq(Seq("id" + index))).toIterator)()
-      }.dataFrame
+          override def iterator: ClosableIterator[Row] =
+            ClosableIterator(Seq.range(0, 10).map(index => Row.fromSeq(Seq("id" + index))).toIterator)()
+        }.dataFrame
+      }
     }
   }
 
@@ -118,6 +150,22 @@ object DacpClientDemo{
       UserPrincipalWithCredentials(credentials)
 
     override def accepts(credentials: UsernamePassword): Boolean = true
+  }
+
+  val operatorClient = new RepositoryClient("http://10.0.89.39", 8090)
+  val operatorDir = Paths.get(getClass.getClassLoader.getResource("").toURI).toString
+
+  /**
+   *
+   * @param resourceName
+   * @return test下名为resourceName的文件夹
+   */
+  def getResourcePath(resourceName: String): String = {
+    val url = Option(getClass.getClassLoader.getResource(resourceName))
+      .orElse(Option(getClass.getResource(resourceName))) // 先到test-classes中查找，然后到classes中查找
+      .getOrElse(throw new RuntimeException(s"Resource not found: $resourceName"))
+    val nativePath: Path = Paths.get(url.toURI())
+    nativePath.toString
   }
 
   @BeforeAll
@@ -131,7 +179,7 @@ object DacpClientDemo{
       new UserPasswordAuthModule(userPasswordAuthService),
       new PermissionServiceModule(permissionService)
     )
-    server = DftpServer.start(DftpServerConfig("0.0.0.0", 3102).withProtocolScheme("dacp"), modules)
+    server = DftpServer.start(DftpServerConfig("0.0.0.0", 3103).withProtocolScheme("dacp"), modules)
   }
 
   @AfterAll
@@ -185,7 +233,6 @@ class DacpClientDemo {
 
   @Test
   def cookTest(): Unit = {
-
     val dc = DacpClient.connect("dacp://0.0.0.0:3102", UsernamePassword("admin", "admin"))
 
     val udf = new Transformer11 {
@@ -205,5 +252,295 @@ class DacpClientDemo {
     )
     val dfs: ExecutionResult = dc.cook(transformerDAG)
     dfs.single().foreach(println)
+  }
+
+  @Test
+  def damFlowSourceGet(): Unit = {
+    val dc = DacpClient.connect("dacp://0.0.0.0:3103", UsernamePassword("admin", "admin"))
+    dc.get("dacp://0.0.0.0:3103/2019年中国榆林市沟道信息.csv").foreach(println)
+    dc.get("dacp://0.0.0.0:3103/2019年中国榆林市30m数字高程数据集.tif").foreach(println)
+    dc.get("dacp://0.0.0.0:3103/op2/labels").foreach(println)
+    dc.get("dacp://0.0.0.0:3103/op2/tfw").foreach(println)
+  }
+
+  @Test
+  def testDirectory(): Unit = {
+    val dc = DacpClient.connect("dacp://0.0.0.0:3103", UsernamePassword("admin", "admin"))
+
+    val fileRepositoryGeoTransMain = FifoFileBundleFlowNode(
+      Seq("python", "/mnt/data/temp2/geotrans_main.py"),
+      Seq(("/data2/work/ncdc/faird/temp/op2/tfw_new", FileType.DIRECTORY),
+        ("/data2/work/ncdc/faird/temp/op2/labels_new", FileType.DIRECTORY)),
+      Seq(("/data2/work/ncdc/faird/temp/temp2/output", FileType.DIRECTORY)),
+      DockerContainer("jyg-container")
+    )
+
+    val fileRepositorySelect = FifoFileBundleFlowNode(
+      Seq("python", "/mnt/data/temp2/overlap_dam_select.py"),
+      Seq(("/data2/work/ncdc/faird/temp/temp2/output1", FileType.DIRECTORY)),
+      Seq(("/data2/work/ncdc/faird/temp/temp2/DamDetect_select_fifo.csv", FileType.FIFO_BUFFER)),
+      DockerContainer("jyg-container"))
+
+    val recipe = Flow(
+      Map(
+        "sourceLabelsDir" -> SourceNode("dacp://0.0.0.0:3103/op2/labels"),
+        "sourceTfwDir" -> SourceNode("dacp://0.0.0.0:3103/op2/tfw"),
+        "fileRepositoryGeoTransMain" -> fileRepositoryGeoTransMain,
+        "fileRepositorySelect" -> fileRepositorySelect,
+        "fifoNode" -> FifoFileFlowNode()
+      ),
+      Map(
+        "sourceLabelsDir" -> Seq("fileRepositoryGeoTransMain"),
+        "sourceTfwDir" -> Seq("fileRepositoryGeoTransMain"),
+        "fileRepositoryGeoTransMain" -> Seq("fileRepositorySelect"),
+        "fileRepositorySelect" -> Seq("fifoNode")
+//        "fileRepositoryGeoTransMain" -> Seq("fifoNode")
+      ))
+    val result = dc.cook(recipe)
+    result.single().foreach(println)
+  }
+
+  import java.nio.file.Paths
+  import java.util.UUID
+  import java.util.concurrent.atomic.AtomicLong
+
+  @Test
+  def repositoryTest(): Unit = {
+    val client: OperatorClient = OperatorClient.connect("http://10.0.89.39:8090", null)
+    // gully_slop 0.5.0-20251115-1
+    //hydro_susceptibility  0.5.0-20251115-1
+//    val opName = "geotrans"
+//    val opVersion =  "0.5.0-20251115-2"
+    val opName = "overlap_dam_select"
+    val opVersion =  "0.5.0-20251115-1"
+
+    val operatorInfo = new JSONObject(client.getOperatorByNameAndVersion(opName, opVersion))
+    val operatorImage = operatorInfo.getJSONObject("data").getString("nexusUrl")
+
+    val inputCounter = new AtomicLong(0)
+    val outputCounter = new AtomicLong(0)
+    val ja = new JSONArray(operatorInfo.getJSONObject("data").getString("paramInfos"))
+    val files = (0 until ja.length).map(index => ja.getJSONObject(index))
+      //subfix,fileType,inParam,paramType
+      .map(jo => (jo.getString("name"), jo.getString("fileType"), jo.getString("paramDescription"), jo.getString("paramType")))
+      .map(file => {
+        if(file._4 == "INPUT_FILE"){
+          (file._1, file._2, file._3, file._4, s"input${inputCounter.incrementAndGet()}${file._1}")
+        }else {
+          (file._1, file._2, file._3, file._4, s"output${outputCounter.incrementAndGet()}${file._1}")
+        }
+      })
+    val commands = operatorInfo.getJSONObject("data").getString("command").split(" ")
+
+    val nodeGullySlopId = s"${opName}_${UUID.randomUUID().toString}"
+    val hostPath = FileUtils.getTempDirectory("", nodeGullySlopId)
+    val containerPath = s"/$nodeGullySlopId"
+
+    val commandsWithParams = commands ++ files.flatMap(file => Seq(file._3, Paths.get(containerPath, file._5).toString))
+
+    val inputFiles = files.filter(_._4 == "INPUT_FILE")
+      .map(file => (Paths.get(hostPath, file._5).toString, FileType.fromString(file._2)))
+    val outputFiles = files.filter(_._4 == "OUTPUT_FILE")
+      .map(file => (Paths.get(hostPath, file._5).toString, FileType.fromString(file._2)))
+    val dockerContainer = DockerContainer(opName, Some(hostPath), Some(containerPath), Some(operatorImage))
+    FifoFileBundleFlowNode(commandsWithParams, inputFiles, outputFiles, dockerContainer)
+  }
+
+
+  @Test
+  def testDamFlowPipeline(): Unit = {
+    val dc = DacpClient.connect("dacp://0.0.0.0:3103", UsernamePassword("admin", "admin"))
+
+    val opName = "gully_slop"
+    val imagePath = "registry.cn-hangzhou.aliyuncs.com/cnic-piflow/siltdam-jyg-faird:2.0"
+
+
+    val nodeGullySlopId = s"${opName}_${UUID.randomUUID().toString}"
+    val hostPath = FileUtils.getTempDirectory("", nodeGullySlopId)
+    val containerPath = s"/$nodeGullySlopId"
+    val nodeGullySlop = FifoFileBundleFlowNode(
+      Seq("python", "/dem/gully_slop.py", "--record_file", Paths.get(containerPath,"input1.csv").toString
+      , "--dem_file", Paths.get(containerPath, "input2.tif").toString
+      , "--outpath", Paths.get(containerPath, "output1.csv").toString),
+      Seq((Paths.get(hostPath,"input1.csv").toString, FileType.FIFO_BUFFER),
+        (Paths.get(hostPath, "input2.tif").toString, FileType.FIFO_BUFFER)),
+      Seq((Paths.get(hostPath, "output1.csv").toString, FileType.FIFO_BUFFER)),
+      DockerContainer(opName, Some(hostPath), Some(containerPath), Some(imagePath))
+    )
+
+    val fileRepositoryHydro = FifoFileBundleFlowNode(
+      Seq("python", "/mnt/data/temp2/hydro_susceptibility.py", "--slopfile", "/mnt/data/temp2/gully_slop_fifo_new.csv",
+      "--entropyfile", "/mnt/data/temp2/geo_entropy_fifo_new.csv", "--outpath", "/mnt/data/temp2/suscep_hdyro_fifo_new12.csv"),
+      Seq(("/data2/work/ncdc/faird/temp/temp2/geo_entropy_fifo_new.csv", FileType.FIFO_BUFFER),
+        ("/data2/work/ncdc/faird/temp/temp2/gully_slop_fifo_new.csv", FileType.FIFO_BUFFER)),
+      Seq(("/data2/work/ncdc/faird/temp/temp2/suscep_hdyro_fifo_new12.csv", FileType.FIFO_BUFFER)),
+      DockerContainer("jyg-container", Some("/data2/work/ncdc/faird/temp"), Some("/mnt/data"))
+    )
+
+    val fileRepositoryGeoTransMain = FifoFileBundleFlowNode(
+      Seq("python", "/mnt/data/temp2/geotrans_main.py", "--label_path", "/mnt/data/op2/labels_new",
+      "--tfw_path", "/mnt/data/op2/tfw_new", "--outpath", "/mnt/data/temp2/output"),
+      Seq(("/data2/work/ncdc/faird/temp/op2/tfw_new", FileType.DIRECTORY),
+        ("/data2/work/ncdc/faird/temp/op2/labels_new", FileType.DIRECTORY)),
+      Seq(("/data2/work/ncdc/faird/temp/temp2/output", FileType.DIRECTORY)),
+      DockerContainer("jyg-container")
+    )
+
+    val fileRepositorySelect = FifoFileBundleFlowNode(
+      Seq("python", "/mnt/data/temp2/overlap_dam_select.py", "--labelpath", "/mnt/data/temp2/output1",
+        "--sphydrofile", "/mnt/data/temp2/suscep_hdyro_fifo_new22.csv",
+        "--outpath", "/mnt/data/temp2/DamDetect_select_fifo.csv"),
+      Seq(("/data2/work/ncdc/faird/temp/temp2/suscep_hdyro_fifo_new22.csv", FileType.FIFO_BUFFER),
+        ("/data2/work/ncdc/faird/temp/temp2/output1", FileType.DIRECTORY)),
+      Seq(("/data2/work/ncdc/faird/temp/temp2/DamDetect_select_fifo.csv", FileType.FIFO_BUFFER)),
+      DockerContainer("jyg-container")
+    )
+
+    val recipe = Flow(
+      Map(
+        "sourceCsv" -> SourceNode("dacp://0.0.0.0:3103/2019年中国榆林市沟道信息.csv"),
+        "sourceTif" -> SourceNode("dacp://0.0.0.0:3103/2019年中国榆林市30m数字高程数据集.tif"),
+        "sourceGEO" -> SourceNode("dacp://0.0.0.0:3103/geo_entropy.csv"),
+        "gully" -> nodeGullySlop,
+        "fileRepositoryHydro" -> fileRepositoryHydro,
+        "sourceLabelsDir" -> SourceNode("dacp://0.0.0.0:3103/op2/labels"),
+        "sourceTfwDir" -> SourceNode("dacp://0.0.0.0:3103/op2/tfw"),
+        "fileRepositoryGeoTransMain" -> fileRepositoryGeoTransMain,
+        "fileRepositorySelect" -> fileRepositorySelect,
+        "fifoNode" -> FifoFileFlowNode()
+      ),
+      Map(
+        "sourceCsv" -> Seq("gully"),
+        "sourceTif" ->  Seq("gully"),
+        "sourceGEO" -> Seq("fileRepositoryHydro"),
+        "gully" -> Seq("fileRepositoryHydro"),
+        "fileRepositoryHydro" -> Seq("fileRepositorySelect"),
+        "sourceTfwDir" -> Seq("fileRepositoryGeoTransMain"),
+        "sourceLabelsDir" -> Seq("fileRepositoryGeoTransMain"),
+        "fileRepositoryGeoTransMain" -> Seq("fileRepositorySelect"),
+        "fileRepositorySelect" -> Seq("fifoNode")
+      ))
+    val result = dc.cook(recipe)
+    result.single().foreach(println)
+  }
+
+  import cn.cnic.operatordownload.client.OperatorClient
+
+  @Test
+  def getOperatorTest(): Unit = {
+    val client: OperatorClient = OperatorClient.connect("http://10.0.89.39:8090", null)
+    val gullyOperatorInfo = new JSONObject(client.getOperatorByNameAndVersion("gully_slop", "0.5.0-20251115-1"))
+    val hydroOperatorInfo = new JSONObject(client.getOperatorByNameAndVersion("hydro_susceptibility", "0.5.0-20251115-1"))
+    val geotransOperatorInfo = new JSONObject(client.getOperatorByNameAndVersion("geotrans", "0.5.0-20251115-2"))
+    val overlapOperatorInfo = new JSONObject(client.getOperatorByNameAndVersion("overlap_dam_select", "0.5.0-20251115-1"))
+
+    println("算子信息: " + gullyOperatorInfo)
+    println("算子信息: " + hydroOperatorInfo)
+    println("算子信息: " + geotransOperatorInfo)
+    println("算子信息: " + overlapOperatorInfo)
+  }
+
+  import link.rdcn.dacp.recipe.FlowNode
+  @Test
+  def repositoryDemoTest(): Unit = {
+
+    val dc = DacpClient.connect("dacp://0.0.0.0:3103", UsernamePassword("admin", "admin"))
+
+    val nodeGullySlop = FlowNode.stocked("gully_slop", Some("0.5.0-20251115-1"))
+    val fileRepositoryHydro = FlowNode.stocked("hydro_susceptibility", Some("0.5.0-20251115-1"))
+    val fileRepositoryGeoTransMain = FlowNode.stocked("geotrans", Some("0.5.0-20251115-2"))
+    val fileRepositorySelect = FlowNode.stocked("overlap_dam_select", Some("0.5.0-20251115-1"))
+
+    val recipe = Flow(
+      Map(
+        "sourceCsv" -> SourceNode("dacp://0.0.0.0:3103/2019年中国榆林市沟道信息.csv"),
+        "sourceTif" -> SourceNode("dacp://0.0.0.0:3103/2019年中国榆林市30m数字高程数据集.tif"),
+        "sourceGEO" -> SourceNode("dacp://0.0.0.0:3103/geo_entropy.csv"),
+        "gully" -> nodeGullySlop,
+        "fileRepositoryHydro" -> fileRepositoryHydro,
+        "sourceLabelsDir" -> SourceNode("dacp://0.0.0.0:3103/op2/labels"),
+        "sourceTfwDir" -> SourceNode("dacp://0.0.0.0:3103/op2/tfw"),
+        "fileRepositoryGeoTransMain" -> fileRepositoryGeoTransMain,
+        "fileRepositorySelect" -> fileRepositorySelect,
+        "fifoNode" -> FifoFileFlowNode()
+      ),
+      Map(
+        "sourceCsv" -> Seq("gully"),
+        "sourceTif" ->  Seq("gully"),
+        "sourceGEO" -> Seq("fileRepositoryHydro"),
+        "gully" -> Seq("fileRepositoryHydro"),
+        "fileRepositoryHydro" -> Seq("fileRepositorySelect"),
+        "sourceTfwDir" -> Seq("fileRepositoryGeoTransMain"),
+        "sourceLabelsDir" -> Seq("fileRepositoryGeoTransMain"),
+        "fileRepositoryGeoTransMain" -> Seq("fileRepositorySelect"),
+        "fileRepositorySelect" -> Seq("fifoNode")
+      )
+    )
+
+    val result = dc.cook(recipe)
+    result.single().foreach(println)
+  }
+
+  @Test
+  def uploadPackageJarTest(): Unit = {
+    val jarFile: File = new File(Paths.get(getResourcePath(""),"lib","java").toString).listFiles().head
+    val jarPath: String = jarFile.getAbsolutePath
+    val functionId = "aaa.bbb.id1"
+    val responseBody = operatorClient.uploadPackage(jarPath, functionId, "JAVA_JAR", "Java Application", "Transformer11","2.0.0")
+    assertTrue(Await.result(responseBody, 30.seconds).contains("success"), "Upload failed")
+  }
+
+  @Test
+  def uploadPackageCppTest(): Unit = {
+    val cppFile: File = new File(Paths.get(getResourcePath(""),"lib","cpp").toString).listFiles().head
+    val cppPath: String = cppFile.getAbsolutePath
+    val functionId = "aaa.bbb.id2"
+    val responseBody = operatorClient.uploadPackage(cppPath, functionId, "CPP_BIN", "cpp_processor", "main","2.0.0")
+    assertTrue(Await.result(responseBody, 30.seconds).contains("success"), "Upload failed")
+  }
+
+  @Test
+  def uploadPackagePythonTest(): Unit = {
+    val pythonFile: File = new File(Paths.get(getResourcePath(""),"lib","python").toString).listFiles().head
+    val pythonPath: String = pythonFile.getAbsolutePath
+    val functionId = "aaa.bbb.id3"
+    val responseBody = operatorClient.uploadPackage(pythonPath, functionId, "PYTHON_BIN", "Python Application", "normalize","2.0.0")
+    assertTrue(Await.result(responseBody, 30.seconds).contains("success"), "Upload failed")
+  }
+
+  @Test
+  def repositoryJarTest(): Unit = {
+    val dc = DacpClient.connect("dacp://0.0.0.0:3103", UsernamePassword("admin", "admin"))
+
+    val sourceNode: FlowNode = FlowNode.source("/csv/data_1.csv")
+    val repositoryOperator = FlowNode.stocked("aaa.bbb.id1", Some("2.0.0"))
+    val recipe: Flow = Flow.pipe(sourceNode, repositoryOperator)
+
+    val result = dc.cook(recipe)
+    result.single().limit(10).foreach(println)
+  }
+
+  @Test
+  def repositoryCppTest(): Unit = {
+    val dc = DacpClient.connect("dacp://0.0.0.0:3103", UsernamePassword("admin", "admin"))
+
+    val sourceNode: FlowNode = FlowNode.source("/csv/data_1.csv")
+    val repositoryOperator = FlowNode.stocked("aaa.bbb.id2", Some("2.0.0"))
+    val recipe: Flow = Flow.pipe(sourceNode, repositoryOperator)
+
+    val result = dc.cook(recipe)
+    result.single().limit(10).foreach(println)
+  }
+
+  @Test
+  def repositoryPythonTest(): Unit = {
+    val dc = DacpClient.connect("dacp://0.0.0.0:3103", UsernamePassword("admin", "admin"))
+
+    val sourceNode: FlowNode = FlowNode.source("/csv/data_1.csv")
+    val repositoryOperator = FlowNode.stocked("aaa.bbb.id3", Some("2.0.0"))
+    val recipe: Flow = Flow.pipe(sourceNode, repositoryOperator)
+
+    val result = dc.cook(recipe)
+    result.single().limit(10).foreach(println)
   }
 }

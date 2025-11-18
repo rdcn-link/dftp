@@ -1,7 +1,7 @@
 package link.rdcn.dacp.optree
 
 import link.rdcn.client.UrlValidator
-import link.rdcn.dacp.optree.fifo.RowFilePipe
+import link.rdcn.dacp.optree.fifo.{FileDataFrame, FileType, RowFilePipe}
 import link.rdcn.operation._
 import link.rdcn.struct.DataFrame
 import link.rdcn.user.TokenAuth
@@ -10,6 +10,7 @@ import org.json.{JSONArray, JSONObject}
 import scala.collection.JavaConverters.asScalaBufferConverter
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.{Failure, Success}
 
 /**
  * @Author renhao
@@ -44,7 +45,7 @@ object TransformTree {
         case "Limit" => LimitOp(parsed.getJSONArray("args").getInt(0), inputs: _*)
         case "Select" => SelectOp(inputs.head, parsed.getJSONArray("args").toList.asScala.map(_.toString): _*)
         case "TransformerNode" => TransformerNode(TransformFunctionWrapper.fromJsonObject(parsed.getJSONObject("function")), inputs: _*)
-        case "FifoFileNode" => FiFoFileNode(parsed.getString("filePath"), inputs: _*)
+        case "FifoFileNode" => FiFoFileNode(inputs: _*)
       }
     }
   }
@@ -78,7 +79,7 @@ case class RemoteSourceProxyOp(url: String, certificate: String) extends Transfo
   }
 }
 
-case class FiFoFileNode(filePath:String, transformOp: TransformOp*) extends TransformOp
+case class FiFoFileNode(transformOp: TransformOp*) extends TransformOp
 {
   override var inputs: Seq[TransformOp] = transformOp
 
@@ -88,18 +89,19 @@ case class FiFoFileNode(filePath:String, transformOp: TransformOp*) extends Tran
     val ja = new JSONArray()
     inputs.foreach(in => ja.put(in.toJson))
     new JSONObject().put("type", operationType)
-      .put("filePath", filePath)
       .put("input", ja)
   }
 
   override def execute(ctx: ExecutionContext): DataFrame = {
-    transformOp.head.execute(ctx)
-    RowFilePipe.fromFilePath(filePath).dataFrame()
+    val df = transformOp.head.execute(ctx)
+    df
   }
 }
 
-case class TransformerNode(transformFunctionWrapper: TransformFunctionWrapper, inputTransforms: TransformOp*)
+case class TransformerNode(transformFunctionWrapperT: TransformFunctionWrapper, inputTransforms: TransformOp*)
   extends TransformOp {
+
+  var transformFunctionWrapper: TransformFunctionWrapper = _
 
   def contain(transformerNode: TransformerNode): Boolean = {
     (transformerNode eq this) || inputTransforms.exists(op => {
@@ -129,27 +131,38 @@ case class TransformerNode(transformFunctionWrapper: TransformFunctionWrapper, i
     val ja = new JSONArray()
     inputs.foreach(in => ja.put(in.toJson))
     new JSONObject().put("type", operationType)
-      .put("function", transformFunctionWrapper.toJson)
+      .put("function", transformFunctionWrapperT.toJson)
       .put("input", ja)
   }
 
   override def execute(ctx: ExecutionContext): DataFrame = {
     val flowCtx = ctx.asInstanceOf[FlowExecutionContext]
     if(flowCtx.isAsyncEnabled){
-      var thread: Thread = null
-      val future:Future[DataFrame] = Future {
-        try {
-          thread = Thread.currentThread()
-          transformFunctionWrapper.applyToDataFrames(Seq(DataFrame.empty()), flowCtx)
-        } catch {
-          case t: Throwable =>
-            t.printStackTrace()
-            DataFrame.empty()
-        }
+      val inputDataFrames = inputs.map(_.execute(ctx))
+      val result = transformFunctionWrapperT.applyToDataFrames(inputDataFrames, flowCtx)
+      transformFunctionWrapper = transformFunctionWrapperT match {
+        case r: RepositoryOperator => r.transformFunctionWrapper
+        case _ => transformFunctionWrapperT
       }
-      flowCtx.registerAsyncResult(this, future, thread)
-      inputs.foreach(_.execute(ctx))
-      DataFrame.empty()
+
+      var thread: Thread = null
+
+      transformFunctionWrapper match {
+        case bundle: FileRepositoryBundle if bundle.outputFilePath.head._2 == FileType.FIFO_BUFFER =>
+          val future: Future[DataFrame] = Future {
+            try {
+              thread = Thread.currentThread()
+              bundle.runOperator()
+            } catch {
+              case t: Throwable =>
+                t.printStackTrace()
+                DataFrame.empty()
+            }
+          }
+          flowCtx.registerAsyncResult(this, future, thread)
+        case _ =>
+      }
+      result
     }else{
       transformFunctionWrapper.applyToDataFrames(inputs.map(_.execute(ctx)), flowCtx)
     }

@@ -50,27 +50,33 @@ class BaseDftpModule extends DftpModule {
                     }
                   }
                   case r: DftpGetPathStreamRequest =>
-                    val dataFrame = r.getTransformOp().execute(new ExecutionContext {
-                      override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
-                        try {
-                          Some(dataFrameHolder.invoke(_.getDataFrame(dataFrameNameUrl, r.getUserPrincipal())(serverContext),
-                             throw new DataFrameNotFoundException(dataFrameNameUrl)
-                          ))
-                        } catch {
-                          case e: DataFrameAccessDeniedException => response.sendError(403, e.getMessage)
-                            throw e
-                          case e: DataFrameNotFoundException =>
-                            if(old !=null && old.accepts(request))
-                              old.doGetStream(request, response)
-                            else
-                              response.sendError(404, e.getMessage)
+                    var dataFrame: DataFrame = DataFrame.empty()
+                    try {
+                      dataFrame = r.getTransformOp().execute(new ExecutionContext {
+                        override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
+                          try {
+                            Some(dataFrameHolder.invoke(_.getDataFrame(dataFrameNameUrl, r.getUserPrincipal())(serverContext),
+                              throw new DataFrameNotFoundException(dataFrameNameUrl)
+                            ))
+                          } catch {
+                            case e: DataFrameAccessDeniedException => response.sendError(403, e.getMessage)
                               throw e
-                          case e: Exception => response.sendError(500, e.getMessage)
-                            throw e
-                        }
+                            case e: DataFrameNotFoundException =>
+                              if(old !=null && old.accepts(request))
+                                old.doGetStream(request, response)
+                              else
+                                response.sendError(404, e.getMessage)
+                              throw e
+                            case e: Exception => response.sendError(500, e.getMessage)
+                              throw e
+                          }
 
-                      }
-                    })
+                        }
+                      })
+                    } catch {
+                      case e: Exception => response.sendError(500, e.getMessage)
+                        throw e
+                    }
                     response.sendDataFrame(dataFrame)
                   case other => if(old!=null && old.accepts(other)) {
                     old.doGetStream(request, response)

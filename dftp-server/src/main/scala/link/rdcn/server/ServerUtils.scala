@@ -13,8 +13,9 @@ import org.apache.arrow.vector.types.pojo.{ArrowType, Field, FieldType, Schema}
 import org.json.JSONObject
 
 import java.io.ByteArrayOutputStream
+import java.net.NetworkInterface
 import java.util.Collections
-import scala.collection.JavaConverters.{asJavaIterableConverter, asScalaBufferConverter, asScalaIteratorConverter}
+import scala.collection.JavaConverters.{asJavaIterableConverter, asScalaBufferConverter, asScalaIteratorConverter, enumerationAsScalaIteratorConverter}
 
 /**
  * @Author renhao
@@ -166,5 +167,26 @@ object ServerUtils {
     writer.end()
     writer.close()
     outputStream.toByteArray
+  }
+
+  def getFirstNonLoopBackMacAddress: Option[String] = {
+    try {
+      val interfaces = NetworkInterface.getNetworkInterfaces.asScala
+
+      val validMacs = interfaces
+        .filter(ni => ni.isUp && !ni.isLoopback && !ni.isVirtual)
+        .flatMap { ni =>
+          Option(ni.getHardwareAddress).map { mac =>
+            mac.map(b => f"$b%02X").mkString(":")
+          }
+        }
+
+      if (validMacs.nonEmpty) Some(validMacs.next()) else None
+
+    } catch {
+      case e: Exception =>
+        e.printStackTrace()
+        None
+    }
   }
 }

@@ -1,6 +1,7 @@
 package link.rdcn.dacp.recipe
 
 import link.rdcn.dacp.optree.fifo.DockerContainer
+import link.rdcn.dacp.optree.fifo.FileType.FileType
 import link.rdcn.struct.DataFrame
 
 /**
@@ -20,18 +21,19 @@ trait Transformer21 extends FlowNode with Serializable {
 }
 
 case class RepositoryNode(
-                           functionId: String,
+                           functionName: String,
+                           functionVersion: Option[String],
                            args: Map[String, String] = Map.empty
                          ) extends FlowNode
 
 case class FifoFileBundleFlowNode(
                                    command: Seq[String],
-                                   inputFilePath: Seq[String],
-                                   outputFilePath: Seq[String],
+                                   inputFilePath: Seq[(String, FileType)],
+                                   outputFilePath: Seq[(String, FileType)],
                                    dockerContainer: DockerContainer
                                  ) extends FlowNode
 
-case class FifoFileFlowNode(filePath: String) extends FlowNode
+case class FifoFileFlowNode() extends FlowNode
 
 //只为DAG执行提供dataFrameName
 case class SourceNode(dataFrameName: String) extends FlowNode
@@ -53,8 +55,8 @@ object FlowNode {
     (dataFrame: DataFrame) => func(dataFrame)
   }
 
-  def stocked(functionId: String, args: Map[String, String] = Map.empty): RepositoryNode = {
-    RepositoryNode(functionId, args)
+  def stocked(functionId: String, functionVersion: Option[String], args: Map[String, String] = Map.empty): RepositoryNode = {
+    RepositoryNode(functionId, functionVersion, args)
   }
 
 }

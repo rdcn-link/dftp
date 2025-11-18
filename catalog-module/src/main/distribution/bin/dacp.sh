@@ -8,6 +8,7 @@ JAR_FILE="dacp-dist-0.5.0-20251028.jar"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 DATA_DIR="$PARENT_DIR/data"
+PLUGINS_DIR="$PARENT_DIR/plugins"
 
 # Verify JAR file existence
 if [ ! -f "$PARENT_DIR/lib/$JAR_FILE" ]; then
@@ -22,6 +23,14 @@ if [ ! -d "$DATA_DIR" ]; then
     mkdir -p "$DATA_DIR"
 fi
 
+# Collect plugin jars
+PLUGIN_JARS=""
+if [ -d "$PLUGINS_DIR" ]; then
+    for jar in "$PLUGINS_DIR"/*.jar; do
+        [ -f "$jar" ] && PLUGIN_JARS="$PLUGIN_JARS:$jar"
+    done
+fi
+
 start() {
     if is_running; then
         echo "DACP server is already running (PID: $(get_pid))"
@@ -29,7 +38,7 @@ start() {
     fi
 
     echo "Starting DACP server..."
-    nohup java -jar "$PARENT_DIR/lib/$JAR_FILE" "$PARENT_DIR" > "$PARENT_DIR/logs/dacp.log" 2>&1 &
+    nohup java -cp "$PARENT_DIR/lib/$JAR_FILE$PLUGIN_JARS" link.rdcn.dacp.DacpServerStart "$PARENT_DIR" > "$PARENT_DIR/logs/dacp.log" 2>&1 &
     echo "DACP server started successfully"
 }
 

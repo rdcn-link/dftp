@@ -20,9 +20,9 @@ object AuthPlatform {
   def authenticate(usernamePassword: UsernamePassword): TokenAuth = {
     val basic = "Basic " + Base64.getUrlEncoder().encodeToString(clientToken.get.getBytes())
 
-    val paramMap = new JSONObject().put("username", "faird-user1")
-      .put("password", usernamePassword.username)
-      .put("grantType", usernamePassword.password)
+    val paramMap = new JSONObject().put("username", usernamePassword.username)
+      .put("password", usernamePassword.password)
+      .put("grantType", "password")
 
     val httpClient = HttpClient.newHttpClient()
     val request = HttpRequest.newBuilder()
@@ -39,7 +39,7 @@ object AuthPlatform {
   def registerClient(clientId: String): String = {
     val paramMap = new JSONObject()
       .put("clientId", clientId)
-      .put("clientName", "dacp客户端")
+      .put("clientName", "dacp-client")
     val httpClient = HttpClient.newHttpClient()
     val request = HttpRequest.newBuilder()
       .uri(URI.create("https://api.opendatachain.cn/auth/client.save"))

@@ -119,4 +119,112 @@ object DockerExecute {
       dockerClient.close()
     }
   }
+
+  /**
+   * 停止并删除指定容器
+   * @param containerName 容器名称
+   * @param forceDelete   是否强制删除（即使容器未停止）
+   * @return 是否成功删除
+   */
+  def stopAndRemoveContainer(containerName: String, forceDelete: Boolean = true): Boolean = {
+    val config = DefaultDockerClientConfig.createDefaultConfigBuilder().build()
+    val dockerClient: DockerClient = DockerClientBuilder.getInstance(config).build()
+
+    try {
+      // 查找容器（包括已停止的）
+      val containers: List[Container] = dockerClient.listContainersCmd()
+        .withShowAll(true)
+        .exec()
+        .asScala
+        .toList
+
+      containers.find(_.getNames.contains(s"/$containerName")) match {
+        case Some(container) =>
+          val containerId = container.getId
+
+          //  停止容器
+          if (container.getState.equalsIgnoreCase("running")) {
+            println(s"Stopping container $containerName ...")
+            dockerClient.stopContainerCmd(containerId).exec()
+          }
+
+          // 删除容器
+          println(s"Removing container $containerName ...")
+          dockerClient.removeContainerCmd(containerId)
+            .withForce(forceDelete) // 强制删除
+            .exec()
+
+          println(s"Container $containerName removed successfully.")
+          true
+
+        case None =>
+          println(s"Container $containerName does not exist.")
+          false
+      }
+    } finally {
+      dockerClient.close()
+    }
+  }
+
+  /**
+   * 上传并覆盖容器内的文件，例如 Python 脚本等
+   *
+   * @param containerId   已启动容器的 ID 或名称
+   * @param localFilePath 本地文件路径，如 /data/local/overlap_dam_select.py
+   * @param containerPath 容器内路径，如 /dem/overlap_dam_select.py
+   */
+  def uploadFileToContainer(containerId: String, localFilePath: String, containerPath: String): Unit = {
+    val config = DefaultDockerClientConfig.createDefaultConfigBuilder().build()
+    val dockerClient: DockerClient = DockerClientBuilder.getInstance(config).build()
+
+    try {
+      val localFile = new java.io.File(localFilePath)
+      require(localFile.exists(), s"本地文件不存在: $localFilePath")
+
+      // Docker SDK 要求上传的是 TAR 格式
+      val tarFile = java.io.File.createTempFile("upload_", ".tar")
+
+      // 创建 TAR 文件
+      val fos = new java.io.FileOutputStream(tarFile)
+      val tos = new org.apache.commons.compress.archivers.tar.TarArchiveOutputStream(fos)
+
+      try {
+        val entry = new org.apache.commons.compress.archivers.tar.TarArchiveEntry(localFile.getName)
+        entry.setSize(localFile.length())
+        tos.putArchiveEntry(entry)
+
+        val fis = new java.io.FileInputStream(localFile)
+        try {
+          val buffer = new Array[Byte](8 * 1024)
+          Iterator
+            .continually(fis.read(buffer))
+            .takeWhile(_ != -1)
+            .foreach(read => tos.write(buffer, 0, read))
+        } finally {
+          fis.close()
+        }
+
+        tos.closeArchiveEntry()
+      } finally {
+        tos.close()
+        fos.close()
+      }
+
+      // 上传 TAR 到容器 → 覆盖 containerPath 所在目录
+      val parentDir =
+        if (containerPath.contains("/")) containerPath.substring(0, containerPath.lastIndexOf("/"))
+        else "/"
+
+      dockerClient.copyArchiveToContainerCmd(containerId)
+        .withRemotePath(parentDir)
+        .withTarInputStream(new java.io.FileInputStream(tarFile))
+        .exec()
+
+      println(s"已上传并覆盖容器文件：$localFilePath → $containerId:$containerPath")
+
+    } finally {
+      dockerClient.close()
+    }
+  }
+
 }

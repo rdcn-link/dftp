@@ -151,4 +151,22 @@
             </plugin>
         </plugins>
     </build>
+    <distributionManagement>
+        <snapshotRepository>
+            <id>sdc</id>
+            <url>http://10.0.82.220:8081/repository/maven-snapshots/</url>
+        </snapshotRepository>
+        <repository>
+            <id>sdc</id>
+            <url>http://10.0.82.220:8081/repository/maven-releases</url>
+        </repository>
+    </distributionManagement>
+
+    <repositories>
+        <repository>
+            <id>sdc</id>
+            <name>Repository</name>
+            <url>http://10.0.82.220:8081/repository/maven-public/</url>
+        </repository>
+    </repositories>
 </project>
