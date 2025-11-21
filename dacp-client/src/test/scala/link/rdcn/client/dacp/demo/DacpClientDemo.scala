@@ -126,7 +126,7 @@ object DacpClientDemo{
           DataFrame.fromSeq(Seq(Blob.fromFile(tifFile)))
         case url if UrlValidator.extractPath(url) == "/csv/data_1.csv" =>
           val csvFile = new java.io.File("/data2/work/ncdc/faird/dftp-dacp/dftp-client/src/test/resources/data/csv/data_1.csv")
-          DataStreamSource.csv(csvFile,Some(","), false).dataFrame
+          DataStreamSource.csv(csvFile,Some(","), true).dataFrame
         case url if UrlValidator.extractPath(url) == "/op2/labels" =>
           val dirFile = new java.io.File("/data2/work/ncdc/faird/temp/op2/labels")
           DataStreamSource.filePath(dirFile).dataFrame
@@ -442,7 +442,7 @@ class DacpClientDemo {
 
   import link.rdcn.dacp.recipe.FlowNode
   @Test
-  def repositoryDemoTest(): Unit = {
+  def vrepositoryDemoTest(): Unit = {
 
     val dc = DacpClient.connect("dacp://0.0.0.0:3103", UsernamePassword("admin", "admin"))
 
@@ -495,7 +495,7 @@ class DacpClientDemo {
     val cppFile: File = new File(Paths.get(getResourcePath(""),"lib","cpp").toString).listFiles().head
     val cppPath: String = cppFile.getAbsolutePath
     val functionId = "aaa.bbb.id2"
-    val responseBody = operatorClient.uploadPackage(cppPath, functionId, "CPP_BIN", "cpp_processor", "main","2.0.0")
+    val responseBody = operatorClient.uploadPackage(cppPath, functionId, "CPP_BIN", "cpp_processor_linux", "main","3.0.0")
     assertTrue(Await.result(responseBody, 30.seconds).contains("success"), "Upload failed")
   }
 
@@ -504,7 +504,7 @@ class DacpClientDemo {
     val pythonFile: File = new File(Paths.get(getResourcePath(""),"lib","python").toString).listFiles().head
     val pythonPath: String = pythonFile.getAbsolutePath
     val functionId = "aaa.bbb.id3"
-    val responseBody = operatorClient.uploadPackage(pythonPath, functionId, "PYTHON_BIN", "Python Application", "normalize","2.0.0")
+    val responseBody = operatorClient.uploadPackage(pythonPath, functionId, "PYTHON_BIN", "Python Application", "normalize","3.0.0")
     assertTrue(Await.result(responseBody, 30.seconds).contains("success"), "Upload failed")
   }
 
@@ -525,7 +525,7 @@ class DacpClientDemo {
     val dc = DacpClient.connect("dacp://0.0.0.0:3103", UsernamePassword("admin", "admin"))
 
     val sourceNode: FlowNode = FlowNode.source("/csv/data_1.csv")
-    val repositoryOperator = FlowNode.stocked("aaa.bbb.id2", Some("2.0.0"))
+    val repositoryOperator = FlowNode.stocked("aaa.bbb.id2", Some("3.0.0"))
     val recipe: Flow = Flow.pipe(sourceNode, repositoryOperator)
 
     val result = dc.cook(recipe)
@@ -537,10 +537,214 @@ class DacpClientDemo {
     val dc = DacpClient.connect("dacp://0.0.0.0:3103", UsernamePassword("admin", "admin"))
 
     val sourceNode: FlowNode = FlowNode.source("/csv/data_1.csv")
-    val repositoryOperator = FlowNode.stocked("aaa.bbb.id3", Some("2.0.0"))
+    val repositoryOperator = FlowNode.stocked("aaa.bbb.id3", Some("3.0.0"))
     val recipe: Flow = Flow.pipe(sourceNode, repositoryOperator)
 
     val result = dc.cook(recipe)
     result.single().limit(10).foreach(println)
   }
+
+  @Test
+  def MMAPtoFIFOMMAPTest(): Unit = {
+    //输出MMAP未删除
+    val dc = DacpClient.connect("dacp://0.0.0.0:3103", UsernamePassword("admin", "admin"))
+
+    val opName = "gully_slop"
+    val imagePath = "registry.cn-hangzhou.aliyuncs.com/cnic-piflow/siltdam-jyg-faird:2.0"
+
+
+    val nodeGullySlopId = s"${opName}_${UUID.randomUUID().toString}"
+    val hostPath = FileUtils.getTempDirectory("", nodeGullySlopId)
+    val containerPath = s"/$nodeGullySlopId"
+    val nodeGullySlop = FifoFileBundleFlowNode(
+      Seq("python", "/dem/gully_slop.py", "--record_file", Paths.get(containerPath,"input1.csv").toString
+        , "--dem_file", Paths.get(containerPath, "input2.tif").toString
+        , "--outpath", Paths.get(containerPath, "output1.csv").toString),
+      Seq((Paths.get(hostPath,"input1.csv").toString, FileType.MMAP_FILE),
+        (Paths.get(hostPath, "input2.tif").toString, FileType.MMAP_FILE)),
+      Seq((Paths.get(hostPath, "output1.csv").toString, FileType.MMAP_FILE)),
+      DockerContainer(opName, Some(hostPath), Some(containerPath), Some(imagePath))
+    )
+
+    val fileRepositoryHydro = FifoFileBundleFlowNode(
+      Seq("python", "/mnt/data/temp2/hydro_susceptibility.py", "--slopfile", "/mnt/data/temp2/gully_slop_fifo_new.csv",
+        "--entropyfile", "/mnt/data/temp2/geo_entropy_fifo_new.csv", "--outpath", "/mnt/data/temp2/suscep_hdyro_fifo_new12.csv"),
+      Seq(("/data2/work/ncdc/faird/temp/temp2/geo_entropy_fifo_new.csv", FileType.MMAP_FILE),
+        ("/data2/work/ncdc/faird/temp/temp2/gully_slop_fifo_new.csv", FileType.MMAP_FILE)),
+      Seq(("/data2/work/ncdc/faird/temp/temp2/suscep_hdyro_fifo_new12.csv", FileType.FIFO_BUFFER)),
+      DockerContainer("jyg-container", Some("/data2/work/ncdc/faird/temp"), Some("/mnt/data"))
+    )
+
+    val fileRepositoryGeoTransMain = FifoFileBundleFlowNode(
+      Seq("python", "/mnt/data/temp2/geotrans_main.py", "--label_path", "/mnt/data/op2/labels_new",
+        "--tfw_path", "/mnt/data/op2/tfw_new", "--outpath", "/mnt/data/temp2/output"),
+      Seq(("/data2/work/ncdc/faird/temp/op2/tfw_new", FileType.DIRECTORY),
+        ("/data2/work/ncdc/faird/temp/op2/labels_new", FileType.DIRECTORY)),
+      Seq(("/data2/work/ncdc/faird/temp/temp2/output", FileType.DIRECTORY)),
+      DockerContainer("jyg-container")
+    )
+
+    val fileRepositorySelect = FifoFileBundleFlowNode(
+      Seq("python", "/mnt/data/temp2/overlap_dam_select.py", "--labelpath", "/mnt/data/temp2/output1",
+        "--sphydrofile", "/mnt/data/temp2/suscep_hdyro_fifo_new22.csv",
+        "--outpath", "/mnt/data/temp2/DamDetect_select_fifo.csv"),
+      Seq(("/data2/work/ncdc/faird/temp/temp2/suscep_hdyro_fifo_new22.csv", FileType.FIFO_BUFFER),
+        ("/data2/work/ncdc/faird/temp/temp2/output1", FileType.DIRECTORY)),
+      Seq(("/data2/work/ncdc/faird/temp/temp2/DamDetect_select_fifo.csv", FileType.FIFO_BUFFER)),
+      DockerContainer("jyg-container")
+    )
+
+    val recipe = Flow(
+      Map(
+        "sourceCsv" -> SourceNode("dacp://0.0.0.0:3103/2019年中国榆林市沟道信息.csv"),
+        "sourceTif" -> SourceNode("dacp://0.0.0.0:3103/2019年中国榆林市30m数字高程数据集.tif"),
+        "sourceGEO" -> SourceNode("dacp://0.0.0.0:3103/geo_entropy.csv"),
+        "gully" -> nodeGullySlop,
+        "fileRepositoryHydro" -> fileRepositoryHydro,
+        "sourceLabelsDir" -> SourceNode("dacp://0.0.0.0:3103/op2/labels"),
+        "sourceTfwDir" -> SourceNode("dacp://0.0.0.0:3103/op2/tfw"),
+        "fileRepositoryGeoTransMain" -> fileRepositoryGeoTransMain,
+        "fileRepositorySelect" -> fileRepositorySelect,
+        "fifoNode" -> FifoFileFlowNode()
+      ),
+      Map(
+        "sourceCsv" -> Seq("gully"),
+        "sourceTif" ->  Seq("gully"),
+        "sourceGEO" -> Seq("fileRepositoryHydro"),
+        "gully" -> Seq("fileRepositoryHydro"),
+        "fileRepositoryHydro" -> Seq("fileRepositorySelect"),
+        "sourceTfwDir" -> Seq("fileRepositoryGeoTransMain"),
+        "sourceLabelsDir" -> Seq("fileRepositoryGeoTransMain"),
+        "fileRepositoryGeoTransMain" -> Seq("fileRepositorySelect"),
+        "fileRepositorySelect" -> Seq("fifoNode")
+      ))
+    val result = dc.cook(recipe)
+    result.single().foreach(println)
+
+  }
+
+//  @Test
+//  def MMAPtoFIFOFIFOTest(): Unit = {
+//    val dacpClient = DacpClient.connect("dacp://0.0.0.0:3101", UsernamePassword("test", "test"))
+//
+//    val nodeGullySlop = FifoFileBundleFlowNode(
+//      Seq("python", "/mnt/data/temp2/gully_slop.py"),
+//      Seq(""),
+//      Seq("/data2/work/ncdc/faird/temp/temp2/gully_slop_fifo.csv"),
+//      DockerContainer("jyg-container"),
+//      FileType.MMAP_FILE,
+//      FileType.MMAP_FILE
+//    )
+//
+//    val nodeHydro = FifoFileBundleFlowNode(
+//      Seq("python", "/mnt/data/temp2/hydro_susceptibility.py"),
+//      Seq("/data2/work/ncdc/faird/temp/temp2/gully_slop_fifo_new.csv"),
+//      Seq("/data2/work/ncdc/faird/temp/temp2/suscep_hdyro_fifo.csv"),
+//      DockerContainer("jyg-container"),
+//      FileType.FIFO_BUFFER,
+//      FileType.FIFO_BUFFER
+//    )
+//
+//    val fifoFileNode = FifoFileFlowNode("/data2/work/ncdc/faird/temp/temp2/suscep_hdyro_fifo.csv")
+//
+//    val recipe = Flow(
+//      Map(
+//        "A" -> nodeGullySlop,
+//        "B" -> nodeHydro,
+//        "C" -> fifoFileNode
+//
+//      ),
+//      Map(
+//        "A" -> Seq("B"),
+//        "B" -> Seq("C")
+//      )
+//    )
+//    val result = dacpClient.execute(recipe)
+//    result.single().foreach(println)
+//
+//  }
+//
+//  @Test
+//  def FIFOtoMMAPMMAPTest(): Unit = {
+//    val dacpClient = DacpClient.connect("dacp://0.0.0.0:3101", UsernamePassword("test", "test"))
+//
+//    val nodeGullySlop = FifoFileBundleFlowNode(
+//      Seq("python", "/mnt/data/temp2/gully_slop.py"),
+//      Seq(""),
+//      Seq("/data2/work/ncdc/faird/temp/temp2/gully_slop_fifo.csv"),
+//      DockerContainer("jyg-container"),
+//      FileType.MMAP_FILE,
+//      FileType.FIFO_BUFFER
+//    )
+//
+//    val nodeHydro = FifoFileBundleFlowNode(
+//      Seq("python", "/mnt/data/temp2/hydro_susceptibility.py"),
+//      Seq("/data2/work/ncdc/faird/temp/temp2/gully_slop_fifo_new.csv"),
+//      Seq("/data2/work/ncdc/faird/temp/temp2/suscep_hdyro_fifo.csv"),
+//      DockerContainer("jyg-container"),
+//      FileType.MMAP_FILE,
+//      FileType.MMAP_FILE
+//    )
+//
+//    val fifoFileNode = FifoFileFlowNode("/data2/work/ncdc/faird/temp/temp2/suscep_hdyro_fifo.csv")
+//
+//    val recipe = Flow(
+//      Map(
+//        "A" -> nodeGullySlop,
+//        "B" -> nodeHydro,
+//        "C" -> fifoFileNode
+//
+//      ),
+//      Map(
+//        "A" -> Seq("B"),
+//        "B" -> Seq("C")
+//      )
+//    )
+//    val result = dacpClient.execute(recipe)
+//    result.single().foreach(println)
+//
+//  }
+//
+//  @Test
+//  def FIFOtoMMAPFIFOTest(): Unit = {
+//    //输出FIFO未删除
+//    val dacpClient = DacpClient.connect("dacp://0.0.0.0:3101", UsernamePassword("test", "test"))
+//
+//    val nodeGullySlop = FifoFileBundleFlowNode(
+//      Seq("python", "/mnt/data/temp2/gully_slop.py"),
+//      Seq(""),
+//      Seq("/data2/work/ncdc/faird/temp/temp2/gully_slop_fifo.csv"),
+//      DockerContainer("jyg-container"),
+//      FileType.FIFO_BUFFER,
+//      FileType.FIFO_BUFFER
+//    )
+//
+//    val nodeHydro = FifoFileBundleFlowNode(
+//      Seq("python", "/mnt/data/temp2/hydro_susceptibility.py"),
+//      Seq("/data2/work/ncdc/faird/temp/temp2/gully_slop_fifo_new.csv"),
+//      Seq("/data2/work/ncdc/faird/temp/temp2/suscep_hdyro_fifo.csv"),
+//      DockerContainer("jyg-container"),
+//      FileType.MMAP_FILE,
+//      FileType.FIFO_BUFFER
+//    )
+//
+//    val fifoFileNode = FifoFileFlowNode("/data2/work/ncdc/faird/temp/temp2/suscep_hdyro_fifo.csv")
+//
+//    val recipe = Flow(
+//      Map(
+//        "A" -> nodeGullySlop,
+//        "B" -> nodeHydro,
+//        "C" -> fifoFileNode
+//
+//      ),
+//      Map(
+//        "A" -> Seq("B"),
+//        "B" -> Seq("C")
+//      )
+//    )
+//    val result = dacpClient.execute(recipe)
+//    result.single().foreach(println)
+//
+//  }
+
 }

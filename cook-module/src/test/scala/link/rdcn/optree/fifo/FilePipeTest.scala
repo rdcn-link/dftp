@@ -9,7 +9,7 @@ package link.rdcn.optree.fifo
 import link.rdcn.dacp.optree.fifo.FilePipe
 import link.rdcn.optree.fifo.FilePipeTest.{pipe, testFile}
 import link.rdcn.struct.ValueType.StringType
-import link.rdcn.struct.{DataFrame, DefaultDataFrame, Row, StructType}
+import link.rdcn.struct.{ClosableIterator, DataFrame, DefaultDataFrame, Row, StructType}
 import org.junit.jupiter.api.Assertions.{assertEquals, assertFalse, assertNotNull, assertTrue}
 import org.junit.jupiter.api.condition.{DisabledOnOs, OS}
 import org.junit.jupiter.api.io.TempDir
@@ -136,4 +136,8 @@ class MockFilePipe(file: File) extends FilePipe(file) {
   override def dataFrame(): DataFrame = {
     DefaultDataFrame(StructType.empty.add("mock", StringType), Seq(Row("mockData")).iterator)
   }
+
+  override def write(messages: Iterator[String]): Unit = ???
+
+  override def read(): ClosableIterator[String] = ???
 }

@@ -13,13 +13,14 @@ import org.json.{JSONArray, JSONObject}
 
 import java.io._
 import java.net.{URL, URLClassLoader}
-import java.nio.file.Paths
+import java.nio.file.{Files, Paths}
 import java.util
 import java.util.{Base64, ServiceLoader, UUID}
 import scala.collection.JavaConverters.{asJavaIterableConverter, asScalaBufferConverter, mapAsScalaMapConverter}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.{Failure, Success, Try}
+import org.apache.commons.io.FileUtils
 
 /**
  * @Author renhao
@@ -193,10 +194,11 @@ case class PythonBin(functionName: String, whlPath: String, batchSize: Int = 100
     jo.put("whlPath", whlPath)
     jo.put("batchSize", batchSize)
   }
+
   //TODO 支持对一组DataFrame的处理
   override def applyToDataFrames(input: Seq[DataFrame], ctx: FlowExecutionContext): DataFrame = {
     val jep = ctx.getSubInterpreter(Paths.get(ctx.pythonHome,
-        LangTypeV2.PYTHON_BIN.name+UUID.randomUUID()).toString, whlPath)
+        LangTypeV2.PYTHON_BIN.name + UUID.randomUUID()).toString, whlPath)
       .getOrElse(throw new IllegalArgumentException("Python interpreter is required"))
     jep.eval("import link.rdcn.operators.registry as registry")
     jep.set("operator_name", functionName)
@@ -238,6 +240,7 @@ case class JavaJar(jarPath: String, functionName: String) extends TransformFunct
       case other => throw new IllegalArgumentException(s"Unsupported input function type: $other")
     }
   }
+
   private class PluginClassLoader(urls: Array[URL], parent: ClassLoader)
     extends URLClassLoader(urls, parent) {
 
@@ -267,7 +270,19 @@ case class CppBin(cppPath: String) extends TransformFunctionWrapper {
     .put("cppPath", cppPath)
 
   override def applyToDataFrames(input: Seq[DataFrame], ctx: FlowExecutionContext): DataFrame = {
-    val pb = new ProcessBuilder(cppPath)
+    val execFile = new java.io.File(cppPath)
+
+    // 检查并赋予执行权限
+    // 这一步对于从网络下载的二进制文件至关重要
+    if (execFile.exists() && !execFile.canExecute) {
+      val succeed = execFile.setExecutable(true)
+      if (!succeed) {
+        // 如果无法赋予权限，通常意味着文件系统只读或当前用户权限极低
+        throw new java.io.IOException(s"Failed to make file executable: $cppPath")
+      }
+    }
+    val pb = new ProcessBuilder(execFile.getAbsolutePath)
+    pb.redirectError(ProcessBuilder.Redirect.INHERIT)
     val process = pb.start()
     val writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream))
     val reader = new BufferedReader(new InputStreamReader(process.getInputStream))
@@ -280,14 +295,26 @@ case class CppBin(cppPath: String) extends TransformFunctionWrapper {
         override def next(): String = {
           val row = iter.next()
           val jsonStr = row.toJsonString(inputSchema)
-          // 写入 stdin
-          writer.write(jsonStr)
-          writer.newLine()
-          writer.flush()
-          // 从 stdout 读取一行响应 JSON
-          val response = reader.readLine()
-          if (response == null) throw new RuntimeException("Unexpected end of output from C++ process.")
-          response
+          try {
+            // 尝试写入
+            writer.write(jsonStr)
+            writer.newLine()
+            writer.flush()
+
+            // 读取响应
+            val response = reader.readLine()
+            if (response == null) {
+              // 正常读取到 null，说明对方关闭了流，但这里通常意味着异常退出
+              handleProcessDeath(process, "C++ process closed stream unexpectedly")
+            }
+            response
+          } catch {
+            case e: java.io.IOException =>
+              // 【关键】捕获 Broken pipe / Stream closed
+              // 此时进程很可能已经结束了，我们需要“尸检”
+              handleProcessDeath(process, s"Write failed: ${e.getMessage}")
+              throw e // 只要上面 handleProcessDeath 抛异常，这行其实执行不到
+          }
         }
       }
       val r = DataUtils.getStructTypeStreamFromJson(stream)
@@ -299,6 +326,34 @@ case class CppBin(cppPath: String) extends TransformFunctionWrapper {
       })
       DefaultDataFrame(r._2, autoClosingIterator)
     })
+  }
+
+  def handleProcessDeath(proc: Process, msg: String): Unit = {
+    val exitCode = if (proc.isAlive) "Alive" else proc.exitValue().toString
+
+    // 尝试抢救 Stdout 里的残留日志
+    // 注意：Reader 可能已经被上面的逻辑读过一部分，这里尽量读取剩余的
+    val stdoutResidue = try {
+      val sb = new StringBuilder()
+      while (proc.getInputStream.available() > 0) {
+        val ch = proc.getInputStream.read()
+        if (ch != -1) sb.append(ch.toChar)
+      }
+      sb.toString()
+    } catch {
+      case _: Exception => "Cannot read stdout"
+    }
+
+    // 组装错误信息
+    val errorDetail =
+      s"""
+         |Error Context: $msg
+         |Process Status: $exitCode
+         |Last words from Stdout: [$stdoutResidue]
+    """.stripMargin
+
+    // 直接抛出包含丰富信息的异常
+    throw new RuntimeException(errorDetail)
   }
 }
 
@@ -334,10 +389,10 @@ case class FileRepositoryBundle(
     jo.put("command", new JSONArray(command.asJava))
     jo.put("inputFilePath", new JSONArray(inputFilePath.map(file =>
       new JSONObject().put("filePath", file._1)
-        .put("fileType",file._2.toString)).asJava))
+        .put("fileType", file._2.toString)).asJava))
     jo.put("outputFilePath", new JSONArray(outputFilePath.map(file =>
       new JSONObject().put("filePath", file._1)
-        .put("fileType",file._2.toString)).asJava))
+        .put("fileType", file._2.toString)).asJava))
     jo.put("dockerContainer", dockerContainer.toJson())
     jo
   }
@@ -345,44 +400,59 @@ case class FileRepositoryBundle(
   def runOperator(): DataFrame = {
     DockerExecute.nonInteractiveExec(command.toArray, dockerContainer.containerName) //"jyg-container"
     dockerContainer.stop()
-    if(outputFilePath.head._2 != FileType.DIRECTORY){
+    if (outputFilePath.head._2 != FileType.DIRECTORY) {
       //TODO: support outputting multiple DataFrames
       FileDataFrame(new File(outputFilePath.head._1), outputFilePath.head._2)
-    }else DataStreamSource.filePath(new File(outputFilePath.head._1)).dataFrame
+    } else DataStreamSource.filePath(new File(outputFilePath.head._1)).dataFrame
   }
 
   def deleteFiFOFile(): Unit = {
+    def safeDelete(pathStr: String): Unit = {
+      if (pathStr != null && pathStr.nonEmpty) {
+        try {
+          val path = Paths.get(pathStr)
+          if (Files.exists(path)) {
+            val process = Runtime.getRuntime.exec(Array("rm", "-rf", pathStr))
+            process.waitFor()
+          }
+        } catch {
+          case e: Exception =>
+            logger.warn(s"Failed to delete file: $pathStr", e)
+        }
+      }
+    }
+
     (inputFilePath ++ outputFilePath).foreach(filePath => {
-      Runtime.getRuntime.exec(Array("rm", "-rf", filePath._1))
+      safeDelete(filePath._1)
     })
-    if(dockerContainer.hostPath.nonEmpty){
-      Runtime.getRuntime.exec(Array("rm", "-rf", dockerContainer.hostPath.get))
+
+    if (dockerContainer.hostPath.nonEmpty) {
+      safeDelete(dockerContainer.hostPath.get)
     }
   }
 
   override def applyToDataFrames(inputs: Seq[DataFrame], ctx: FlowExecutionContext): DataFrame = {
     dockerContainer.start()
-    outputFilePath.foreach(path=>{
-      if(path._2 == FileType.DIRECTORY){
+    outputFilePath.foreach(path => {
+      if (path._2 == FileType.DIRECTORY) {
         val dir = new File(path._1)
         dir.deleteOnExit()
         dir.mkdirs()
-      }else RowFilePipe.fromFilePath(path._1)
+      } else FilePipe.fromFilePath(path._1, path._2)
     })
     require(inputs.length == inputFilePath.length,
       s"Operator requires ${inputFilePath.length} input file(s), but received ${inputs.length}.")
-    inputs.zip(inputFilePath).foreach( dfAndInput => {
+    inputs.zip(inputFilePath).foreach(dfAndInput => {
       dfAndInput._1 match {
         case f: FileDataFrame =>
-          if(dfAndInput._2._1 != f.file.getAbsolutePath){
-            RowFilePipe.fromFilePath(dfAndInput._2._1)
-            RowFilePipe(f.file).copyToFile(dfAndInput._2._1)
+          if (dfAndInput._2._1 != f.file.getAbsolutePath) {
+            FilePipe.fromFilePath(f.file.getAbsolutePath,f.fileType).copyToFile(FilePipe.fromFilePath(dfAndInput._2._1, dfAndInput._2._2))
           }
-        case f: DataFrame => if(f.schema.columns.length == 1 && f.schema.columns.head.colType == BlobType) {
+        case f: DataFrame => if (f.schema.columns.length == 1 && f.schema.columns.head.colType == BlobType) {
           val blob = f.collect().head.getAs[Blob](0)
           val file = new File(dfAndInput._2._1)
           writeBlobToFile(blob, file)
-        }else if(f.schema == StructType.binaryStructType) {
+        } else if (f.schema == StructType.binaryStructType) {
           val dir = Paths.get(dfAndInput._2._1).toFile
           dir.deleteOnExit()
           dir.mkdirs()
@@ -391,9 +461,9 @@ case class FileRepositoryBundle(
           })
         } else {
           val future = Future {
-            RowFilePipe.fromFilePath(dfAndInput._2._1).write(f.mapIterator(iter => iter.map(row => row.toSeq.mkString(","))))
+            FilePipe.fromFilePath(dfAndInput._2._1,dfAndInput._2._2).write(f.mapIterator(iter => iter.map(row => row.toSeq.mkString(","))))
           }
-          future onComplete{
+          future onComplete {
             case Success(value) => logger.debug(s"load ${dfAndInput._2._1} success")
             case Failure(e) => logger.debug(s"load ${dfAndInput._2._1} faild")
               throw e
@@ -402,7 +472,7 @@ case class FileRepositoryBundle(
       }
     })
     //TODO: support outputting multiple DataFrames
-    if(outputFilePath.head._2 == FileType.DIRECTORY) {
+    if (outputFilePath.head._2 == FileType.DIRECTORY) {
       runOperator()
       DataStreamSource.filePath(new File(outputFilePath.head._1)).dataFrame
     } else FileDataFrame(new File(outputFilePath.head._1), outputFilePath.head._2)

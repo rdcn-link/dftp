@@ -1,9 +1,9 @@
 package link.rdcn.dacp.optree.fifo
 
-import link.rdcn.struct.{DataFrame, DefaultDataFrame, Row, StructType}
+import link.rdcn.struct.{ClosableIterator, DataFrame, DefaultDataFrame, Row, StructType}
+
 import java.nio.file.{Files, Paths, StandardOpenOption}
 import java.nio.ByteBuffer
-
 import java.io._
 /**
  * @Author renhao
@@ -84,6 +84,10 @@ case class BinaryFilePipe(file: File) extends FilePipe (file){
 
   override def dataFrame(): DataFrame =
     DefaultDataFrame(StructType.binaryStructType, read().map(bytes => Row.fromSeq(Seq(bytes))))
+
+  override def write(messages: Iterator[String]): Unit = ???
+
+  override def read(): ClosableIterator[String] = ???
 }
 
 object BinaryFilePipe {

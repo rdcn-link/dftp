@@ -27,13 +27,15 @@ trait FlowExecutionContext extends link.rdcn.operation.ExecutionContext with Log
                           thread: Thread): Unit = {
     asyncResults.put(transformOp, future)
     asyncResultsList.append(thread)
-    future onComplete {
-      case Success(v) =>
-        transformOp.asInstanceOf[TransformerNode].release()
-      case Failure(exception) =>
-        asyncResults.remove(transformOp)
-        shutdownAsyncTasks()
-        logger.error(exception)
+    future onComplete { tryResult =>
+      transformOp.asInstanceOf[TransformerNode].release()
+      tryResult match {
+        case Success(v) =>
+        case Failure(exception) =>
+          asyncResults.remove(transformOp)
+          shutdownAsyncTasks()
+          logger.error(exception)
+      }
     }
   }
 
