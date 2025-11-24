@@ -16,7 +16,7 @@ import java.io.StringWriter
  */
 case class RequireCatalogServiceEvent(holder: ObjectHolder[CatalogService]) extends CrossModuleEvent
 
-class DacpCatalogModule() extends DftpModule {
+class DacpCatalogModule extends DftpModule {
 
   private val catalogServiceHolder = new ObjectHolder[CatalogService]
 

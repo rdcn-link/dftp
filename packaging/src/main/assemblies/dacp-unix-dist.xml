@@ -13,21 +13,19 @@
             <outputDirectory>bin</outputDirectory>
             <directoryMode>0755</directoryMode>
             <fileMode>0755</fileMode>
-            <excludes>
-                <exclude>**/*.bat</exclude>
-                <exclude>**/*.m4</exclude>
-                <exclude>**/*.psd1</exclude>
-                <exclude>**/*.psm1</exclude>
-                <exclude>**/*.ps1</exclude>
-                <exclude>**/*.exe</exclude>
-                <exclude>**/*.jar</exclude>
-            </excludes>
+            <includes>
+                <include>dacp.sh</include>
+            </includes>
         </fileSet>
         <fileSet>
             <directory>src/main/distribution/conf</directory>
             <outputDirectory>conf</outputDirectory>
             <directoryMode>0755</directoryMode>
             <fileMode>0755</fileMode>
+            <includes>
+                <include>dacp.conf</include>
+                <include>dacp.xml</include>
+            </includes>
         </fileSet>
         <fileSet>
             <directory>src/main/distribution/logs</directory>

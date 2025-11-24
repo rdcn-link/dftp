@@ -24,6 +24,24 @@
             <version>${project.parent.version}</version>
         </dependency>
         <dependency>
+            <groupId>link.rdcn</groupId>
+            <artifactId>dacp-server</artifactId>
+            <version>${project.parent.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>link.rdcn</groupId>
+            <artifactId>dacp-proxy</artifactId>
+            <version>${project.parent.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>link.rdcn</groupId>
+            <artifactId>dacp-proxy</artifactId>
+            <version>${project.parent.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
             <groupId>org.scala-lang</groupId>
             <artifactId>scala-library</artifactId>
             <version>2.12.8</version>
@@ -32,7 +50,7 @@
 
     <profiles>
         <profile>
-            <id>server-unix-dist</id>
+            <id>dftp-server-unix-dist</id>
             <build>
                 <plugins>
                     <plugin>
@@ -74,7 +92,7 @@
                                         </transformer>
                                         <transformer
                                                 implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                            <mainClass>link.rdcn.server.DftpServerStart</mainClass>
+                                            <mainClass>link.rdcn.server.ServerStart</mainClass>
                                         </transformer>
                                         <transformer
                                                 implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
@@ -103,7 +121,7 @@
                                     <appendAssemblyId>true</appendAssemblyId>
                                     <outputDirectory>${project.build.directory}</outputDirectory>
                                     <descriptors>
-                                        <descriptor>src/main/assemblies/unix-dist.xml</descriptor>
+                                        <descriptor>src/main/assemblies/dftp-unix-dist.xml</descriptor>
                                     </descriptors>
                                 </configuration>
                             </execution>
@@ -134,7 +152,7 @@
             </build>
         </profile>
         <profile>
-            <id>server-win-dist</id>
+            <id>dftp-server-win-dist</id>
             <build>
                 <plugins>
                     <plugin>
@@ -175,7 +193,7 @@
                                         </transformer>
                                         <transformer
                                                 implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                            <mainClass>link.rdcn.server.DftpServerStart</mainClass>
+                                            <mainClass>link.rdcn.server.ServerStart</mainClass>
                                         </transformer>
                                         <transformer
                                                 implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
@@ -203,7 +221,213 @@
                                 <manifest>
                                     <addClasspath>true</addClasspath>
                                     <!--下面必须指定好主类 如com.my.Main -->
-                                    <mainClass>link.rdcn.server.DftpServerStart</mainClass>
+                                    <mainClass>link.rdcn.server.ServerStart</mainClass>
+                                </manifest>
+                            </archive>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>windows-dist</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>single</goal>
+                                </goals>
+                                <configuration>
+                                    <descriptors>
+                                        <descriptor>src/main/assemblies/windows-dist.xml</descriptor>
+                                    </descriptors>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>dacp-server-unix-dist</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-shade-plugin</artifactId>
+                        <version>3.2.1</version>
+                        <configuration>
+                            <finalName>dacp-dist-${project.parent.version}</finalName>
+                            <outputDirectory>${project.build.directory}</outputDirectory>
+                            <shadedArtifactAttached>true</shadedArtifactAttached>
+                            <artifactSet>
+                                <includes>
+                                    <include>*:*</include>
+                                </includes>
+                            </artifactSet>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>shade</goal>
+                                </goals>
+                                <configuration>
+                                    <outputDirectory>${project.build.directory}/unix/lib</outputDirectory>
+                                    <transformers>
+                                        <transformer
+                                                implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                                            <resource>META-INF/spring.handlers</resource>
+                                        </transformer>
+                                        <transformer
+                                                implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                            <mainClass>link.rdcn.server.ServerStart</mainClass>
+                                        </transformer>
+                                        <transformer
+                                                implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                                            <resource>META-INF/spring.schemas</resource>
+                                        </transformer>
+                                        <transformer
+                                                implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                                    </transformers>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-assembly-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>single</goal>
+                                </goals>
+                                <configuration>
+                                    <attach>false</attach>
+                                    <finalName>dacp-server-${project.parent.version}</finalName>
+                                    <appendAssemblyId>true</appendAssemblyId>
+                                    <outputDirectory>${project.build.directory}</outputDirectory>
+                                    <descriptors>
+                                        <descriptor>src/main/assemblies/dacp-unix-dist.xml</descriptor>
+                                    </descriptors>
+                                </configuration>
+                            </execution>
+                        </executions>
+
+                    </plugin>
+
+                    <plugin>
+                        <inherited>false</inherited>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>copy-shell</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <target>
+                                        <ant antfile="build.xml" inheritRefs="true"/>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+            <dependencies>
+                <dependency>
+                    <groupId>link.rdcn</groupId>
+                    <artifactId>dacp-server</artifactId>
+                    <version>${project.parent.version}</version>
+                </dependency>
+                <dependency>
+                    <groupId>org.scala-lang</groupId>
+                    <artifactId>scala-library</artifactId>
+                    <version>2.12.8</version>
+                </dependency>
+            </dependencies>
+        </profile>
+        <profile>
+            <id>dacp-server-win-dist</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-shade-plugin</artifactId>
+                        <configuration>
+                            <finalName>dacp-dist-${project.parent.version}</finalName>
+                            <outputDirectory>${project.build.directory}</outputDirectory>
+                            <shadedArtifactAttached>true</shadedArtifactAttached>
+                            <artifactSet>
+                                <includes>
+                                    <include>*:*</include>
+                                </includes>
+                            </artifactSet>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>shade</goal>
+                                </goals>
+                                <configuration>
+                                    <outputDirectory>${project.build.directory}/win/lib</outputDirectory>
+                                    <transformers>
+                                        <transformer
+                                                implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                                            <resource>META-INF/spring.handlers</resource>
+                                        </transformer>
+                                        <transformer
+                                                implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                            <mainClass>link.rdcn.server.ServerStart</mainClass>
+                                        </transformer>
+                                        <transformer
+                                                implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                                            <resource>META-INF/spring.schemas</resource>
+                                        </transformer>
+                                        <transformer
+                                                implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                                    </transformers>
+                                </configuration>
+                            </execution>
+
+                        </executions>
+                    </plugin>
+
+
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-assembly-plugin</artifactId>
+                        <configuration>
+                            <attach>false</attach>
+                            <finalName>dacp-server-${project.parent.version}</finalName>
+                            <appendAssemblyId>true</appendAssemblyId>
+                            <outputDirectory>${project.build.directory}</outputDirectory>
+                            <archive>
+                                <manifest>
+                                    <addClasspath>true</addClasspath>
+                                    <!--下面必须指定好主类 如com.my.Main -->
+                                    <mainClass>link.rdcn.server.ServerStart</mainClass>
                                 </manifest>
                             </archive>
                         </configuration>
@@ -228,17 +452,127 @@
             <dependencies>
                 <dependency>
                     <groupId>link.rdcn</groupId>
-                    <artifactId>dftp-common</artifactId>
-                    <version>${project.parent.version}</version>
-                </dependency>
-                <dependency>
-                    <groupId>link.rdcn</groupId>
-                    <artifactId>dftp-server</artifactId>
+                    <artifactId>dacp-server</artifactId>
                     <version>${project.parent.version}</version>
                 </dependency>
                 <dependency>
                     <groupId>org.scala-lang</groupId>
                     <artifactId>scala-library</artifactId>
+                    <version>2.12.8</version>
+                </dependency>
+            </dependencies>
+        </profile>
+        <profile>
+            <id>proxy-server-unix-dist</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-shade-plugin</artifactId>
+                        <version>3.2.1</version>
+                        <configuration>
+                            <finalName>dacp-proxy-dist-${project.version}</finalName>
+                            <outputDirectory>${project.build.directory}</outputDirectory>
+                            <shadedArtifactAttached>true</shadedArtifactAttached>
+                            <artifactSet>
+                                <includes>
+                                    <include>*:*</include>
+                                </includes>
+                            </artifactSet>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>shade</goal>
+                                </goals>
+                                <configuration>
+                                    <outputDirectory>${project.build.directory}/unix/lib</outputDirectory>
+                                    <transformers>
+                                        <transformer
+                                                implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                                            <resource>META-INF/spring.handlers</resource>
+                                        </transformer>
+                                        <transformer
+                                                implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                            <mainClass>link.rdcn.server.ServerStart</mainClass>
+                                        </transformer>
+                                        <transformer
+                                                implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                                            <resource>META-INF/spring.schemas</resource>
+                                        </transformer>
+                                        <transformer
+                                                implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                                    </transformers>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-assembly-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>single</goal>
+                                </goals>
+                                <configuration>
+                                    <attach>false</attach>
+                                    <finalName>dacp-proxy-server-${project.version}</finalName>
+                                    <appendAssemblyId>true</appendAssemblyId>
+                                    <outputDirectory>${project.build.directory}</outputDirectory>
+                                    <descriptors>
+                                        <descriptor>src/main/assemblies/proxy-unix-dist.xml</descriptor>
+                                    </descriptors>
+                                </configuration>
+                            </execution>
+                        </executions>
+
+                    </plugin>
+
+                    <plugin>
+                        <inherited>false</inherited>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>copy-shell</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <target>
+                                        <ant antfile="build.xml" inheritRefs="true"/>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+            <dependencies>
+                <dependency>
+                    <groupId>org.scala-lang</groupId>
+                    <artifactId>scala-library</artifactId>
+                    <version>2.12.8</version>
+                </dependency>
+                <dependency>
+                    <groupId>link.rdcn</groupId>
+                    <artifactId>dacp-proxy</artifactId>
+                    <version>${project.parent.version}</version>
                 </dependency>
             </dependencies>
         </profile>

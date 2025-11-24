@@ -17,6 +17,7 @@ import org.springframework.core.io.FileUrlResource
 
 import java.io.File
 import java.nio.charset.StandardCharsets
+import java.security.{PrivateKey, PublicKey}
 import java.util
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.LockSupport
@@ -35,6 +36,8 @@ trait ServerContext {
   def getPort(): Int
   def getProtocolScheme(): String
   def getDftpHome(): Option[String]
+  def getPublicKeyMap(): Map[String, PublicKey] = Map.empty
+  def getPrivateKey: Option[PrivateKey] = None
   def baseUrl: String = s"${getProtocolScheme()}://${getHost()}:${getPort()}"
 }
 
@@ -56,6 +59,10 @@ class DftpServer(config: DftpServerConfig) extends Logging {
     override def getProtocolScheme(): String = config.protocolScheme
 
     override def getDftpHome(): Option[String] = config.dftpHome
+
+    override def getPublicKeyMap(): Map[String, PublicKey] = config.pubKeyMap
+
+    override def getPrivateKey: Option[PrivateKey] = config.privateKey
   })
 
   private val authenticatedUserMap = new ConcurrentHashMap[String, UserPrincipal]()

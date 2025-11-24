@@ -13,25 +13,41 @@
             <outputDirectory>bin</outputDirectory>
             <directoryMode>0755</directoryMode>
             <fileMode>0755</fileMode>
-            <excludes>
-                <exclude>**/*.bat</exclude>
-                <exclude>**/*.m4</exclude>
-                <exclude>**/*.psd1</exclude>
-                <exclude>**/*.psm1</exclude>
-                <exclude>**/*.ps1</exclude>
-                <exclude>**/*.exe</exclude>
-                <exclude>**/*.jar</exclude>
-            </excludes>
+            <includes>
+                <include>dftp.sh</include>
+            </includes>
         </fileSet>
         <fileSet>
             <directory>src/main/distribution/conf</directory>
             <outputDirectory>conf</outputDirectory>
             <directoryMode>0755</directoryMode>
             <fileMode>0755</fileMode>
+            <includes>
+                <include>dftp.conf</include>
+                <include>dftp.xml</include>
+            </includes>
         </fileSet>
         <fileSet>
             <directory>src/main/distribution/logs</directory>
             <outputDirectory>logs</outputDirectory>
+            <directoryMode>0755</directoryMode>
+            <fileMode>0755</fileMode>
+            <excludes>
+                <exclude>**/.keep</exclude>
+            </excludes>
+        </fileSet>
+        <fileSet>
+            <directory>src/main/distribution/data</directory>
+            <outputDirectory>data</outputDirectory>
+            <directoryMode>0755</directoryMode>
+            <fileMode>0755</fileMode>
+            <excludes>
+                <exclude>**/.keep</exclude>
+            </excludes>
+        </fileSet>
+        <fileSet>
+            <directory>src/main/distribution/plugins</directory>
+            <outputDirectory>plugins</outputDirectory>
             <directoryMode>0755</directoryMode>
             <fileMode>0755</fileMode>
             <excludes>
@@ -47,7 +63,7 @@
                 <exclude>**/.keep</exclude>
             </excludes>
             <includes>
-                <include>dacp-proxy-dist-0.5.0-20251028.jar</include>
+                <include>dftp-dist-0.5.0-20251028.jar</include>
             </includes>
         </fileSet>
     </fileSets>
