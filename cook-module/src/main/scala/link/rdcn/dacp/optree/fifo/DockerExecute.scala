@@ -63,7 +63,7 @@ object DockerExecute {
       val container: CreateContainerResponse = dockerClient.createContainerCmd(imageName)
         .withName(containerName)
         .withBinds(new Bind(hostDir, new Volume(containerDir))) // 挂载目录
-        .withBinds(new Bind("/dev/shm", new Volume("/dev/shm"))) // 挂载目录
+//        .withBinds(new Bind("/dev/shm", new Volume("/dev/shm"))) // 挂载目录
         .withTty(true)    // 相当于 -t
         .withStdinOpen(true) // 相当于 -i
         .exec()
