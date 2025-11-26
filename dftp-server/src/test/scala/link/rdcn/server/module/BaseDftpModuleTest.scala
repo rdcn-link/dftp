@@ -32,7 +32,7 @@ class BaseDftpModuleTest {
   private var streamEventHandler: EventHandler = _
 
   // Holders
-  private var dataFrameHolder: ObjectHolder[DataFrameProviderService] = _
+  private var dataFrameHolder: Workers[DataFrameProviderService] = _
 
   @TempDir
   var tempDirectory: Path = _
@@ -59,10 +59,10 @@ class BaseDftpModuleTest {
 
     // 4. 提取两个 EventHandler
     parserEventHandler = mockAnchor.hookedEventHandlers.find(
-      _.accepts(new RequireGetStreamRequestParserEvent(null))
+      _.accepts(new CollectParseRequestMethodEvent(null))
     ).get
     streamEventHandler = mockAnchor.hookedEventHandlers.find(
-      _.accepts(new RequireGetStreamHandlerEvent(null))
+      _.accepts(new CollectGetStreamMethodEvent(null))
     ).get
 
     assertNotNull(parserEventHandler, "未能找到 GetStreamRequestParserEvent 处理器")
@@ -73,7 +73,8 @@ class BaseDftpModuleTest {
 
   /**
    * 准备一个 Ticket 字节数组
-   * @param typeId 1 = BLOB, 2 = URL
+   *
+   * @param typeId  1 = BLOB, 2 = URL
    * @param content 票据内容
    */
   private def createTicketBytes(typeId: Byte, content: String): Array[Byte] = {
@@ -87,9 +88,9 @@ class BaseDftpModuleTest {
 
   @Test
   def testParser_BLOB_TICKET(): Unit = {
-    val holder = new ObjectHolder[GetStreamRequestParser]()
-    parserEventHandler.doHandleEvent(new RequireGetStreamRequestParserEvent(holder))
-    val parser = holder.invoke(run = s => s, onNull = null)
+    val holder = new Workers[ParseRequestMethod]()
+    parserEventHandler.doHandleEvent(new CollectParseRequestMethodEvent(holder))
+    val parser = holder.invoke(runMethod = s => s, onNull = null)
     assertNotNull(parser, "Parser 未被注入")
 
     val blobId = "my-blob-id-123"
@@ -105,9 +106,9 @@ class BaseDftpModuleTest {
 
   @Test
   def testParser_URL_GET_TICKET_PartialPath(): Unit = {
-    val holder = new ObjectHolder[GetStreamRequestParser]()
-    parserEventHandler.doHandleEvent(new RequireGetStreamRequestParserEvent(holder))
-    val parser = holder.invoke(run = s => s, onNull = null)
+    val holder = new Workers[ParseRequestMethod]()
+    parserEventHandler.doHandleEvent(new CollectParseRequestMethodEvent(holder))
+    val parser = holder.invoke(runMethod = s => s, onNull = null)
 
     // 2 = URL_GET_TICKET
     // 使用一个部分路径
@@ -130,9 +131,9 @@ class BaseDftpModuleTest {
 
   @Test
   def testParser_URL_GET_TICKET_FullUrl(): Unit = {
-    val holder = new ObjectHolder[GetStreamRequestParser]()
-    parserEventHandler.doHandleEvent(new RequireGetStreamRequestParserEvent(holder))
-    val parser = holder.invoke(run = s => s, onNull = null)
+    val holder = new Workers[ParseRequestMethod]()
+    parserEventHandler.doHandleEvent(new CollectParseRequestMethodEvent(holder))
+    val parser = holder.invoke(runMethod = s => s, onNull = null)
 
     // 2 = URL_GET_TICKET
     // 使用一个完整的 URL
@@ -150,19 +151,18 @@ class BaseDftpModuleTest {
 
   // --- GetStreamHandler (Stream 处理) 测试 ---
 
-  private def getChainedStreamHandler(oldHandler: GetStreamHandler = null): GetStreamHandler = {
-    val holder = new ObjectHolder[GetStreamHandler]()
+  private def getChainedStreamHandler(oldHandler: GetStreamMethod = null): FilteredGetStreamMethods = {
+    val holder = new FilteredGetStreamMethods()
     if (oldHandler != null) {
-      holder.set(oldHandler)
+      holder.addMethod(oldHandler)
     }
-    streamEventHandler.doHandleEvent(new RequireGetStreamHandlerEvent(holder))
-    holder.invoke(run = s => s, onNull = null)
+    streamEventHandler.doHandleEvent(new CollectGetStreamMethodEvent(holder))
+    holder
   }
 
   @Test
   @Disabled("直接使用Blob会被关闭")
   def testHandler_DacpGetBlobStreamRequest_HappyPath(): Unit = {
-    val chainedHandler = getChainedStreamHandler()
     val blobId = "my-blob"
     val blobData = "Hello Blob".getBytes(StandardCharsets.UTF_8)
 
@@ -176,7 +176,7 @@ class BaseDftpModuleTest {
     val response = new MockDftpGetStreamResponse()
 
     // 2. 执行
-    chainedHandler.doGetStream(request, response)
+    getChainedStreamHandler().handle(request, response)
 
     // 3. 验证
     assertFalse(response.errorSent, "Happy path 不应发送错误")
@@ -191,13 +191,12 @@ class BaseDftpModuleTest {
 
   @Test
   def testHandler_DacpGetBlobStreamRequest_NotFound(): Unit = {
-    val chainedHandler = getChainedStreamHandler()
     val request = new MockDacpGetBlobStreamRequest("non-existent-id")
     val response = new MockDftpGetStreamResponse()
 
     // 执行并验证
     val ex = assertThrows(classOf[RuntimeException], () => {
-      chainedHandler.doGetStream(request, response)
+      getChainedStreamHandler().handle(request, response)
       ()
     }, "请求不存在的 Blob ID 应抛出异常 (由 sendError 模拟)")
 
@@ -207,11 +206,10 @@ class BaseDftpModuleTest {
 
   @Test
   def testHandler_DftpGetPathStreamRequest_HappyPath(): Unit = {
-    val chainedHandler = getChainedStreamHandler()
 
     // 1. 准备: 注入 DataFrameProvider
     val mockDf = DefaultDataFrame(StructType.empty.add("name", StringType), Seq(Row("Success")).iterator)
-    dataFrameHolder.set(new MockDataFrameProviderServiceForBase(Some(mockDf)))
+    dataFrameHolder.add(new MockDataFrameProviderServiceForBase(Some(mockDf)))
 
     // 2. 准备请求
     val mockTree = new MockTransformOp("test-tree", mockDf)
@@ -219,7 +217,7 @@ class BaseDftpModuleTest {
     val response = new MockDftpGetStreamResponse()
 
     // 3. 执行
-    chainedHandler.doGetStream(request, response)
+    getChainedStreamHandler().handle(request, response)
 
     // 4. 验证
     assertTrue(mockTree.executeCalled, "TransformOp.execute 应被调用")
@@ -229,11 +227,10 @@ class BaseDftpModuleTest {
 
   @Test
   def testHandler_DftpGetPathStreamRequest_PermissionDenied(): Unit = {
-    val chainedHandler = getChainedStreamHandler()
 
     // 1. 准备: 注入一个会抛出 IllegalAccessException 的 Provider
     val exception = new DataFrameAccessDeniedException("test-tree")
-    dataFrameHolder.set(new MockDataFrameProviderServiceForBase(None, Some(exception)))
+    dataFrameHolder.add(new MockDataFrameProviderServiceForBase(None, Some(exception)))
 
     // 2. 准备请求
     val mockTree = new MockTransformOp("test-tree", DefaultDataFrame(StructType.empty, Iterator.empty))
@@ -242,7 +239,7 @@ class BaseDftpModuleTest {
 
     // 3. 执行并验证
     val ex = assertThrows(classOf[RuntimeException], () => {
-      chainedHandler.doGetStream(request, response)
+      getChainedStreamHandler().handle(request, response)
       ()
     }, "doGetStream 应抛出异常 (由 sendError(403) 模拟)")
 
@@ -255,10 +252,9 @@ class BaseDftpModuleTest {
   def testHandler_DftpGetPathStreamRequest_NotFound_NoOldHandler(): Unit = {
     // 1. 准备: 注入一个会抛出 DataFrameNotFoundException 的 Provider
     val exception = new DataFrameNotFoundException("DF Not Found")
-    dataFrameHolder.set(new MockDataFrameProviderServiceForBase(None, Some(exception)))
+    dataFrameHolder.add(new MockDataFrameProviderServiceForBase(None, Some(exception)))
 
     // 2. 准备: *不* 注入 'old' 处理器
-    val chainedHandler = getChainedStreamHandler(null)
 
     // 3. 准备请求
     val mockTree = new MockTransformOp("test-tree", DefaultDataFrame(StructType.empty, Iterator.empty))
@@ -267,9 +263,9 @@ class BaseDftpModuleTest {
 
     // 4. 执行并验证
     val ex = assertThrows(classOf[RuntimeException], () => {
-    chainedHandler.doGetStream(request, response)
-    ()
-  }, "doGetStream 应抛出异常 (由 sendError(404) 模拟)")
+      getChainedStreamHandler().handle(request, response)
+      ()
+    }, "doGetStream 应抛出异常 (由 sendError(404) 模拟)")
 
     assertTrue(response.errorSent, "response.sendError(404) 应被调用")
     assertEquals(404, response.errorCode, "错误码应为 404")
@@ -279,14 +275,13 @@ class BaseDftpModuleTest {
   def testHandler_ChainsToOld_OtherRequest(): Unit = {
     // 1. 准备: 注入 'old' 处理器
     val mockOldHandler = new MockGetStreamHandler("OldHandler")
-    val chainedHandler = getChainedStreamHandler(mockOldHandler)
 
     // 2. 准备一个 "Other" 请求 (非 Blob, 非 Path)
     val otherRequest = new MockDftpGetStreamRequest("Other")
     val response = new MockDftpGetStreamResponse()
 
     // 3. 执行
-    chainedHandler.doGetStream(otherRequest, response)
+    getChainedStreamHandler().handle(otherRequest, response)
 
     // 4. 验证
     assertTrue(mockOldHandler.doGetStreamCalled, "'old' 处理器应被调用")

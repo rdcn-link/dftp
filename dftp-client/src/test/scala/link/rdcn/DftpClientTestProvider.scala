@@ -11,7 +11,7 @@ import link.rdcn.client.DftpClient
 import link.rdcn.server._
 import link.rdcn.server.module._
 import link.rdcn.struct._
-import link.rdcn.user.{UserPasswordAuthService, UserPrincipal, UserPrincipalWithCredentials, UsernamePassword}
+import link.rdcn.user.{Credentials, UserPasswordAuthService, UserPrincipal, UserPrincipalWithCredentials, UsernamePassword}
 import org.junit.jupiter.api.{AfterAll, BeforeAll}
 
 import java.io.File
@@ -39,10 +39,10 @@ object DftpClientTestProvider {
   DftpClientTestDataGenerator.generateTestData(binDir, csvDir, baseDir)
 
   private val userPasswordAuthService = new UserPasswordAuthService {
-    override def authenticate(credentials: UsernamePassword): UserPrincipal =
+    override def authenticate(credentials: Credentials): UserPrincipal =
       UserPrincipalWithCredentials(credentials)
 
-    override def accepts(credentials: UsernamePassword): Boolean = true
+    override def accepts(credentials: Credentials): Boolean = true
   }
 
 
@@ -65,10 +65,10 @@ object DftpClientTestProvider {
 
   def getServer: DftpServer = synchronized {
     val userPasswordAuthService = new UserPasswordAuthService {
-      override def authenticate(credentials: UsernamePassword): UserPrincipal =
+      override def authenticate(credentials: Credentials): UserPrincipal =
         UserPrincipalWithCredentials(credentials)
 
-      override def accepts(credentials: UsernamePassword): Boolean = true
+      override def accepts(credentials: Credentials): Boolean = true
     }
     if (server.isEmpty) {
       val directoryDataSourceModule = new FileDirectoryDataSourceModule
@@ -94,9 +94,9 @@ object DftpClientTestProvider {
 }
 
 class PutModule extends DftpModule {
-  private val putStreamHolder = new ObjectHolder[PutStreamHandler]
+  private val putStreamHolder = new Workers[PutStreamMethod]
   private var serverContext: ServerContext = _
-  private val putStreamHandler = new PutStreamHandler {
+  private val putStreamHandler = new PutStreamMethod {
     override def accepts(request: DftpPutStreamRequest): Boolean = true
 
     override def doPutStream(request: DftpPutStreamRequest, response: DftpPutStreamResponse): Unit = {
@@ -109,7 +109,7 @@ class PutModule extends DftpModule {
 
     override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
-          case r: RequirePutStreamHandlerEvent => r.holder.set(old => putStreamHandler)
+          case r: CollectPutStreamMethodEvent => r.collector.add(putStreamHandler)
           case _ =>
         }
     }
@@ -120,7 +120,7 @@ class PutModule extends DftpModule {
     anchor.hook(eventHandler)
     anchor.hook(new EventSource {
       override def init(eventHub: EventHub): Unit =
-        eventHub.fireEvent(new RequirePutStreamHandlerEvent(putStreamHolder))
+        eventHub.fireEvent(new CollectPutStreamMethodEvent(putStreamHolder))
     })
   }
 
@@ -129,9 +129,9 @@ class PutModule extends DftpModule {
 }
 
 class ActionModule extends DftpModule {
-  private val actionHolder = new ObjectHolder[ActionHandler]
+  private val actionHolder = new Workers[ActionMethod]
   private var serverContext: ServerContext = _
-  private val actionHandler = new ActionHandler {
+  private val actionHandler = new ActionMethod {
 
     override def accepts(request: DftpActionRequest): Boolean = true
 
@@ -143,7 +143,7 @@ class ActionModule extends DftpModule {
 
     override def doHandleEvent(event: CrossModuleEvent): Unit = {
       event match {
-        case r: RequireActionHandlerEvent => r.holder.set(old => actionHandler)
+        case r: CollectActionMethodEvent => r.collector.add(actionHandler)
         case _ =>
       }
     }
@@ -154,7 +154,7 @@ class ActionModule extends DftpModule {
     anchor.hook(eventHandler)
     anchor.hook(new EventSource {
       override def init(eventHub: EventHub): Unit =
-        eventHub.fireEvent(new RequireActionHandlerEvent(actionHolder))
+        eventHub.fireEvent(new CollectActionMethodEvent(actionHolder))
     })
   }
 

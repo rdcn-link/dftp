@@ -15,7 +15,7 @@ import org.apache.jena.rdf.model.{Model, ModelFactory, Resource}
 import org.apache.jena.vocabulary.RDF
 import org.junit.jupiter.api.{AfterAll, BeforeAll, Test}
 
-object DacpClientDemo{
+object DacpClientDemo {
 
   var server: DftpServer = _
   val catalogService = new CatalogService {
@@ -94,7 +94,7 @@ object DacpClientDemo{
     override def checkPermission(user: UserPrincipal, dataFrameName: String, opList: List[DataOperationType]): Boolean =
       user.asInstanceOf[UserPrincipalWithCredentials].credentials match {
         case Credentials.ANONYMOUS => false
-        case UsernamePassword(username, password) =>true
+        case UsernamePassword(username, password) => true
       }
   }
 
@@ -114,10 +114,10 @@ object DacpClientDemo{
   }
 
   val userPasswordAuthService = new UserPasswordAuthService {
-    override def authenticate(credentials: UsernamePassword): UserPrincipal =
+    override def authenticate(credentials: Credentials): UserPrincipal =
       UserPrincipalWithCredentials(credentials)
 
-    override def accepts(credentials: UsernamePassword): Boolean = true
+    override def accepts(credentials: Credentials): Boolean = true
   }
 
   @BeforeAll

@@ -4,7 +4,7 @@ import link.rdcn.Logging
 import link.rdcn.dacp.optree.{FlowExecutionContext, OperatorRepository, RepositoryClient, TransformTree}
 import link.rdcn.dacp.user.{PermissionService, RequirePermissionServiceEvent}
 import link.rdcn.operation.TransformOp
-import link.rdcn.server.module.{DataFrameProviderService, ObjectHolder, RequireDataFrameProviderEvent, RequireGetStreamHandlerEvent, RequireGetStreamRequestParserEvent}
+import link.rdcn.server.module.{CollectGetStreamMethodEvent, CollectParseRequestMethodEvent, DataFrameProviderService, GetStreamMethod, TaskRunner, Workers, ParseRequestMethod, RequireDataFrameProviderEvent}
 import link.rdcn.server._
 import link.rdcn.server.exception.{DataFrameAccessDeniedException, DataFrameNotFoundException}
 import link.rdcn.struct.DataFrame
@@ -18,71 +18,64 @@ import java.nio.charset.StandardCharsets
  * @Data 2025/10/31 10:59
  * @Modified By:
  */
-trait DacpCookStreamRequest extends DftpGetStreamRequest{
+trait DacpCookStreamRequest extends DftpGetStreamRequest {
   def getTransformTree: TransformOp
 }
 
 class DacpCookModule() extends DftpModule with Logging {
 
   private implicit var serverContext: ServerContext = _
-  private val dataFrameHolder = new ObjectHolder[DataFrameProviderService]
-  private val permissionHolder = new ObjectHolder[PermissionService]
+  private val dataFrameHolder = new Workers[DataFrameProviderService]
+  private val permissionHolder = new Workers[PermissionService]
 
   override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
     this.serverContext = serverContext
     anchor.hook(new EventHandler {
       override def accepts(event: CrossModuleEvent): Boolean = {
         event match {
-          case r: RequireGetStreamRequestParserEvent => true
-          case r: RequireGetStreamHandlerEvent => true
+          case r: CollectParseRequestMethodEvent => true
+          case r: CollectGetStreamMethodEvent => true
           case _ => false
         }
       }
 
       override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
-          case r: RequireGetStreamRequestParserEvent => r.holder.set {
-            old =>
-              new GetStreamRequestParser {
-                val COOK_TICKET: Byte = 3
+          case r: CollectParseRequestMethodEvent => r.collect(
+            new ParseRequestMethod() {
+              val COOK_TICKET: Byte = 3
 
-                override def accepts(token: Array[Byte]): Boolean = {
-                  val typeId = token(0)
-                  typeId == COOK_TICKET
-                }
+              override def accepts(token: Array[Byte]): Boolean = {
+                val typeId = token(0)
+                typeId == COOK_TICKET
+              }
 
-                override def parse(bytes: Array[Byte], principal: UserPrincipal): DftpGetStreamRequest = {
-                  val buffer = java.nio.ByteBuffer.wrap(bytes)
-                  val typeId: Byte = buffer.get()
+              override def parse(bytes: Array[Byte], principal: UserPrincipal): DftpGetStreamRequest = {
+                val buffer = java.nio.ByteBuffer.wrap(bytes)
+                val typeId: Byte = buffer.get()
 
-                  typeId match {
-                    case COOK_TICKET =>
-                      val len = buffer.getInt()
-                      val b = new Array[Byte](len)
-                      buffer.get(b)
-                      val ticketContent = new String(b, StandardCharsets.UTF_8)
-                      val transformOp = TransformTree.fromJsonString(ticketContent)
-                      new DacpCookStreamRequest {
-                        override def getUserPrincipal(): UserPrincipal = principal
+                typeId match {
+                  case COOK_TICKET =>
+                    val len = buffer.getInt()
+                    val b = new Array[Byte](len)
+                    buffer.get(b)
+                    val ticketContent = new String(b, StandardCharsets.UTF_8)
+                    val transformOp = TransformTree.fromJsonString(ticketContent)
+                    new DacpCookStreamRequest {
+                      override def getUserPrincipal(): UserPrincipal = principal
 
-                        override def getTransformTree: TransformOp = transformOp
-                      }
-
-                    case _ => old.parse(bytes, principal)
-                  }
+                      override def getTransformTree: TransformOp = transformOp
+                    }
                 }
               }
-          }
+            })
 
-          case r: RequireGetStreamHandlerEvent => r.holder.set {
-            old =>
-              new GetStreamHandler {
+          case r: CollectGetStreamMethodEvent =>
+            r.collect(
+              new GetStreamMethod() {
 
                 override def accepts(request: DftpGetStreamRequest): Boolean = {
-                  request match {
-                    case _: DacpCookStreamRequest => true
-                    case _ => old!=null && old.accepts(request)
-                  }
+                  request.isInstanceOf[DacpCookStreamRequest]
                 }
 
                 override def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
@@ -99,16 +92,32 @@ class DacpCookModule() extends DftpModule with Logging {
 
                         override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
                           try {
-                            if(permissionHolder.invoke(!_.checkPermission(userPrincipal, dataFrameNameUrl), false)){
-                              throw new DataFrameAccessDeniedException(dataFrameNameUrl)
+                            if (permissionHolder.work(new TaskRunner[PermissionService, Boolean]() {
+                              override def isReady(worker: PermissionService): Boolean = worker.accepts(userPrincipal)
+
+                              override def executeWith(worker: PermissionService): Boolean = worker.checkPermission(userPrincipal, dataFrameNameUrl)
+
+                              override def handleFailure(): Boolean = throw new DataFrameAccessDeniedException(dataFrameNameUrl)
+
+                            })) {
+                              Some(dataFrameHolder.work(new TaskRunner[DataFrameProviderService, DataFrame]() {
+
+                                override def isReady(worker: DataFrameProviderService): Boolean = worker.accepts(dataFrameNameUrl)
+
+                                override def executeWith(worker: DataFrameProviderService): DataFrame = worker.getDataFrame(dataFrameNameUrl, userPrincipal)(serverContext)
+
+                                override def handleFailure(): DataFrame = throw new DataFrameNotFoundException(dataFrameNameUrl)
+                              }
+                              ))
                             }
-                            Some(dataFrameHolder.invoke(_.getDataFrame(dataFrameNameUrl, userPrincipal)(serverContext),
-                              throw new DataFrameNotFoundException(dataFrameNameUrl)))
+                            else {
+                              None
+                            }
                           } catch {
                             case e: DataFrameAccessDeniedException => response.sendError(403, e.getMessage)
                               throw e
                             case e: DataFrameNotFoundException => response.sendError(404, e.getMessage)
-                             throw e
+                              throw e
                             case e: Exception => response.sendError(500, e.getMessage)
                               throw e
                           }
@@ -122,17 +131,16 @@ class DacpCookModule() extends DftpModule with Logging {
                       }
                       response.sendDataFrame(transformTree.execute(flowExecutionContext))
                     }
-
-                    case _ => old.doGetStream(request, response)
                   }
                 }
-              }
-          }
+              })
 
           case _ =>
         }
       }
-    })
+    }
+
+    )
 
     anchor.hook(new EventSource {
       override def init(eventHub: EventHub): Unit = {

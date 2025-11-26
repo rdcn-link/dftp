@@ -27,18 +27,18 @@ class FileDirectoryDataSourceModule extends DftpModule {
     val dataFramePath = dataFrameUrl.stripPrefix(ctx.baseUrl).stripPrefix("/")
     val dfFile = Paths.get(defaultRootDirectory.getAbsolutePath, dataFramePath).toFile
 
-    if(dfFile.isFile){
+    if (dfFile.isFile) {
       dfFile.getName match {
-        case fileName if(fileName.endsWith(".csv")) =>
+        case fileName if (fileName.endsWith(".csv")) =>
           val ds = DataStreamSource.csv(dfFile)
           DefaultDataFrame(ds.schema, ds.iterator)
-        case fileName if(fileName.endsWith(".xlsx") ||
+        case fileName if (fileName.endsWith(".xlsx") ||
           fileName.endsWith(".xls")) =>
           val ds = DataStreamSource.excel(dfFile.getAbsolutePath)
           DefaultDataFrame(ds.schema, ds.iterator)
         case _ => DataFrame.fromSeq(Seq(Blob.fromFile(dfFile)))
       }
-    }else{
+    } else {
       val stream = DataUtils.listFilesWithAttributes(dfFile).toIterator
         .map(file => {
           if (file._1.isDirectory) {
@@ -49,7 +49,7 @@ class FileDirectoryDataSourceModule extends DftpModule {
               null,
               DFRef((dataFrameUrl.stripSuffix("/") + File.separator + file._1.getName))
             )
-          }else{
+          } else {
             (
               file._1.getName, file._2.size(),
               DataUtils.getFileType(file._1),
@@ -77,19 +77,16 @@ class FileDirectoryDataSourceModule extends DftpModule {
       override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
           case require: RequireDataFrameProviderEvent =>
-            require.holder.set(old => {
-              new DataFrameProviderService{
+            require.holder.add(
+              new DataFrameProviderService {
                 override def getDataFrame(dataFrameUrl: String, user: UserPrincipal)(implicit ctx: ServerContext): DataFrame = {
-                  if(isInDataDirectory(UrlValidator.extractPath(dataFrameUrl))) getDataFrameByUrl(dataFrameUrl, ctx)
-                  else if(old!=null && old.accepts(dataFrameUrl)) old.getDataFrame(dataFrameUrl, user)
-                  else throw new DataFrameNotFoundException(dataFrameUrl)
+                  getDataFrameByUrl(dataFrameUrl, ctx)
                 }
 
                 override def accepts(dataFrameUrl: String): Boolean = {
-                  isInDataDirectory(UrlValidator.extractPath(dataFrameUrl)) || old!=null && old.accepts(dataFrameUrl)
+                  isInDataDirectory(UrlValidator.extractPath(dataFrameUrl))
                 }
-              }
-            })
+              })
           case _ =>
         }
       }
