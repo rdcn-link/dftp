@@ -80,13 +80,13 @@ class FileDirectoryDataSourceModuleTest {
    * 提取链式服务以供测试
    */
   private def getChainedService(oldService: DataFrameProviderService = null): DataFrameProviderService = {
-    val holder = new ObjectHolder[DataFrameProviderService]()
+    val holder = new Workers[DataFrameProviderService]()
     if (oldService != null) {
-      holder.set(oldService)
+      holder.add(oldService)
     }
     val event = RequireDataFrameProviderEvent(holder)
     hookedEventHandler.doHandleEvent(event)
-    holder.invoke(run = s => s, onNull = null)
+    holder.invoke(runMethod = s => s, onNull = null)
   }
 
   // --- 链式逻辑测试 ---

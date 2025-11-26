@@ -1,61 +1,79 @@
 package link.rdcn.server.module
 
-import link.rdcn.server._
-import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal, UserPrincipalWithCredentials}
+import link.rdcn.server.{DftpGetStreamRequest, _}
+import link.rdcn.user.{AuthenticationMethod, Credentials, UserPrincipal}
 
 class KernelModule extends DftpModule {
-  private val authHolder = new ObjectHolder[AuthenticationService]
-  private val parseHolder = new ObjectHolder[GetStreamRequestParser]
-  private val getHolder = new ObjectHolder[GetStreamHandler]
-  private val actionHolder = new ObjectHolder[ActionHandler]
-  private val putHolder = new ObjectHolder[PutStreamHandler]
-  private val loggerHolder = new ObjectHolder[AccessLogger]
+  private val authMethods = new Workers[AuthenticationMethod]
+  private val parseMethods = new Workers[ParseRequestMethod]
+  private val getMethods = new FilteredGetStreamMethods
+  private val actionMethods = new Workers[ActionMethod]
+  private val putMethods = new Workers[PutStreamMethod]
 
   def parseGetStreamRequest(token: Array[Byte], principal: UserPrincipal): DftpGetStreamRequest = {
-    parseHolder.invoke(_.parse(token, principal), {
-      throw new Exception(s"value not set: GetStreamRequestParser")
+    parseMethods.work(new TaskRunner[ParseRequestMethod, DftpGetStreamRequest] {
+
+      override def isReady(worker: ParseRequestMethod): Boolean = worker.accepts(token)
+
+      override def executeWith(worker: ParseRequestMethod): DftpGetStreamRequest = worker.parse(token, principal)
+
+      override def handleFailure(): DftpGetStreamRequest = {
+        throw new Exception(s"unknown get stream request: $token") //FIXME: user defined exception
+      }
     })
   }
 
   def getStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
-    getHolder.invoke(_.doGetStream(request, response), {
-      response.sendError(404, s"requested resource not found") //FIXME
-    })
+    getMethods.handle(request, response)
   }
 
   def putStream(request: DftpPutStreamRequest, response: DftpPutStreamResponse): Unit = {
-    putHolder.invoke(_.doPutStream(request, response), {
-      response.sendError(500, s"method not implemented") //FIXME
+    putMethods.work(new TaskRunner[PutStreamMethod, Unit] {
+
+      override def isReady(worker: PutStreamMethod): Boolean = worker.accepts(request)
+
+      override def executeWith(worker: PutStreamMethod): Unit = worker.doPutStream(request, response)
+
+      override def handleFailure(): Unit = {
+        response.sendError(500, s"method not implemented")
+      }
     })
   }
 
   def doAction(request: DftpActionRequest, response: DftpActionResponse): Unit = {
-    actionHolder.invoke(_.doAction(request, response), {
-      response.sendError(404, s"unknown action: ${request.getActionName()}") //FIXME
-    })
-  }
+    actionMethods.work(new TaskRunner[ActionMethod, Unit] {
 
-  def logAccess(request: DftpRequest, response: DftpResponse): Unit = {
-    loggerHolder.invoke(_.doLog(request, response), {
-      //log nothing
+      override def isReady(worker: ActionMethod): Boolean = worker.accepts(request)
+
+      override def executeWith(worker: ActionMethod): Unit = worker.doAction(request, response)
+
+      override def handleFailure(): Unit = {
+        response.sendError(404, s"unknown action: ${request.getActionName()}")
+      }
     })
   }
 
   def authenticate(credentials: Credentials): UserPrincipal = {
-    authHolder.invoke(authService => authService.authenticate(credentials.asInstanceOf[authService.C])
-      , {UserPrincipalWithCredentials(credentials) //FIXME
+    authMethods.work(new TaskRunner[AuthenticationMethod, UserPrincipal] {
+
+      override def isReady(worker: AuthenticationMethod): Boolean = worker.accepts(credentials)
+
+      override def executeWith(worker: AuthenticationMethod): UserPrincipal = worker.authenticate(credentials)
+
+      override def handleFailure(): UserPrincipal = {
+        throw new Exception(s"unknown authentication request: ${credentials}") //FIXME: user defined exception
+      }
     })
   }
 
   override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
     anchor.hook(new EventSource {
       override def init(eventHub: EventHub): Unit = {
-        eventHub.fireEvent(new RequireAuthenticatorEvent(authHolder))
-        eventHub.fireEvent(new RequireAccessLoggerEvent(loggerHolder))
-        eventHub.fireEvent(new RequireGetStreamRequestParserEvent(parseHolder))
-        eventHub.fireEvent(new RequireActionHandlerEvent(actionHolder))
-        eventHub.fireEvent(new RequirePutStreamHandlerEvent(putHolder))
-        eventHub.fireEvent(new RequireGetStreamHandlerEvent(getHolder))
+        eventHub.fireEvent(CollectAuthenticationMethodEvent(authMethods))
+        eventHub.fireEvent(CollectParseRequestMethodEvent(parseMethods))
+        eventHub.fireEvent(CollectActionMethodEvent(actionMethods))
+        eventHub.fireEvent(CollectPutStreamMethodEvent(putMethods))
+        eventHub.fireEvent(CollectGetStreamMethodEvent(getMethods))
       }
     })
   }
@@ -63,42 +81,95 @@ class KernelModule extends DftpModule {
   override def destroy(): Unit = {}
 }
 
-class ObjectHolder[T] {
-  private var _object: T = _
+trait ActionMethod {
+  def accepts(request: DftpActionRequest): Boolean
+  def doAction(request: DftpActionRequest, response: DftpActionResponse): Unit
+}
 
-  def set(v: T): Unit = _object = v
+trait ParseRequestMethod {
+  def accepts(token: Array[Byte]): Boolean
+  def parse(token: Array[Byte], principal: UserPrincipal): DftpGetStreamRequest
+}
 
-  def set(fn: (T) => T): Unit = {
-    _object = fn(_object)
+trait AccessLogger {
+  def accepts(request: DftpRequest): Boolean
+  def doLog(request: DftpRequest, response: DftpResponse): Unit
+}
+
+trait GetStreamMethod {
+  def accepts(request: DftpGetStreamRequest): Boolean
+  def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit
+}
+
+trait PutStreamMethod {
+  def accepts(request: DftpPutStreamRequest): Boolean
+  def doPutStream(request: DftpPutStreamRequest, response: DftpPutStreamResponse): Unit
+}
+
+case class CollectAuthenticationMethodEvent(collector: Workers[AuthenticationMethod]) extends CrossModuleEvent {
+  def collect = collector.add(_)
+}
+
+case class CollectParseRequestMethodEvent(collector: Workers[ParseRequestMethod]) extends CrossModuleEvent {
+  def collect = collector.add(_)
+}
+
+case class CollectActionMethodEvent(collector: Workers[ActionMethod]) extends CrossModuleEvent {
+  def collect = collector.add(_)
+}
+
+case class CollectPutStreamMethodEvent(collector: Workers[PutStreamMethod]) extends CrossModuleEvent {
+  def collect = collector.add(_)
+}
+
+case class CollectGetStreamMethodEvent(collector: FilteredGetStreamMethods) extends CrossModuleEvent {
+  def collect = collector.addMethod(_)
+
+  def addFilter = collector.addFilter(_, _)
+}
+
+trait GetStreamFilter {
+  def doFilter(request: DftpGetStreamRequest, response: DftpGetStreamResponse, chain: GetStreamFilterChain): Unit
+}
+
+trait GetStreamFilterChain {
+  def doFilter(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit
+}
+
+class FilteredGetStreamMethods {
+  private val _workers = new Workers[GetStreamMethod]()
+  private val _filters = new Filters[GetStreamFilter]()
+
+  def addMethod(method: GetStreamMethod) = _workers.add(method)
+
+  def addFilter(order: Int, filter: GetStreamFilter) = _filters.add(order, filter)
+
+  def handle(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
+    _filters.doFilter(
+      new FilterRunner[GetStreamFilter, (DftpGetStreamRequest, DftpGetStreamResponse), Unit] {
+        override def doFilter(filter: GetStreamFilter, args: (DftpGetStreamRequest, DftpGetStreamResponse), chain: FilterChain[(DftpGetStreamRequest, DftpGetStreamResponse), Unit]): Unit = {
+          filter.doFilter(args._1, args._2, new GetStreamFilterChain {
+            override def doFilter(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
+              chain.doFilter(request -> response)
+            }
+          })
+        }
+
+        override def startChain(chain: FilterChain[(DftpGetStreamRequest, DftpGetStreamResponse), Unit]): Unit = {
+          chain.doFilter(request -> response)
+        }
+      }, { args: (DftpGetStreamRequest, DftpGetStreamResponse) =>
+        _workers.work(
+          new TaskRunner[GetStreamMethod, Unit] {
+
+            override def isReady(worker: GetStreamMethod): Boolean = worker.accepts(args._1)
+
+            override def executeWith(worker: GetStreamMethod): Unit = worker.doGetStream(args._1, args._2)
+
+            override def handleFailure(): Unit = {
+              response.sendError(404, s"requested resource not found")
+            }
+          })
+      })
   }
-
-  def invoke[Y](run: (T) => Y, onNull: => Y): Y = {
-    if (_object == null) {
-      onNull
-    }
-    else {
-      run(_object)
-    }
-  }
-}
-
-class RequireAuthenticatorEvent(val holder: ObjectHolder[AuthenticationService]) extends CrossModuleEvent {
-}
-
-class RequireAccessLoggerEvent(val holder: ObjectHolder[AccessLogger]) extends CrossModuleEvent {
-}
-
-class RequireGetStreamRequestParserEvent(val holder: ObjectHolder[GetStreamRequestParser]) extends CrossModuleEvent {
-}
-
-class RequireActionHandlerEvent(val holder: ObjectHolder[ActionHandler]) extends CrossModuleEvent {
-
-}
-
-class RequirePutStreamHandlerEvent(val holder: ObjectHolder[PutStreamHandler]) extends CrossModuleEvent {
-
-}
-
-class RequireGetStreamHandlerEvent(val holder: ObjectHolder[GetStreamHandler]) extends CrossModuleEvent {
-
 }

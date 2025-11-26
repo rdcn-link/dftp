@@ -7,7 +7,7 @@
 package link.rdcn.user
 
 import link.rdcn.server.EventHandler
-import link.rdcn.server.module.ObjectHolder
+import link.rdcn.server.module.Workers
 import link.rdcn._
 import link.rdcn.dacp.user.{DataOperationType, PermissionService, PermissionServiceModule, RequirePermissionServiceEvent}
 import org.junit.jupiter.api.Assertions.{assertEquals, assertFalse, assertNotNull, assertTrue}
@@ -45,7 +45,7 @@ class PermissionServiceModuleTest {
    */
   @Test
   def testEventHandlerAcceptsLogic(): Unit = {
-    val validEvent = RequirePermissionServiceEvent(new ObjectHolder[PermissionService])
+    val validEvent = RequirePermissionServiceEvent(new Workers[PermissionService])
     val invalidEvent = new OtherMockEvent()
 
     assertTrue(hookedEventHandler.accepts(validEvent),
@@ -70,15 +70,15 @@ class PermissionServiceModuleTest {
     mockOldService.permissionResult = false // (不应被调用)
 
     // 2. 模拟事件: 将 'mockOldService' 放入 holder
-    val holder = new ObjectHolder[PermissionService]()
-    holder.set(mockOldService)
+    val holder = new Workers[PermissionService]()
+    holder.add(mockOldService)
     val event = RequirePermissionServiceEvent(holder)
 
     // 3. 执行: 处理事件，创建链式服务
     hookedEventHandler.doHandleEvent(event)
 
     // 4. 提取: 获取新的链式服务
-    val chainedService = holder.invoke(run = s => s, onNull = null)
+    val chainedService = holder.invoke(runMethod = s => s, onNull = null)
     assertNotNull(chainedService, "Holder 不应为空")
 
     // 5. 验证 accepts() 链 (OR 逻辑)
@@ -111,15 +111,15 @@ class PermissionServiceModuleTest {
     mockOldService.permissionResult = true
 
     // 2. 模拟事件
-    val holder = new ObjectHolder[PermissionService]()
-    holder.set(mockOldService)
+    val holder = new Workers[PermissionService]()
+    holder.add(mockOldService)
     val event = RequirePermissionServiceEvent(holder)
 
     // 3. 执行
     hookedEventHandler.doHandleEvent(event)
 
     // 4. 提取
-    val chainedService = holder.invoke(run = s => s, onNull = null)
+    val chainedService = holder.invoke(runMethod = s => s, onNull = null)
     assertNotNull(chainedService, "Holder 不应为空")
 
     // 5. 验证 accepts() 链 (OR 逻辑)
@@ -149,15 +149,15 @@ class PermissionServiceModuleTest {
     mockOldService.acceptsUser = false
 
     // 2. 模拟事件
-    val holder = new ObjectHolder[PermissionService]()
-    holder.set(mockOldService)
+    val holder = new Workers[PermissionService]()
+    holder.add(mockOldService)
     val event = RequirePermissionServiceEvent(holder)
 
     // 3. 执行
     hookedEventHandler.doHandleEvent(event)
 
     // 4. 提取
-    val chainedService = holder.invoke(run = s => s, onNull = null)
+    val chainedService = holder.invoke(runMethod = s => s, onNull = null)
     assertNotNull(chainedService, "Holder 不应为空")
 
     // 5. 验证 accepts() 链
@@ -182,14 +182,14 @@ class PermissionServiceModuleTest {
     mockInnerService.permissionResult = true
 
     // 2. 模拟事件: Holder 为空 (old = null)
-    val holder = new ObjectHolder[PermissionService]()
+    val holder = new Workers[PermissionService]()
     val event = RequirePermissionServiceEvent(holder)
 
     // 3. 执行
     hookedEventHandler.doHandleEvent(event)
 
     // 4. 提取
-    val chainedService = holder.invoke(run = s => s, onNull = null)
+    val chainedService = holder.invoke(runMethod = s => s, onNull = null)
     assertNotNull(chainedService, "Holder 不应为空")
 
     // 5. 验证 accepts() 链 (OR 逻辑)

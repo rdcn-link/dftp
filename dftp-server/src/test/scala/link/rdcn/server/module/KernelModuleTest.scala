@@ -8,7 +8,7 @@ package link.rdcn.server.module
 
 import link.rdcn.server._
 import link.rdcn.struct.DataFrame
-import link.rdcn.user.{AuthenticationService, Credentials, UserPasswordAuthService, UserPrincipal, UserPrincipalWithCredentials, UsernamePassword}
+import link.rdcn.user.{AuthenticationMethod, Credentials, UserPasswordAuthService, UserPrincipal, UserPrincipalWithCredentials, UsernamePassword}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{BeforeEach, Test}
 
@@ -55,7 +55,7 @@ class KernelModuleTest {
 
   // --- 模拟的服务 (用于注入 Holder) ---
 
-  class MockActionHandler extends ActionHandler {
+  class MockActionHandler extends ActionMethod {
     var doActionCalled = false
     var requestCalledWith: DftpActionRequest = null
     override def accepts(request: DftpActionRequest): Boolean = true
@@ -65,7 +65,7 @@ class KernelModuleTest {
     }
   }
 
-  class MockGetStreamHandler extends GetStreamHandler {
+  class MockGetStreamHandler extends GetStreamMethod {
     var doGetStreamCalled = false
     override def accepts(request: DftpGetStreamRequest): Boolean = true
     override def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
@@ -73,7 +73,7 @@ class KernelModuleTest {
     }
   }
 
-  class MockPutStreamHandler extends PutStreamHandler {
+  class MockPutStreamHandler extends PutStreamMethod {
     var doPutStreamCalled = false
     override def accepts(request: DftpPutStreamRequest): Boolean = true
     override def doPutStream(request: DftpPutStreamRequest, response: DftpPutStreamResponse): Unit = {
@@ -81,7 +81,7 @@ class KernelModuleTest {
     }
   }
 
-  class MockGetStreamRequestParser extends GetStreamRequestParser {
+  class MockGetStreamRequestParser extends ParseRequestMethod {
     var parseCalled = false
     val requestToReturn: DftpGetStreamRequest = new MockDftpGetStreamRequest() // 模拟返回
     override def accepts(token: Array[Byte]): Boolean = true
@@ -103,9 +103,9 @@ class KernelModuleTest {
     var authenticateCalled = false
     val userToReturn: UserPrincipal = MockUserPrincipal("MockAuthUser")
 
-    override def accepts(credentials: UsernamePassword): Boolean = true
+    override def accepts(credentials: Credentials): Boolean = true
 
-    override def authenticate(credentials: UsernamePassword): UserPrincipal = {
+    override def authenticate(credentials: Credentials): UserPrincipal = {
       authenticateCalled = true
       userToReturn
     }
@@ -175,12 +175,11 @@ class KernelModuleTest {
   private var mockEventHub: MockEventHub = _
 
   // 从 EventHub 捕获的 Holders
-  private var authHolder: ObjectHolder[AuthenticationService] = _
-  private var parseHolder: ObjectHolder[GetStreamRequestParser] = _
-  private var getHolder: ObjectHolder[GetStreamHandler] = _
-  private var actionHolder: ObjectHolder[ActionHandler] = _
-  private var putHolder: ObjectHolder[PutStreamHandler] = _
-  private var loggerHolder: ObjectHolder[AccessLogger] = _
+  private var authHolder: Workers[AuthenticationMethod] = _
+  private var parseHolder: Workers[ParseRequestMethod] = _
+  private var getHolder: FilteredGetStreamMethods = _
+  private var actionHolder: Workers[ActionMethod] = _
+  private var putHolder: Workers[PutStreamMethod] = _
 
   @BeforeEach
   def setUp(): Unit = {
@@ -200,23 +199,20 @@ class KernelModuleTest {
     mockAnchor.hookedEventSource.init(mockEventHub)
 
     // 5. 提取所有 Holders 以供测试使用
-    authHolder = mockEventHub.eventsFired.find(_.isInstanceOf[RequireAuthenticatorEvent]).get
-      .asInstanceOf[RequireAuthenticatorEvent].holder
+    authHolder = mockEventHub.eventsFired.find(_.isInstanceOf[CollectAuthenticationMethodEvent]).get
+      .asInstanceOf[CollectAuthenticationMethodEvent].collector
 
-    parseHolder = mockEventHub.eventsFired.find(_.isInstanceOf[RequireGetStreamRequestParserEvent]).get
-      .asInstanceOf[RequireGetStreamRequestParserEvent].holder
+    parseHolder = mockEventHub.eventsFired.find(_.isInstanceOf[CollectParseRequestMethodEvent]).get
+      .asInstanceOf[CollectParseRequestMethodEvent].collector
 
-    getHolder = mockEventHub.eventsFired.find(_.isInstanceOf[RequireGetStreamHandlerEvent]).get
-      .asInstanceOf[RequireGetStreamHandlerEvent].holder
+    getHolder = mockEventHub.eventsFired.find(_.isInstanceOf[CollectGetStreamMethodEvent]).get
+      .asInstanceOf[CollectGetStreamMethodEvent].collector
 
-    actionHolder = mockEventHub.eventsFired.find(_.isInstanceOf[RequireActionHandlerEvent]).get
-      .asInstanceOf[RequireActionHandlerEvent].holder
+    actionHolder = mockEventHub.eventsFired.find(_.isInstanceOf[CollectActionMethodEvent]).get
+      .asInstanceOf[CollectActionMethodEvent].collector
 
-    putHolder = mockEventHub.eventsFired.find(_.isInstanceOf[RequirePutStreamHandlerEvent]).get
-      .asInstanceOf[RequirePutStreamHandlerEvent].holder
-
-    loggerHolder = mockEventHub.eventsFired.find(_.isInstanceOf[RequireAccessLoggerEvent]).get
-      .asInstanceOf[RequireAccessLoggerEvent].holder
+    putHolder = mockEventHub.eventsFired.find(_.isInstanceOf[CollectPutStreamMethodEvent]).get
+      .asInstanceOf[CollectPutStreamMethodEvent].collector
   }
 
   /**
@@ -226,12 +222,11 @@ class KernelModuleTest {
   def testInit_FiresAllEvents(): Unit = {
     assertEquals(6, mockEventHub.eventsFired.length, "init() 应触发 6 个事件")
 
-    assertTrue(mockEventHub.eventsFired.exists(_.isInstanceOf[RequireAuthenticatorEvent]), "RequireAuthenticatorEvent 未被触发")
-    assertTrue(mockEventHub.eventsFired.exists(_.isInstanceOf[RequireAccessLoggerEvent]), "RequireAccessLoggerEvent 未被触发")
-    assertTrue(mockEventHub.eventsFired.exists(_.isInstanceOf[RequireGetStreamRequestParserEvent]), "RequireGetStreamRequestParserEvent 未被触发")
-    assertTrue(mockEventHub.eventsFired.exists(_.isInstanceOf[RequireActionHandlerEvent]), "RequireActionHandlerEvent 未被触发")
-    assertTrue(mockEventHub.eventsFired.exists(_.isInstanceOf[RequirePutStreamHandlerEvent]), "RequirePutStreamHandlerEvent 未被触发")
-    assertTrue(mockEventHub.eventsFired.exists(_.isInstanceOf[RequireGetStreamHandlerEvent]), "RequireGetStreamHandlerEvent 未被触发")
+    assertTrue(mockEventHub.eventsFired.exists(_.isInstanceOf[CollectAuthenticationMethodEvent]), "RequireAuthenticatorEvent 未被触发")
+    assertTrue(mockEventHub.eventsFired.exists(_.isInstanceOf[CollectParseRequestMethodEvent]), "RequireGetStreamRequestParserEvent 未被触发")
+    assertTrue(mockEventHub.eventsFired.exists(_.isInstanceOf[CollectActionMethodEvent]), "RequireActionHandlerEvent 未被触发")
+    assertTrue(mockEventHub.eventsFired.exists(_.isInstanceOf[CollectPutStreamMethodEvent]), "RequirePutStreamHandlerEvent 未被触发")
+    assertTrue(mockEventHub.eventsFired.exists(_.isInstanceOf[CollectGetStreamMethodEvent]), "RequireGetStreamHandlerEvent 未被触发")
   }
 
   // --- 测试 API 委托 (Happy Path & Null Path) ---
@@ -242,7 +237,7 @@ class KernelModuleTest {
     val mockRequest = new MockDftpActionRequest("test-action")
     val mockResponse = new MockDftpActionResponse()
 
-    actionHolder.set(mockHandler) // 注入
+    actionHolder.add(mockHandler) // 注入
     kernelModule.doAction(mockRequest, mockResponse)
 
     assertTrue(mockHandler.doActionCalled, "注入的 ActionHandler.doAction 应被调用")
@@ -269,7 +264,7 @@ class KernelModuleTest {
     val mockRequest = new MockDftpGetStreamRequest()
     val mockResponse = new MockDftpGetStreamResponse()
 
-    getHolder.set(mockHandler) // 注入
+    getHolder.addMethod(mockHandler) // 注入
     kernelModule.getStream(mockRequest, mockResponse)
 
     assertTrue(mockHandler.doGetStreamCalled, "注入的 GetStreamHandler.doGetStream 应被调用")
@@ -294,7 +289,7 @@ class KernelModuleTest {
     val mockRequest = new MockDftpPutStreamRequest()
     val mockResponse = new MockDftpPutStreamResponse()
 
-    putHolder.set(mockHandler) // 注入
+    putHolder.add(mockHandler) // 注入
     kernelModule.putStream(mockRequest, mockResponse)
 
     assertTrue(mockHandler.doPutStreamCalled, "注入的 PutStreamHandler.doPutStream 应被调用")
@@ -319,7 +314,7 @@ class KernelModuleTest {
     val mockToken = Array[Byte](1, 2)
     val mockPrincipal = new MockUserPrincipal("test")
 
-    parseHolder.set(mockParser) // 注入
+    parseHolder.add(mockParser) // 注入
     val result = kernelModule.parseGetStreamRequest(mockToken, mockPrincipal)
 
     assertTrue(mockParser.parseCalled, "注入的 GetStreamRequestParser.parse 应被调用")
@@ -341,28 +336,10 @@ class KernelModuleTest {
   }
 
   @Test
-  def testLogAccess_WithHandler(): Unit = {
-    val mockLogger = new MockAccessLogger()
-
-    loggerHolder.set(mockLogger) // 注入
-    kernelModule.logAccess(null, null) // 参数无关紧要
-
-    assertTrue(mockLogger.doLogCalled, "注入的 AccessLogger.doLog 应被调用")
-  }
-
-  @Test
-  def testLogAccess_NoHandler(): Unit = {
-    // 不注入 Handler
-    // onNull 是空的 (log nothing)，所以只需确保它不会崩溃
-    kernelModule.logAccess(null, null)
-    assertTrue(true, "当 Logger 为 null 时不应抛出异常")
-  }
-
-  @Test
   def testAuthenticate_WithHandler(): Unit = {
     val mockAuth = new MockAuthenticationService()
 
-    authHolder.set(mockAuth) // 注入
+    authHolder.add(mockAuth) // 注入
     val user = kernelModule.authenticate(MockCredentials)
 
     assertTrue(mockAuth.authenticateCalled, "注入的 AuthenticationService.authenticate 应被调用")

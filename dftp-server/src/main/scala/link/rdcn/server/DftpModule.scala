@@ -37,31 +37,6 @@ trait EventSource {
   def init(eventHub: EventHub): Unit
 }
 
-trait ActionHandler {
-  def accepts(request: DftpActionRequest): Boolean
-  def doAction(request: DftpActionRequest, response: DftpActionResponse): Unit
-}
-
-trait GetStreamRequestParser {
-  def accepts(token: Array[Byte]): Boolean
-  def parse(token: Array[Byte], principal: UserPrincipal): DftpGetStreamRequest
-}
-
-trait AccessLogger {
-  def accepts(request: DftpRequest): Boolean
-  def doLog(request: DftpRequest, response: DftpResponse): Unit
-}
-
-trait GetStreamHandler {
-  def accepts(request: DftpGetStreamRequest): Boolean
-  def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit
-}
-
-trait PutStreamHandler {
-  def accepts(request: DftpPutStreamRequest): Boolean
-  def doPutStream(request: DftpPutStreamRequest, response: DftpPutStreamResponse): Unit
-}
-
 class Modules(serverContext: ServerContext) extends Logging {
   private val modules = ArrayBuffer[DftpModule]()
 

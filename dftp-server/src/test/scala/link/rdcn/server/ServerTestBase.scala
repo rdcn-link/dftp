@@ -8,9 +8,9 @@ package link.rdcn.server
 
 import link.rdcn.operation.{ExecutionContext, TransformOp}
 import link.rdcn.server.exception.DataFrameNotFoundException
-import link.rdcn.server.module.DataFrameProviderService
+import link.rdcn.server.module.{DataFrameProviderService, GetStreamMethod}
 import link.rdcn.struct.{DataFrame, DefaultDataFrame, StructType}
-import link.rdcn.user.{AuthenticationService, Credentials, UserPasswordAuthService, UserPrincipal, UsernamePassword}
+import link.rdcn.user.{AuthenticationMethod, Credentials, UserPasswordAuthService, UserPrincipal, UsernamePassword}
 import org.json.JSONObject
 
 import scala.collection.mutable.ArrayBuffer
@@ -72,11 +72,11 @@ class MockAuthenticationService(name: String) extends UserPasswordAuthService {
 
   override def toString: String = s"MockAuthenticationService($name)"
 
-  override def accepts(credentials: UsernamePassword): Boolean = {
+  override def accepts(credentials: Credentials): Boolean = {
     acceptsCreds
   }
 
-  override def authenticate(credentials: UsernamePassword): UserPrincipal = {
+  override def authenticate(credentials: Credentials): UserPrincipal = {
     authenticateCalled = true
     credsChecked = credentials
     userToReturn
@@ -245,7 +245,7 @@ class MockEventHub extends EventHub {
 /**
  * 模拟 GetStreamHandler (用于测试链式调用)
  */
-class MockGetStreamHandler(name: String = "OldHandler") extends GetStreamHandler {
+class MockGetStreamHandler(name: String = "OldHandler") extends GetStreamMethod {
   var doGetStreamCalled = false
   var requestReceived: DftpGetStreamRequest = null
   override def accepts(request: DftpGetStreamRequest): Boolean = true // 总是接受

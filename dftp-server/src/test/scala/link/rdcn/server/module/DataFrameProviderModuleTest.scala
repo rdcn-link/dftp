@@ -54,7 +54,7 @@ class DataFrameProviderModuleTest {
    */
   @Test
   def testEventHandlerAcceptsLogic(): Unit = {
-    val validEvent = RequireDataFrameProviderEvent(new ObjectHolder[DataFrameProviderService])
+    val validEvent = RequireDataFrameProviderEvent(new Workers[DataFrameProviderService])
     val invalidEvent = new OtherMockEventForProvider()
 
     assertTrue(hookedEventHandler.accepts(validEvent),
@@ -79,15 +79,15 @@ class DataFrameProviderModuleTest {
     mockOldService.dfToReturn = oldDF
 
     // 模拟事件: 将 'mockOldService' 放入 holder
-    val holder = new ObjectHolder[DataFrameProviderService]()
-    holder.set(mockOldService)
+    val holder = new Workers[DataFrameProviderService]()
+    holder.add(mockOldService)
     val event = RequireDataFrameProviderEvent(holder)
 
     // 执行: 处理事件，创建链式服务
     hookedEventHandler.doHandleEvent(event)
 
     // 提取: 获取新的链式服务
-    val chainedService = holder.invoke(run = s => s, onNull = null)
+    val chainedService = holder.invoke(runMethod = s => s, onNull = null)
     assertNotNull(chainedService, "Holder 不应为空")
 
     val testUrl = "http://inner.com/data"
@@ -121,15 +121,15 @@ class DataFrameProviderModuleTest {
     mockOldService.dfToReturn = oldDF
 
     // 模拟事件
-    val holder = new ObjectHolder[DataFrameProviderService]()
-    holder.set(mockOldService)
+    val holder = new Workers[DataFrameProviderService]()
+    holder.add(mockOldService)
     val event = RequireDataFrameProviderEvent(holder)
 
     // 执行
     hookedEventHandler.doHandleEvent(event)
 
     // 提取
-    val chainedService = holder.invoke(run = s => s, onNull = null)
+    val chainedService = holder.invoke(runMethod = s => s, onNull = null)
     assertNotNull(chainedService, "Holder 不应为空")
 
     val testUrl = "http://old.com/data"
@@ -160,15 +160,15 @@ class DataFrameProviderModuleTest {
     mockOldService.acceptsUrl = false
 
     // 模拟事件
-    val holder = new ObjectHolder[DataFrameProviderService]()
-    holder.set(mockOldService)
+    val holder = new Workers[DataFrameProviderService]()
+    holder.add(mockOldService)
     val event = RequireDataFrameProviderEvent(holder)
 
     // 执行
     hookedEventHandler.doHandleEvent(event)
 
     // 提取
-    val chainedService = holder.invoke(run = s => s, onNull = null)
+    val chainedService = holder.invoke(runMethod = s => s, onNull = null)
     assertNotNull(chainedService, "Holder 不应为空")
 
     val testUrl = "http://none.com/data"
@@ -200,14 +200,14 @@ class DataFrameProviderModuleTest {
     mockInnerService.dfToReturn = innerDF
 
     // 模拟事件: Holder 为空 (old = null)
-    val holder = new ObjectHolder[DataFrameProviderService]()
+    val holder = new Workers[DataFrameProviderService]()
     val event = RequireDataFrameProviderEvent(holder)
 
     // 执行
     hookedEventHandler.doHandleEvent(event)
 
     // 提取
-    val chainedService = holder.invoke(run = s => s, onNull = null)
+    val chainedService = holder.invoke(runMethod = s => s, onNull = null)
     assertNotNull(chainedService, "Holder 不应为空")
 
     val testUrl = "http://inner.com/data"

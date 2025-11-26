@@ -2,7 +2,7 @@ package link.rdcn.dacp.catalog
 
 import CatalogFormatter.{getDataFrameDocumentJsonString, getDataFrameStatisticsString}
 import link.rdcn.server._
-import link.rdcn.server.module.{ObjectHolder, RequireActionHandlerEvent, RequireGetStreamHandlerEvent}
+import link.rdcn.server.module.{ActionMethod, CollectActionMethodEvent, CollectGetStreamMethodEvent, GetStreamMethod, Workers}
 import link.rdcn.struct.StructType
 import org.apache.jena.rdf.model.{Model, ModelFactory}
 
@@ -14,18 +14,19 @@ import java.io.StringWriter
  * @Data 2025/10/29 21:46
  * @Modified By:
  */
-case class RequireCatalogServiceEvent(holder: ObjectHolder[CatalogService]) extends CrossModuleEvent
+case class RequireCatalogServiceEvent(holder: Workers[CatalogService]) extends CrossModuleEvent
 
 class DacpCatalogModule() extends DftpModule {
 
-  private val catalogServiceHolder = new ObjectHolder[CatalogService]
+  private val catalogServiceHolder = new Workers[CatalogService]
 
-  private val actionMethodService = new ActionHandler {
+
+  private val actionMethodService = new ActionMethod {
 
     override def accepts(request: DftpActionRequest): Boolean = true
 
     override def doAction(request: DftpActionRequest, response: DftpActionResponse): Unit = {
-      try{
+      try {
         val actionName = request.getActionName()
         val parameter = request.getParameter()
         actionName match {
@@ -76,7 +77,7 @@ class DacpCatalogModule() extends DftpModule {
             }, response.sendError(404, s"unknown action: ${request.getActionName()}"))
           case _ => response.sendError(404, s"unknown action: ${request.getActionName()}")
         }
-      }catch {
+      } catch {
         case e: Exception =>
           response.sendError(500, e.getMessage)
           throw e
@@ -88,45 +89,48 @@ class DacpCatalogModule() extends DftpModule {
     anchor.hook(new EventHandler {
       override def accepts(event: CrossModuleEvent): Boolean = {
         event match {
-          case _: RequireActionHandlerEvent => true
-          case _: RequireGetStreamHandlerEvent => true
+          case _: CollectActionMethodEvent => true
+          case _: CollectGetStreamMethodEvent => true
           case _ => false
         }
       }
 
       override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
-          case r: RequireActionHandlerEvent => r.holder.set(actionMethodService)
-          case r: RequireGetStreamHandlerEvent => r.holder.set(old => {
-            new GetStreamHandler {
+          case r: CollectActionMethodEvent => r.collect(actionMethodService)
+          case r: CollectGetStreamMethodEvent => r.collect(
+            new GetStreamMethod {
               override def accepts(request: DftpGetStreamRequest): Boolean =
-                request.isInstanceOf[DftpGetPathStreamRequest] || old!=null && old.accepts(request)
+                request match {
+                  case r: DftpGetPathStreamRequest => r.getRequestPath() match {
+                    case "/listDataSets" => true
+                    case path if path.startsWith("/listDataFrames") => true
+                    case "/listHosts" => true
+                    case _ => false
+                  }
+                }
 
               override def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
                 request match {
                   case r: DftpGetPathStreamRequest => r.getRequestPath() match {
                     case "/listDataSets" => catalogServiceHolder.invoke(c =>
                       response.sendDataFrame(c.doListDataSets(serverContext.baseUrl))
-                    ,response.sendError(404, s"DataFrame ${r.getRequestPath()} not Found"))
+                      , response.sendError(404, s"DataFrame ${r.getRequestPath()} not Found"))
                     case path if path.startsWith("/listDataFrames") => catalogServiceHolder.invoke(c =>
                       response.sendDataFrame(c.doListDataFrames(path, serverContext.baseUrl)),
                       response.sendError(404, s"DataFrame ${r.getRequestPath()} not Found"))
                     case "/listHosts" => catalogServiceHolder.invoke(c =>
                       response.sendDataFrame(c.doListHostInfo(serverContext)),
                       response.sendError(404, s"DataFrame ${r.getRequestPath()} not Found"))
-                    case _ => if(old !=null && old.accepts(request)) old.doGetStream(request, response)
-                      else response.sendError(404, s"DataFrame ${r.getRequestPath()} not Found")
                   }
-                  case _ => if(old !=null && old.accepts(request)) old.doGetStream(request, response)
-                  else response.sendError(404, s"resource ${r} not Found")
                 }
               }
-            }
-          })
+            })
           case _ =>
         }
       }
     })
+
     anchor.hook(new EventSource {
       override def init(eventHub: EventHub): Unit =
         eventHub.fireEvent(RequireCatalogServiceEvent(catalogServiceHolder))

@@ -38,10 +38,10 @@ object DftpClientTest {
   DftpClientTestDataGenerator.generateTestData(binDir, csvDir, baseDir)
 
   private val userPasswordAuthService = new UserPasswordAuthService {
-    override def authenticate(credentials: UsernamePassword): UserPrincipal =
+    override def authenticate(credentials: Credentials): UserPrincipal =
       UserPrincipalWithCredentials(credentials)
 
-    override def accepts(credentials: UsernamePassword): Boolean = true
+    override def accepts(credentials: Credentials): Boolean = true
   }
 
   @BeforeAll

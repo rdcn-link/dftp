@@ -6,7 +6,7 @@ import link.rdcn.dacp.recipe.FlowNode
 import link.rdcn.dacp.user.{DataOperationType, PermissionService}
 import link.rdcn.operation.{ExecutionContext, TransformOp}
 import link.rdcn.server.exception.DataFrameNotFoundException
-import link.rdcn.server.module.DataFrameProviderService
+import link.rdcn.server.module.{DataFrameProviderService, GetStreamMethod, ParseRequestMethod}
 import link.rdcn.server._
 import link.rdcn.struct._
 import link.rdcn.user.{Credentials, UserPrincipal}
@@ -64,7 +64,7 @@ case object MockUser extends UserPrincipal {
 /**
  * 模拟 GetStreamRequestParser (用于测试链式调用)
  */
-class MockGetStreamRequestParser extends GetStreamRequestParser {
+class MockGetStreamRequestParser extends ParseRequestMethod {
   var parseCalled = false
   val requestToReturn: DftpGetStreamRequest = new MockDftpGetStreamRequest("OldRequest")
   override def accepts(token: Array[Byte]): Boolean = true
@@ -77,7 +77,7 @@ class MockGetStreamRequestParser extends GetStreamRequestParser {
 /**
  * 模拟 GetStreamHandler (用于测试链式调用)
  */
-class MockGetStreamHandler extends GetStreamHandler {
+class MockGetStreamHandler extends GetStreamMethod {
   var doGetStreamCalled = false
   override def accepts(request: DftpGetStreamRequest): Boolean = true
   override def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {

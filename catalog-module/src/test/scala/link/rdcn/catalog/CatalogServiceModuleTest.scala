@@ -8,7 +8,7 @@ package link.rdcn.catalog
 
 import link.rdcn.dacp.catalog.{CatalogService, CatalogServiceModule, CatalogServiceRequest, RequireCatalogServiceEvent}
 import link.rdcn.server.EventHandler
-import link.rdcn.server.module.ObjectHolder
+import link.rdcn.server.module.Workers
 import link.rdcn.struct.{DataFrameDocument, DataFrameStatistics, StructType}
 import org.apache.jena.rdf.model.Model
 import org.junit.jupiter.api.Assertions.{assertFalse, assertNotNull, assertSame, assertTrue}
@@ -77,7 +77,7 @@ class CatalogServiceModuleTest {
    */
   @Test
   def testEventHandlerAcceptsLogic(): Unit = {
-    val validEvent = RequireCatalogServiceEvent(new ObjectHolder[CatalogService])
+    val validEvent = RequireCatalogServiceEvent(new Workers[CatalogService])
     val invalidEvent = new OtherMockEvent()
 
     // 遵守 [2025-09-26] 规范：(expected, actual, message)
@@ -95,7 +95,7 @@ class CatalogServiceModuleTest {
   @Test
   def testEventHandlerInjectsCorrectService(): Unit = {
     // 1. 准备: 创建一个空的 holder 和事件
-    val serviceHolder = new ObjectHolder[CatalogService]
+    val serviceHolder = new Workers[CatalogService]
     val event = RequireCatalogServiceEvent(serviceHolder)
 
     // 2. 执行: 处理事件
@@ -103,7 +103,7 @@ class CatalogServiceModuleTest {
 
     // 3. 验证: 使用 invoke 代替 get
     val isCorrectServiceInjected = serviceHolder.invoke(
-      run = (injectedService: CatalogService) => {
+      runMethod = (injectedService: CatalogService) => {
         // 遵守 [2025-09-26] 规范：(expected, actual, message)
         // 验证注入的实例是否*正是*我们传入构造函数的那个模拟实例
         assertSame(mockService, injectedService,

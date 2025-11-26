@@ -11,10 +11,10 @@ import link.rdcn.client.DftpClient
 import link.rdcn.client.dacp.DacpCatalogModuleTest.{baseUrl, catalogService, client}
 import link.rdcn.client.dacp.MockCatalogData.mockDF
 import link.rdcn.server._
-import link.rdcn.server.module.{BaseDftpModule, ObjectHolder, RequireGetStreamHandlerEvent, UserPasswordAuthModule}
+import link.rdcn.server.module.{BaseDftpModule, CollectGetStreamMethodEvent, FilteredGetStreamMethods, GetStreamMethod, Workers, UserPasswordAuthModule}
 import link.rdcn.struct.ValueType.{IntType, StringType}
 import link.rdcn.struct._
-import link.rdcn.user.{UserPasswordAuthService, UserPrincipal, UserPrincipalWithCredentials, UsernamePassword}
+import link.rdcn.user.{Credentials, UserPasswordAuthService, UserPrincipal, UserPrincipalWithCredentials, UsernamePassword}
 import org.apache.arrow.flight.FlightRuntimeException
 import org.apache.jena.rdf.model.{Model, ModelFactory}
 import org.junit.jupiter.api.Assertions.{assertEquals, assertNotNull, assertThrows, assertTrue}
@@ -65,10 +65,10 @@ object DacpCatalogModuleTest {
     override def listDataFrameNames(dataSetId: String): List[String] = List("my_table")
   }
   private val userPasswordAuthService = new UserPasswordAuthService {
-    override def authenticate(credentials: UsernamePassword): UserPrincipal =
+    override def authenticate(credentials: Credentials): UserPrincipal =
       UserPrincipalWithCredentials(credentials)
 
-    override def accepts(credentials: UsernamePassword): Boolean = true
+    override def accepts(credentials: Credentials): Boolean = true
   }
 
   @BeforeAll
@@ -309,7 +309,7 @@ object MockCatalogData {
 
 class GetStreamModule extends DftpModule {
   private val mockSchema: StructType = StructType.empty.add("id", IntType).add("name", StringType)
-  private val getStreamHolder = new ObjectHolder[GetStreamHandler]
+  private val getStreamHolder = new FilteredGetStreamMethods
   private var serverContext: ServerContext = _
   private val eventHandler = new EventHandler {
 
@@ -317,19 +317,18 @@ class GetStreamModule extends DftpModule {
 
     override def doHandleEvent(event: CrossModuleEvent): Unit = {
       event match {
-        case r: RequireGetStreamHandlerEvent => r.holder.set(old =>
-          new GetStreamHandler {
+        case r: CollectGetStreamMethodEvent => r.collect(
+          new GetStreamMethod {
             override def accepts(request: DftpGetStreamRequest): Boolean = request.asInstanceOf[DftpGetPathStreamRequest].getRequestURL().contains("oldStream")
 
             override def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
               request.asInstanceOf[DftpGetPathStreamRequest].getRequestURL() match {
                 case url if url.contains("oldStream") =>
                   response.sendDataFrame(mockDF)
-                case url =>
-                  old.doGetStream(request, response)
               }
             }
           })
+
         case _ =>
       }
     }
@@ -344,7 +343,7 @@ class GetStreamModule extends DftpModule {
     anchor.hook(eventHandler)
     anchor.hook(new EventSource {
       override def init(eventHub: EventHub): Unit =
-        eventHub.fireEvent(new RequireGetStreamHandlerEvent(getStreamHolder))
+        eventHub.fireEvent(new CollectGetStreamMethodEvent(getStreamHolder))
     })
   }
 

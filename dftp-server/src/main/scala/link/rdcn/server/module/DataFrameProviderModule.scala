@@ -21,21 +21,17 @@ class DataFrameProviderModule(dataFrameProvider: DataFrameProviderService) exten
       override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
           case r: RequireDataFrameProviderEvent =>
-            r.holder.set(old => {
+            r.holder.add(
               new DataFrameProviderService {
                 override def accepts(dataFrameUrl: String): Boolean =
-                  dataFrameProvider.accepts(dataFrameUrl) || old !=null && old.accepts(dataFrameUrl)
+                  dataFrameProvider.accepts(dataFrameUrl)
 
                 override def getDataFrame(dataFrameUrl: String, userPrincipal: UserPrincipal)
                                          (implicit ctx: ServerContext): DataFrame = {
-                  if(dataFrameProvider.accepts(dataFrameUrl))
-                    dataFrameProvider.getDataFrame(dataFrameUrl, userPrincipal)
-                  else if(old!=null && old.accepts(dataFrameUrl))
-                    old.getDataFrame(dataFrameUrl, userPrincipal)
-                  else throw new DataFrameNotFoundException(dataFrameUrl)
+                  dataFrameProvider.getDataFrame(dataFrameUrl, userPrincipal)
                 }
               }
-            })
+            )
         }
       }
     })
@@ -44,10 +40,10 @@ class DataFrameProviderModule(dataFrameProvider: DataFrameProviderService) exten
   override def destroy(): Unit = {}
 }
 
-trait DataFrameProviderService{
+trait DataFrameProviderService {
   def accepts(dataFrameUrl: String): Boolean
 
   def getDataFrame(dataFrameUrl: String, userPrincipal: UserPrincipal)(implicit ctx: ServerContext): DataFrame
 }
 
-case class RequireDataFrameProviderEvent(holder: ObjectHolder[DataFrameProviderService]) extends CrossModuleEvent
+case class RequireDataFrameProviderEvent(holder: Workers[DataFrameProviderService]) extends CrossModuleEvent

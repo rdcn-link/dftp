@@ -1,6 +1,6 @@
 package link.rdcn
 
-import link.rdcn.server.module.{ObjectHolder, RequireGetStreamHandlerEvent}
+import link.rdcn.server.module.{CollectGetStreamMethodEvent, FilteredGetStreamMethods, GetStreamMethod, Workers}
 import link.rdcn.server._
 import link.rdcn.struct.ValueType.{IntType, StringType}
 import link.rdcn.struct._
@@ -51,7 +51,7 @@ class MockServerContext extends ServerContext {
 
 class GetStreamModule extends DftpModule {
   private val mockSchema: StructType = StructType.empty.add("id", IntType).add("name", StringType)
-  private val getStreamHolder = new ObjectHolder[GetStreamHandler]
+  private val getStreamHolder = new FilteredGetStreamMethods
   private var serverContext: ServerContext = _
   private val eventHandler = new EventHandler {
 
@@ -59,16 +59,14 @@ class GetStreamModule extends DftpModule {
 
     override def doHandleEvent(event: CrossModuleEvent): Unit = {
       event match {
-        case r: RequireGetStreamHandlerEvent => r.holder.set(old =>
-          new GetStreamHandler {
+        case r: CollectGetStreamMethodEvent => r.collect(
+          new GetStreamMethod {
             override def accepts(request: DftpGetStreamRequest): Boolean = request.asInstanceOf[DftpGetPathStreamRequest].getRequestURL().contains("oldStream")
 
             override def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
               request.asInstanceOf[DftpGetPathStreamRequest].getRequestURL() match {
                 case url if url.contains("oldStream") =>
                   response.sendDataFrame(mockDF)
-                case url =>
-                  old.doGetStream(request, response)
               }
             }
           })
@@ -86,7 +84,7 @@ class GetStreamModule extends DftpModule {
     anchor.hook(eventHandler)
     anchor.hook(new EventSource {
       override def init(eventHub: EventHub): Unit =
-        eventHub.fireEvent(new RequireGetStreamHandlerEvent(getStreamHolder))
+        eventHub.fireEvent(new CollectGetStreamMethodEvent(getStreamHolder))
     })
   }
 
