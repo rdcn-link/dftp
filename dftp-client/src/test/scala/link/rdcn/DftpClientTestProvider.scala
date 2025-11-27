@@ -71,9 +71,9 @@ object DftpClientTestProvider {
       override def accepts(credentials: Credentials): Boolean = true
     }
     if (server.isEmpty) {
-      val directoryDataSourceModule = new FileDirectoryDataSourceModule
-      directoryDataSourceModule.setRootDirectory(new File(baseDir))
-      val modules = Array(directoryDataSourceModule, new BaseDftpModule,
+//      val directoryDataSourceModule = new FileDirectoryDataSourceModule
+//      directoryDataSourceModule.setRootDirectory(new File(baseDir))
+      val modules = Array(new BaseDftpModule,
         new UserPasswordAuthModule(userPasswordAuthService))
       val s = DftpServer.start(DftpServerConfig("0.0.0.0", 3101, Some("data")), modules)
       server = Some(s)

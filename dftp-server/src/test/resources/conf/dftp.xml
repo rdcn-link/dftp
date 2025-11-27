@@ -16,7 +16,7 @@
                     <list>
                         <!-- DftpModule Bean -->
                         <bean class="link.rdcn.server.module.BaseDftpModule"/>
-                        <bean class="link.rdcn.server.module.FileDirectoryDataSourceModule">
+                        <bean class="link.rdcn.server.FileDirectoryDataSourceModule">
                             <property name="rootDirectory">
                                 <value type="java.io.File">file:${configDir}/../data</value>
                             </property>
