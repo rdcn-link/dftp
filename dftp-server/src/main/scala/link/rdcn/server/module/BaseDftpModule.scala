@@ -14,7 +14,7 @@ class BaseDftpModule extends DftpModule {
 
   //TODO: should all data frame providers be registered?
   private val dataFrameHolder = new Workers[DataFrameProviderService]
-  private var serverContext: ServerContext = _
+  private implicit var serverContext: ServerContext = _
   private val eventHandlerGetStream = new EventHandler {
 
     override def accepts(event: CrossModuleEvent): Boolean =
@@ -68,7 +68,7 @@ class BaseDftpModule extends DftpModule {
 
                             override def isReady(worker: DataFrameProviderService): Boolean = worker.accepts(dataFrameNameUrl)
 
-                            override def executeWith(worker: DataFrameProviderService): DataFrame = worker.getDataFrame(dataFrameNameUrl, r.getUserPrincipal())(serverContext)
+                            override def executeWith(worker: DataFrameProviderService): DataFrame = worker.getDataFrame(dataFrameNameUrl, r.getUserPrincipal())
 
                             override def handleFailure(): DataFrame = throw new DataFrameNotFoundException(dataFrameNameUrl)
                           }))
@@ -161,7 +161,7 @@ class BaseDftpModule extends DftpModule {
     anchor.hook(eventHandlerGetStream)
     anchor.hook(new EventSource {
       override def init(eventHub: EventHub): Unit =
-        eventHub.fireEvent(RequireDataFrameProviderEvent(dataFrameHolder))
+        eventHub.fireEvent(CollectDataFrameProviderEvent(dataFrameHolder))
     })
   }
 

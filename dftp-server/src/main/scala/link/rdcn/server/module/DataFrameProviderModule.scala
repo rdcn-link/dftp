@@ -16,11 +16,11 @@ class DataFrameProviderModule(dataFrameProvider: DataFrameProviderService) exten
   override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
     anchor.hook(new EventHandler {
       override def accepts(event: CrossModuleEvent): Boolean =
-        event.isInstanceOf[RequireDataFrameProviderEvent]
+        event.isInstanceOf[CollectDataFrameProviderEvent]
 
       override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
-          case r: RequireDataFrameProviderEvent =>
+          case r: CollectDataFrameProviderEvent =>
             r.holder.add(
               new DataFrameProviderService {
                 override def accepts(dataFrameUrl: String): Boolean =
@@ -46,4 +46,4 @@ trait DataFrameProviderService {
   def getDataFrame(dataFrameUrl: String, userPrincipal: UserPrincipal)(implicit ctx: ServerContext): DataFrame
 }
 
-case class RequireDataFrameProviderEvent(holder: Workers[DataFrameProviderService]) extends CrossModuleEvent
+case class CollectDataFrameProviderEvent(holder: Workers[DataFrameProviderService]) extends CrossModuleEvent

@@ -1,7 +1,7 @@
 package link.rdcn.dacp.catalog
 
 import link.rdcn.server._
-import link.rdcn.server.module.{Workers, RequireDataFrameProviderEvent}
+import link.rdcn.server.module.{Workers, CollectDataFrameProviderEvent}
 import link.rdcn.struct.{DataFrameDocument, DataFrameStatistics, DataStreamSource, StructType}
 import org.apache.jena.rdf.model.Model
 
@@ -16,11 +16,11 @@ class CatalogServiceModule(catalogService: CatalogService) extends DftpModule {
   override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
     anchor.hook(new EventHandler {
       override def accepts(event: CrossModuleEvent): Boolean =
-        event.isInstanceOf[RequireCatalogServiceEvent]
+        event.isInstanceOf[CollectCatalogServiceEvent]
 
       override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
-          case r: RequireCatalogServiceEvent => r.holder.add(catalogService)
+          case r: CollectCatalogServiceEvent => r.holder.add(catalogService)
           case _ =>
         }
       }

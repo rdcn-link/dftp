@@ -3,7 +3,7 @@ package link.rdcn.dacp.cook
 import link.rdcn.dacp.user.{PermissionService, RequirePermissionServiceEvent}
 import link.rdcn.server.{Anchor, CrossModuleEvent, DftpModule, EventHandler, EventHub, EventSource, ServerContext}
 import link.rdcn.server.exception.{DataFrameAccessDeniedException, DataFrameNotFoundException}
-import link.rdcn.server.module.{DataFrameProviderService, TaskRunner, Workers, RequireDataFrameProviderEvent}
+import link.rdcn.server.module.{DataFrameProviderService, TaskRunner, Workers, CollectDataFrameProviderEvent}
 import link.rdcn.struct.DataFrame
 import link.rdcn.user.UserPrincipal
 
@@ -20,11 +20,11 @@ class SecuredDataFrameProviderModule(dataFrameProvider: DataFrameProviderService
   override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
     anchor.hook(new EventHandler {
       override def accepts(event: CrossModuleEvent): Boolean =
-        event.isInstanceOf[RequireDataFrameProviderEvent]
+        event.isInstanceOf[CollectDataFrameProviderEvent]
 
       override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
-          case r: RequireDataFrameProviderEvent =>
+          case r: CollectDataFrameProviderEvent =>
             r.holder.add(
               new DataFrameProviderService {
                 override def accepts(dataFrameUrl: String): Boolean =

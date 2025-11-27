@@ -53,9 +53,9 @@ class BaseDftpModuleTest {
 
     // 3. 触发 EventSource 来捕获 dataFrameHolder
     mockAnchor.hookedEventSource.init(mockEventHub)
-    val event = mockEventHub.eventsFired.find(_.isInstanceOf[RequireDataFrameProviderEvent]).get
-    dataFrameHolder = event.asInstanceOf[RequireDataFrameProviderEvent].holder
-    assertNotNull(dataFrameHolder, "EventSource 未能正确触发 RequireDataFrameProviderEvent")
+    val event = mockEventHub.eventsFired.find(_.isInstanceOf[CollectDataFrameProviderEvent]).get
+    dataFrameHolder = event.asInstanceOf[CollectDataFrameProviderEvent].holder
+    assertNotNull(dataFrameHolder, "EventSource 未能正确触发 CollectDataFrameProviderEvent")
 
     // 4. 提取两个 EventHandler
     parserEventHandler = mockAnchor.hookedEventHandlers.find(

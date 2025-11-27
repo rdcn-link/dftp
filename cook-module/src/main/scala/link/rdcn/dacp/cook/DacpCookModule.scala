@@ -4,7 +4,7 @@ import link.rdcn.Logging
 import link.rdcn.dacp.optree.{FlowExecutionContext, OperatorRepository, RepositoryClient, TransformTree}
 import link.rdcn.dacp.user.{PermissionService, RequirePermissionServiceEvent}
 import link.rdcn.operation.TransformOp
-import link.rdcn.server.module.{CollectGetStreamMethodEvent, CollectParseRequestMethodEvent, DataFrameProviderService, GetStreamMethod, TaskRunner, Workers, ParseRequestMethod, RequireDataFrameProviderEvent}
+import link.rdcn.server.module.{CollectGetStreamMethodEvent, CollectParseRequestMethodEvent, DataFrameProviderService, GetStreamMethod, TaskRunner, Workers, ParseRequestMethod, CollectDataFrameProviderEvent}
 import link.rdcn.server._
 import link.rdcn.server.exception.{DataFrameAccessDeniedException, DataFrameNotFoundException}
 import link.rdcn.struct.DataFrame
@@ -26,7 +26,6 @@ class DacpCookModule() extends DftpModule with Logging {
 
   private implicit var serverContext: ServerContext = _
   private val dataFrameHolder = new Workers[DataFrameProviderService]
-  private val permissionHolder = new Workers[PermissionService]
 
   override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
     this.serverContext = serverContext
@@ -92,14 +91,6 @@ class DacpCookModule() extends DftpModule with Logging {
 
                         override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
                           try {
-                            if (permissionHolder.work(new TaskRunner[PermissionService, Boolean]() {
-                              override def isReady(worker: PermissionService): Boolean = worker.accepts(userPrincipal)
-
-                              override def executeWith(worker: PermissionService): Boolean = worker.checkPermission(userPrincipal, dataFrameNameUrl)
-
-                              override def handleFailure(): Boolean = throw new DataFrameAccessDeniedException(dataFrameNameUrl)
-
-                            })) {
                               Some(dataFrameHolder.work(new TaskRunner[DataFrameProviderService, DataFrame]() {
 
                                 override def isReady(worker: DataFrameProviderService): Boolean = worker.accepts(dataFrameNameUrl)
@@ -109,10 +100,6 @@ class DacpCookModule() extends DftpModule with Logging {
                                 override def handleFailure(): DataFrame = throw new DataFrameNotFoundException(dataFrameNameUrl)
                               }
                               ))
-                            }
-                            else {
-                              None
-                            }
                           } catch {
                             case e: DataFrameAccessDeniedException => response.sendError(403, e.getMessage)
                               throw e
@@ -144,8 +131,7 @@ class DacpCookModule() extends DftpModule with Logging {
 
     anchor.hook(new EventSource {
       override def init(eventHub: EventHub): Unit = {
-        eventHub.fireEvent(RequireDataFrameProviderEvent(dataFrameHolder))
-        eventHub.fireEvent(RequirePermissionServiceEvent(permissionHolder))
+        eventHub.fireEvent(CollectDataFrameProviderEvent(dataFrameHolder))
       }
     })
   }

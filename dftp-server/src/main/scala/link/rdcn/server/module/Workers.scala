@@ -15,7 +15,17 @@ class Workers[Worker] {
 
   /** @deprecated !!! */
   def invoke[Y](runMethod: (Worker) => Y, onNull: => Y): Y = {
-    throw new Exception(s"using work() instead!! ")
+    _list.iterator
+      .map { worker =>
+        try {
+          runMethod(worker)
+        } catch {
+          case _: MatchError => null.asInstanceOf[Y]
+        }
+      }
+      .find(_ != null)
+      .getOrElse(onNull)
+//    throw new Exception(s"using work() instead!! ")
   }
 
   def work[Result](runner: TaskRunner[Worker, Result]): Result = {

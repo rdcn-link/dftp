@@ -6,9 +6,9 @@
  */
 package link.rdcn.catalog
 
-import link.rdcn.dacp.catalog.{CatalogService, CatalogServiceModule, CatalogServiceRequest, RequireCatalogServiceEvent}
+import link.rdcn.dacp.catalog.{CatalogService, CatalogServiceModule, CatalogServiceRequest, CollectCatalogServiceEvent}
 import link.rdcn.server.EventHandler
-import link.rdcn.server.module.Workers
+import link.rdcn.server.module.{TaskRunner, Workers}
 import link.rdcn.struct.{DataFrameDocument, DataFrameStatistics, StructType}
 import org.apache.jena.rdf.model.Model
 import org.junit.jupiter.api.Assertions.{assertFalse, assertNotNull, assertSame, assertTrue}
@@ -77,12 +77,12 @@ class CatalogServiceModuleTest {
    */
   @Test
   def testEventHandlerAcceptsLogic(): Unit = {
-    val validEvent = RequireCatalogServiceEvent(new Workers[CatalogService])
+    val validEvent = CollectCatalogServiceEvent(new Workers[CatalogService])
     val invalidEvent = new OtherMockEvent()
 
     // 遵守 [2025-09-26] 规范：(expected, actual, message)
     assertTrue(hookedEventHandler.accepts(validEvent),
-      "EventHandler 应接受 RequireCatalogServiceEvent")
+      "EventHandler 应接受 CollectCatalogServiceEvent")
 
     assertFalse(hookedEventHandler.accepts(invalidEvent),
       "EventHandler 不应接受其他类型的事件")
@@ -96,7 +96,7 @@ class CatalogServiceModuleTest {
   def testEventHandlerInjectsCorrectService(): Unit = {
     // 1. 准备: 创建一个空的 holder 和事件
     val serviceHolder = new Workers[CatalogService]
-    val event = RequireCatalogServiceEvent(serviceHolder)
+    val event = CollectCatalogServiceEvent(serviceHolder)
 
     // 2. 执行: 处理事件
     hookedEventHandler.doHandleEvent(event)

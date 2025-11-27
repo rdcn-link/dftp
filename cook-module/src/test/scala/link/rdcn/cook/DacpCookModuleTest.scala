@@ -51,8 +51,8 @@ class DacpCookModuleTest {
     // 触发 EventSource 来捕获用于依赖注入的 holder
     mockAnchor.hookedEventSource.init(mockEventHub)
 
-    dataFrameHolder = mockEventHub.eventsFired.find(_.isInstanceOf[RequireDataFrameProviderEvent]).get
-      .asInstanceOf[RequireDataFrameProviderEvent].holder
+    dataFrameHolder = mockEventHub.eventsFired.find(_.isInstanceOf[CollectDataFrameProviderEvent]).get
+      .asInstanceOf[CollectDataFrameProviderEvent].holder
     permissionHolder = mockEventHub.eventsFired.find(_.isInstanceOf[RequirePermissionServiceEvent]).get
       .asInstanceOf[RequirePermissionServiceEvent].holder
 
@@ -65,12 +65,12 @@ class DacpCookModuleTest {
   }
 
   /**
-   * 测试 init 是否正确触发了 RequireDataFrameProviderEvent 和 RequirePermissionServiceEvent
+   * 测试 init 是否正确触发了 CollectDataFrameProviderEvent 和 RequirePermissionServiceEvent
    */
   @Test
   def testInit_FiresAndHooksEvents(): Unit = {
     assertEquals(4, mockEventHub.eventsFired.length, "EventSource.init() 应触发 4 个事件")
-    assertTrue(mockEventHub.eventsFired.exists(_.isInstanceOf[RequireDataFrameProviderEvent]), "RequireDataFrameProviderEvent 未被触发")
+    assertTrue(mockEventHub.eventsFired.exists(_.isInstanceOf[CollectDataFrameProviderEvent]), "CollectDataFrameProviderEvent 未被触发")
     assertTrue(mockEventHub.eventsFired.exists(_.isInstanceOf[RequirePermissionServiceEvent]), "RequirePermissionServiceEvent 未被触发")
   }
 

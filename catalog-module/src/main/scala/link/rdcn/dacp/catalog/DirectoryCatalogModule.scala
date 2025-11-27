@@ -28,11 +28,11 @@ class DirectoryCatalogModule extends DftpModule {
   override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
     anchor.hook(new EventHandler {
       override def accepts(event: CrossModuleEvent): Boolean =
-        event.isInstanceOf[RequireCatalogServiceEvent]
+        event.isInstanceOf[CollectCatalogServiceEvent]
 
       override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
-          case r: RequireCatalogServiceEvent => r.holder.add(new CatalogService {
+          case r: CollectCatalogServiceEvent => r.holder.add(new CatalogService {
             override def accepts(request: CatalogServiceRequest): Boolean =
               request.getDataSetId == dataSetName || {
                 val path = UrlValidator.extractPath(request.getDataFrameUrl)

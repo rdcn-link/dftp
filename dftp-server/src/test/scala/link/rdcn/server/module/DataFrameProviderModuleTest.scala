@@ -54,11 +54,11 @@ class DataFrameProviderModuleTest {
    */
   @Test
   def testEventHandlerAcceptsLogic(): Unit = {
-    val validEvent = RequireDataFrameProviderEvent(new Workers[DataFrameProviderService])
+    val validEvent = CollectDataFrameProviderEvent(new Workers[DataFrameProviderService])
     val invalidEvent = new OtherMockEventForProvider()
 
     assertTrue(hookedEventHandler.accepts(validEvent),
-      "EventHandler 应接受 RequireDataFrameProviderEvent")
+      "EventHandler 应接受 CollectDataFrameProviderEvent")
 
     assertFalse(hookedEventHandler.accepts(invalidEvent),
       "EventHandler 不应接受其他类型的事件")
@@ -81,7 +81,7 @@ class DataFrameProviderModuleTest {
     // 模拟事件: 将 'mockOldService' 放入 holder
     val holder = new Workers[DataFrameProviderService]()
     holder.add(mockOldService)
-    val event = RequireDataFrameProviderEvent(holder)
+    val event = CollectDataFrameProviderEvent(holder)
 
     // 执行: 处理事件，创建链式服务
     hookedEventHandler.doHandleEvent(event)
@@ -123,7 +123,7 @@ class DataFrameProviderModuleTest {
     // 模拟事件
     val holder = new Workers[DataFrameProviderService]()
     holder.add(mockOldService)
-    val event = RequireDataFrameProviderEvent(holder)
+    val event = CollectDataFrameProviderEvent(holder)
 
     // 执行
     hookedEventHandler.doHandleEvent(event)
@@ -162,7 +162,7 @@ class DataFrameProviderModuleTest {
     // 模拟事件
     val holder = new Workers[DataFrameProviderService]()
     holder.add(mockOldService)
-    val event = RequireDataFrameProviderEvent(holder)
+    val event = CollectDataFrameProviderEvent(holder)
 
     // 执行
     hookedEventHandler.doHandleEvent(event)
@@ -201,7 +201,7 @@ class DataFrameProviderModuleTest {
 
     // 模拟事件: Holder 为空 (old = null)
     val holder = new Workers[DataFrameProviderService]()
-    val event = RequireDataFrameProviderEvent(holder)
+    val event = CollectDataFrameProviderEvent(holder)
 
     // 执行
     hookedEventHandler.doHandleEvent(event)

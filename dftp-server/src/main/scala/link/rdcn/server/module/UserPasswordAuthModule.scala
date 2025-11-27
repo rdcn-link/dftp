@@ -1,6 +1,5 @@
 package link.rdcn.server.module
 
-import link.rdcn.server.exception.AuthenticationFailedException
 import link.rdcn.server.{Anchor, CrossModuleEvent, DftpModule, EventHandler, ServerContext}
 import link.rdcn.user.{AuthenticationMethod, Credentials, UserPasswordAuthService, UserPrincipal, UserPrincipalWithCredentials, UsernamePassword}
 
@@ -18,18 +17,14 @@ class UserPasswordAuthModule(userPasswordAuthService: UserPasswordAuthService) e
               new AuthenticationMethod {
                 override def accepts(credentials: Credentials): Boolean = {
                   credentials match {
-                    case u: UsernamePassword =>
-                      userPasswordAuthService.accepts(u)
-
+                    case u: UsernamePassword => userPasswordAuthService.accepts(u)
                     case Credentials.ANONYMOUS => true
                   }
                 }
 
                 override def authenticate(credentials: Credentials): UserPrincipal = {
                   credentials match {
-                    case u: UsernamePassword =>
-                        userPasswordAuthService.authenticate(credentials)
-
+                    case u: UsernamePassword => userPasswordAuthService.authenticate(credentials)
                     case Credentials.ANONYMOUS => UserPrincipalWithCredentials(Credentials.ANONYMOUS)
                   }
                 }

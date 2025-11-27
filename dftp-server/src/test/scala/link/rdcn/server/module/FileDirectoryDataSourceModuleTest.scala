@@ -84,7 +84,7 @@ class FileDirectoryDataSourceModuleTest {
     if (oldService != null) {
       holder.add(oldService)
     }
-    val event = RequireDataFrameProviderEvent(holder)
+    val event = CollectDataFrameProviderEvent(holder)
     hookedEventHandler.doHandleEvent(event)
     holder.invoke(runMethod = s => s, onNull = null)
   }
