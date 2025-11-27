@@ -6,7 +6,7 @@ import link.rdcn.dacp.cook.DacpCookModule
 import link.rdcn.dacp.recipe.{ExecutionResult, Flow, SourceNode, Transformer11}
 import link.rdcn.dacp.user.{DataOperationType, PermissionService, PermissionServiceModule}
 import link.rdcn.server.ServerContext
-import link.rdcn.server.module.{BaseDftpModule, DataFrameProviderModule, DataFrameProviderService, UserPasswordAuthModule}
+import link.rdcn.server.module.{BaseDftpModule, DataFrameProviderService, UserPasswordAuthModule}
 import link.rdcn.server.{DftpServer, DftpServerConfig}
 import link.rdcn.struct.ValueType.StringType
 import link.rdcn.struct._

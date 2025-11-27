@@ -8,10 +8,11 @@ package link.rdcn.client.dacp
 
 import link.rdcn.dacp.catalog._
 import link.rdcn.client.DftpClient
-import link.rdcn.client.dacp.DacpCatalogModuleTest.{baseUrl, catalogService, client}
+import link.rdcn.client.dacp.DacpCatalogModuleTest.{baseUrl, client}
 import link.rdcn.client.dacp.MockCatalogData.mockDF
+import link.rdcn.client.dacp.demo.DacpClientDemo.catalogService
 import link.rdcn.server._
-import link.rdcn.server.module.{BaseDftpModule, CollectGetStreamMethodEvent, FilteredGetStreamMethods, GetStreamMethod, Workers, UserPasswordAuthModule}
+import link.rdcn.server.module.{BaseDftpModule, CollectGetStreamMethodEvent, FilteredGetStreamMethods, GetStreamMethod, UserPasswordAuthModule, Workers}
 import link.rdcn.struct.ValueType.{IntType, StringType}
 import link.rdcn.struct._
 import link.rdcn.user.{Credentials, UserPasswordAuthService, UserPrincipal, UserPrincipalWithCredentials, UsernamePassword}
@@ -28,42 +29,42 @@ object DacpCatalogModuleTest {
   private var client: DftpClient = _
   private val testPort = 3101 // 为此测试使用一个唯一的端口
   private val baseUrl = s"dftp://0.0.0.0:$testPort"
-  private val catalogService = new CatalogService {
-    override def getDataSetMetaData(datasetName: String, model: Model): Unit =
-      model.add(MockCatalogData.getMockModel)
-
-    override def getDataFrameMetaData(dataFrameName: String, model: Model): Unit =
-      model.add(MockCatalogData.getMockModel)
-
-    override def getDocument(dataFrameName: String): DataFrameDocument =
-      if (dataFrameName == "my_table") MockCatalogData.mockDoc else throw new NoSuchElementException("Doc not found")
-
-    override def getStatistics(dataFrameName: String): DataFrameStatistics =
-      if (dataFrameName == "my_table") MockCatalogData.mockStats else throw new NoSuchElementException("Stats not found")
-
-    override def getSchema(dataFrameName: String): Option[StructType] =
-      if (dataFrameName == "my_table") Some(MockCatalogData.mockSchema) else None
-
-    override def getDataFrameTitle(dataFrameName: String): Option[String] =
-      if (dataFrameName == "my_table") Some(MockCatalogData.mockTitle) else None
-
-    override def accepts(request: CatalogServiceRequest): Boolean = true
-
-    /**
-     * 列出所有数据集名称
-     *
-     * @return java.util.List[String]
-     */
-    override def listDataSetNames(): List[String] = List("my_set")
-
-    /**
-     * 列出指定数据集下的所有数据帧名称
-     *
-     * @param dataSetId 数据集 ID
-     * @return java.util.List[String]
-     */
-    override def listDataFrameNames(dataSetId: String): List[String] = List("my_table")
-  }
+//  private val catalogService = new CatalogService {
+//    override def getDataSetMetaData(datasetName: String, model: Model): Unit =
+//      model.add(MockCatalogData.getMockModel)
+//
+//    override def getDataFrameMetaData(dataFrameName: String, model: Model): Unit =
+//      model.add(MockCatalogData.getMockModel)
+//
+//    override def getDocument(dataFrameName: String): DataFrameDocument =
+//      if (dataFrameName == "my_table") MockCatalogData.mockDoc else throw new NoSuchElementException("Doc not found")
+//
+//    override def getStatistics(dataFrameName: String): DataFrameStatistics =
+//      if (dataFrameName == "my_table") MockCatalogData.mockStats else throw new NoSuchElementException("Stats not found")
+//
+//    override def getSchema(dataFrameName: String): Option[StructType] =
+//      if (dataFrameName == "my_table") Some(MockCatalogData.mockSchema) else None
+//
+//    override def getDataFrameTitle(dataFrameName: String): Option[String] =
+//      if (dataFrameName == "my_table") Some(MockCatalogData.mockTitle) else None
+//
+//    override def accepts(request: CatalogServiceRequest): Boolean = true
+//
+//    /**
+//     * 列出所有数据集名称
+//     *
+//     * @return java.util.List[String]
+//     */
+//    override def listDataSetNames(): List[String] = List("my_set")
+//
+//    /**
+//     * 列出指定数据集下的所有数据帧名称
+//     *
+//     * @param dataSetId 数据集 ID
+//     * @return java.util.List[String]
+//     */
+//    override def listDataFrameNames(dataSetId: String): List[String] = List("my_table")
+//  }
   private val userPasswordAuthService = new UserPasswordAuthService {
     override def authenticate(credentials: Credentials): UserPrincipal =
       UserPrincipalWithCredentials(credentials)
@@ -78,7 +79,7 @@ object DacpCatalogModuleTest {
       new BaseDftpModule,
       new DacpCatalogModule,
       new GetStreamModule(),
-      new CatalogServiceModule(catalogService),
+//      new CatalogServiceModule(catalogService),
       new UserPasswordAuthModule(userPasswordAuthService),
     )
     server = DftpServer.start(config, modules)

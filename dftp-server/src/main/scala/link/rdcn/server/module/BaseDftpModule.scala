@@ -169,3 +169,11 @@ class BaseDftpModule extends DftpModule {
   }
 }
 
+trait DataFrameProviderService {
+  def accepts(dataFrameUrl: String): Boolean
+
+  def getDataFrame(dataFrameUrl: String, userPrincipal: UserPrincipal)(implicit ctx: ServerContext): DataFrame
+}
+
+case class CollectDataFrameProviderEvent(holder: Workers[DataFrameProviderService]) extends CrossModuleEvent
+

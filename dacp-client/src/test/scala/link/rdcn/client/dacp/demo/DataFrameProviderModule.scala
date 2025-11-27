@@ -1,7 +1,7 @@
-package link.rdcn.server.module
+package link.rdcn.client.dacp.demo
 
 import link.rdcn.server._
-import link.rdcn.server.exception.DataFrameNotFoundException
+import link.rdcn.server.module.{CollectDataFrameProviderEvent, DataFrameProviderService}
 import link.rdcn.struct.DataFrame
 import link.rdcn.user.UserPrincipal
 
@@ -39,11 +39,3 @@ class DataFrameProviderModule(dataFrameProvider: DataFrameProviderService) exten
 
   override def destroy(): Unit = {}
 }
-
-trait DataFrameProviderService {
-  def accepts(dataFrameUrl: String): Boolean
-
-  def getDataFrame(dataFrameUrl: String, userPrincipal: UserPrincipal)(implicit ctx: ServerContext): DataFrame
-}
-
-case class CollectDataFrameProviderEvent(holder: Workers[DataFrameProviderService]) extends CrossModuleEvent
