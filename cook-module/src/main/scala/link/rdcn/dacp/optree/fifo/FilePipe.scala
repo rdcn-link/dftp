@@ -32,10 +32,7 @@ abstract class FilePipe(file: File) {
         otherPipe.write(read())
       }
       case others =>
-        Await.result(Future {
           otherPipe.write(read())
-        },1.minute)
-
     }
 
   }

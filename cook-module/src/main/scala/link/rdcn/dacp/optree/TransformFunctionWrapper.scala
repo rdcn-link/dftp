@@ -402,7 +402,7 @@ case class FileRepositoryBundle(
     dockerContainer.stop()
     if (outputFilePath.head._2 != FileType.DIRECTORY) {
       //TODO: support outputting multiple DataFrames
-      FileDataFrame(new File(outputFilePath.head._1), outputFilePath.head._2)
+      FileDataFrame(FilePipe.fromFilePath(outputFilePath.head._1, outputFilePath.head._2), outputFilePath.head._2)
     } else DataStreamSource.filePath(new File(outputFilePath.head._1)).dataFrame
   }
 
@@ -445,8 +445,8 @@ case class FileRepositoryBundle(
     inputs.zip(inputFilePath).foreach(dfAndInput => {
       dfAndInput._1 match {
         case f: FileDataFrame =>
-          if (dfAndInput._2._1 != f.file.getAbsolutePath) {
-            FilePipe.fromFilePath(f.file.getAbsolutePath,f.fileType).copyToFile(FilePipe.fromFilePath(dfAndInput._2._1, dfAndInput._2._2))
+          if (dfAndInput._2._1 != f.filePipe.path) {
+            f.filePipe.copyToFile(FilePipe.fromFilePath(dfAndInput._2._1, dfAndInput._2._2))
           }
         case f: DataFrame => if (f.schema.columns.length == 1 && f.schema.columns.head.colType == BlobType) {
           val blob = f.collect().head.getAs[Blob](0)
@@ -460,13 +460,17 @@ case class FileRepositoryBundle(
             writeBlobToFile(row.getAs[Blob](6), Paths.get(dfAndInput._2._1, row.getAs[String](0)).toFile)
           })
         } else {
-          val future = Future {
-            FilePipe.fromFilePath(dfAndInput._2._1,dfAndInput._2._2).write(f.mapIterator(iter => iter.map(row => row.toSeq.mkString(","))))
-          }
-          future onComplete {
-            case Success(value) => logger.debug(s"load ${dfAndInput._2._1} success")
-            case Failure(e) => logger.debug(s"load ${dfAndInput._2._1} faild")
-              throw e
+          if (dfAndInput._2._2 == FileType.FIFO_BUFFER) {
+            val future = Future {
+              FilePipe.fromFilePath(dfAndInput._2._1, dfAndInput._2._2).write(f.mapIterator(iter => iter.map(row => row.toSeq.mkString(","))))
+            }
+            future onComplete {
+              case Success(value) => logger.debug(s"load ${dfAndInput._2._1} success")
+              case Failure(e) => logger.debug(s"load ${dfAndInput._2._1} faild")
+                throw e
+            }
+          } else {
+            FilePipe.fromFilePath(dfAndInput._2._1, dfAndInput._2._2).write(f.mapIterator(iter => iter.map(row => row.toSeq.mkString(","))))
           }
         }
       }
@@ -475,7 +479,7 @@ case class FileRepositoryBundle(
     if (outputFilePath.head._2 == FileType.DIRECTORY) {
       runOperator()
       DataStreamSource.filePath(new File(outputFilePath.head._1)).dataFrame
-    } else FileDataFrame(new File(outputFilePath.head._1), outputFilePath.head._2)
+    } else FileDataFrame(FilePipe.fromFilePath(outputFilePath.head._1, outputFilePath.head._2), outputFilePath.head._2)
   }
 
   private def writeBlobToFile(blob: Blob, file: File): Unit = {

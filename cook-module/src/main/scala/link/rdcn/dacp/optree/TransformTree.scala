@@ -164,7 +164,19 @@ case class TransformerNode(transformFunctionWrapperT: TransformFunctionWrapper, 
       }
       result
     }else{
-      transformFunctionWrapper.applyToDataFrames(inputs.map(_.execute(ctx)), flowCtx)
+      val inputDataFrames = inputs.map(_.execute(ctx))
+      val result = transformFunctionWrapperT.applyToDataFrames(inputDataFrames, flowCtx)
+      transformFunctionWrapper = transformFunctionWrapperT match {
+        case r: RepositoryOperator => r.transformFunctionWrapper
+        case _ => transformFunctionWrapperT
+      }
+      transformFunctionWrapper match {
+        case bundle: FileRepositoryBundle if bundle.outputFilePath.head._2 == FileType.FIFO_BUFFER ||
+          bundle.outputFilePath.head._2 == FileType.MMAP_FILE=>
+              bundle.runOperator()
+        case _ =>
+      }
+      result
     }
   }
 }

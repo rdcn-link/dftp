@@ -7,7 +7,7 @@ import java.io.File
 
 object FileType extends Enumeration {
   type FileType = Value
-  val FIFO_BUFFER, RAM_FILE, MMAP_FILE, DIRECTORY = Value
+  val FIFO_BUFFER, RAM_FILE, MMAP_FILE, DIRECTORY, FILE = Value
 
   override def toString: String = this match {
     case FIFO_BUFFER => "FIFO_BUFFER"
@@ -30,9 +30,9 @@ object FileType extends Enumeration {
 //TODO
 case class FileDirectoryDataFrame(files: Seq[(File, FileType.FileType)])
 
-case class FileDataFrame(file: File, fileType: FileType.FileType) extends DataFrame{
+case class FileDataFrame(filePipe: FilePipe, fileType: FileType.FileType) extends DataFrame{
 
-  lazy val df = RowFilePipe(file).dataFrame()
+  lazy val df = filePipe.dataFrame()
 
   override val schema: StructType = StructType.empty.add("content", StringType)
 

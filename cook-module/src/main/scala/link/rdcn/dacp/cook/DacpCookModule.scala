@@ -97,6 +97,8 @@ class DacpCookModule() extends DftpModule with Logging {
                         override def pythonHome: String = sys.env
                           .getOrElse("PYTHON_HOME", throw new Exception("PYTHON_HOME environment variable is not set"))
 
+                        isAsyncEnabled = false
+
                         override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
                           try {
                             if (permissionHolder.invoke(!_.checkPermission(userPrincipal, dataFrameNameUrl), false)) {

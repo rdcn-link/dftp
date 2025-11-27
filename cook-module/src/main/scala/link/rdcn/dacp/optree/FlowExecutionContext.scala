@@ -49,7 +49,7 @@ trait FlowExecutionContext extends link.rdcn.operation.ExecutionContext with Log
 
   def pythonHome: String
 
-  def isAsyncEnabled: Boolean = true
+  var isAsyncEnabled: Boolean = true
 
   def loadRemoteDataFrame(baseUrl: String, path:String, credentials: Credentials): Option[DataFrame]
 

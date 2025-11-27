@@ -1,21 +1,19 @@
 package link.rdcn.client
 
-import link.rdcn.dacp.optree.{FiFoFileNode, FileRepositoryBundle, LangTypeV2, RepositoryOperator, TransformFunctionWrapper, TransformerNode}
-import link.rdcn.dacp.optree.fifo.FileType
-import link.rdcn.dacp.recipe.{ExecutionResult, FifoFileBundleFlowNode, FifoFileFlowNode, Flow, FlowPath, RepositoryNode, SourceNode, Transformer11, Transformer21}
+import link.rdcn.dacp.optree._
+import link.rdcn.dacp.recipe._
 import link.rdcn.message.DftpTicket
-import link.rdcn.operation.{DataFrameCall11, DataFrameCall21, SerializableFunction, SourceOp, TransformOp}
-import link.rdcn.struct.{ClosableIterator, DFRef, DataFrame, DataFrameDocument, DataFrameStatistics, DefaultDataFrame, Row, StructType}
+import link.rdcn.operation._
+import link.rdcn.struct._
 import link.rdcn.user.{AnonymousCredentials, Credentials, UsernamePassword}
 import org.apache.arrow.flight.Ticket
 import org.apache.jena.rdf.model.{Model, ModelFactory}
 import org.json.{JSONArray, JSONObject}
 
 import java.io.{File, StringReader}
-import scala.collection.JavaConverters.asJavaCollectionConverter
+import scala.collection.JavaConverters.{asJavaCollectionConverter, asScalaIteratorConverter}
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
-import scala.collection.JavaConverters.asScalaIteratorConverter
 
 /**
  * @Author renhao
@@ -153,6 +151,13 @@ class DacpClient(host: String, port: Int, useTLS: Boolean = false) extends DftpC
       override def map(): Map[String, DataFrame] = dfs.zipWithIndex.map {
         case (dataFrame, id) => (id.toString, dataFrame)
       }.toMap
+    }
+  }
+
+  def cook(recipeString: String): ExecutionResult = {
+    FlowBuilder.convert(recipeString) match {
+      case Right(flow) => cook(flow)
+      case Left(message) => throw new IllegalArgumentException(s"Invalid DACP URL: $message")
     }
   }
 
