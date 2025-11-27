@@ -226,23 +226,23 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) extends Loggi
 
 
 object DftpClient {
-  def connect(url: String, credentials: Credentials = Credentials.ANONYMOUS): DftpClient = {
+  def connect(url: String, credentials: Credentials = null): DftpClient = {
     UrlValidator.extractBase(url) match {
       case Some(parsed) =>
         val client = new DftpClient(parsed._2, parsed._3)
-        client.login(credentials)
+        if(credentials != null) client.login(credentials)
         client
       case None =>
         throw new IllegalArgumentException(s"Invalid DFTP URL: $url")
     }
   }
 
-  def connectTLS(url: String, tlsFile: File, credentials: Credentials = Credentials.ANONYMOUS): DftpClient = {
+  def connectTLS(url: String, tlsFile: File, credentials: Credentials = null): DftpClient = {
     System.setProperty("javax.net.ssl.trustStore", tlsFile.getAbsolutePath)
     UrlValidator.extractBase(url) match {
       case Some(parsed) =>
         val client = new DftpClient(parsed._2, parsed._3, true)
-        client.login(credentials)
+        if(credentials != null) client.login(credentials)
         client
       case None =>
         throw new IllegalArgumentException(s"Invalid DFTP URL: $url")

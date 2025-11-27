@@ -1,10 +1,11 @@
 package link.rdcn.dacp.catalog
 
-import CatalogFormatter.{getDataFrameDocumentJsonString, getDataFrameStatisticsString}
+import CatalogFormatter.{getDataFrameDocumentJsonString, getDataFrameStatisticsString, getHostInfoString, getHostResourceString}
 import link.rdcn.server._
 import link.rdcn.server.module.{ActionMethod, CollectActionMethodEvent, CollectGetStreamMethodEvent, GetStreamFilter, GetStreamFilterChain, GetStreamMethod, TaskRunner, Workers}
 import link.rdcn.struct.StructType
 import org.apache.jena.rdf.model.{Model, ModelFactory}
+import org.json.JSONObject
 
 import java.io.StringWriter
 
@@ -20,70 +21,6 @@ class DacpCatalogModule extends DftpModule {
 
   private val catalogServiceHolder = new Workers[CatalogService]
 
-  private val actionMethodService = new ActionMethod {
-
-    override def accepts(request: DftpActionRequest): Boolean = true
-
-    override def doAction(request: DftpActionRequest, response: DftpActionResponse): Unit = {
-      try {
-        val actionName = request.getActionName()
-        val parameter = request.getParameter()
-        actionName match {
-          case name if name.startsWith("/getDataSetMetaData/") =>
-            val model: Model = ModelFactory.createDefaultModel
-            val prefix: String = "/getDataSetMetaData/"
-            catalogServiceHolder.invoke(_.getDataSetMetaData(name.stripPrefix(prefix), model),
-              response.sendError(404, s"unknown action: ${request.getActionName()}"))
-            val writer = new StringWriter();
-            model.write(writer, "RDF/XML");
-            response.sendData(writer.toString.getBytes("UTF-8"))
-          case name if name.startsWith("/getDataFrameMetaData/") =>
-            val model: Model = ModelFactory.createDefaultModel
-            val prefix: String = "/getDataFrameMetaData/"
-            catalogServiceHolder.invoke(_.getDataFrameMetaData(name.stripPrefix(prefix), model),
-              response.sendError(404, s"unknown action: ${request.getActionName()}"))
-            val writer = new StringWriter();
-            model.write(writer, "RDF/XML");
-            response.sendData(writer.toString.getBytes("UTF-8"))
-          case name if name.startsWith("/getDocument/") =>
-            val dataFrameName = name.stripPrefix("/getDocument/")
-            catalogServiceHolder.invoke(c => {
-              val document = c.getDocument(dataFrameName)
-              val schema = c.getSchema(dataFrameName)
-              response.sendData(getDataFrameDocumentJsonString(document, schema).getBytes("UTF-8"))
-            }, response.sendError(404, s"unknown action: ${request.getActionName()}"))
-          case name if name.startsWith("/getStatistics/") =>
-            catalogServiceHolder.invoke(c => {
-              val statistics = c.getStatistics(name.stripPrefix("/getStatistics/"))
-              response.sendData(getDataFrameStatisticsString(statistics).getBytes("UTF-8"))
-            }, response.sendError(404, s"unknown action: ${request.getActionName()}"))
-          case name if name.startsWith("/getDataFrameSize/") =>
-            catalogServiceHolder.invoke(c => {
-              val prefix: String = "/getDataFrameSize/"
-              response.sendData(c.getStatistics(name.stripPrefix(prefix)).rowCount.toString.getBytes("UTF-8"))
-            }, response.sendError(404, s"unknown action: ${request.getActionName()}"))
-          case name if name.startsWith("/getSchema") =>
-            catalogServiceHolder.invoke(c => {
-              response.sendData(c.getSchema(name.stripPrefix("/getSchema/"))
-                .getOrElse(StructType.empty)
-                .toString.getBytes("UTF-8"))
-            }, response.sendError(404, s"unknown action: ${request.getActionName()}"))
-          case name if name.startsWith("/getDataFrameTitle/") =>
-            catalogServiceHolder.invoke(c => {
-              val dfName = name.stripPrefix("/getDataFrameTitle/")
-              response.sendData(c.getDataFrameTitle(dfName)
-                .getOrElse(dfName).getBytes("UTF-8"))
-            }, response.sendError(404, s"unknown action: ${request.getActionName()}"))
-          case _ => response.sendError(404, s"unknown action: ${request.getActionName()}")
-        }
-      } catch {
-        case e: Exception =>
-          response.sendError(500, e.getMessage)
-          throw e
-      }
-    }
-  }
-
   override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
     anchor.hook(new EventHandler {
       override def accepts(event: CrossModuleEvent): Boolean = {
@@ -96,7 +33,66 @@ class DacpCatalogModule extends DftpModule {
 
       override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
-          case r: CollectActionMethodEvent => r.collect(actionMethodService)
+          case r: CollectActionMethodEvent => r.collect(new ActionMethod {
+
+            override def accepts(request: DftpActionRequest): Boolean = true
+
+            override def doAction(request: DftpActionRequest, response: DftpActionResponse): Unit = {
+              try{
+                val actionName = request.getActionName()
+                val parameter = request.getParameterAsMap()
+                actionName match {
+                  case "getDataSetMetaData" =>
+                    val model: Model = ModelFactory.createDefaultModel
+                    val prefix: String = "/getDataSetMetaData/"
+                    catalogServiceHolder.invoke(_.getDataSetMetaData(parameter.get("dataSetName").get.toString, model),
+                      response.sendError(404, s"unknown action: ${request.getActionName()}"))
+                    val writer = new StringWriter();
+                    model.write(writer, "RDF/XML");
+                    response.sendData(writer.toString.getBytes("UTF-8"))
+                  case "getDataFrameMetaData" =>
+                    val model: Model = ModelFactory.createDefaultModel
+                    catalogServiceHolder.invoke(_.getDataFrameMetaData(parameter.get("dataFrameName").get.toString, model),
+                      response.sendError(404, s"unknown action: ${request.getActionName()}"))
+                    val writer = new StringWriter();
+                    model.write(writer, "RDF/XML");
+                    response.sendData(writer.toString.getBytes("UTF-8"))
+                  case "getDocument" =>
+                    val dataFrameName = parameter.get("dataFrameName").get.toString
+                    catalogServiceHolder.invoke(c => {
+                      val document = c.getDocument(dataFrameName)
+                      val schema = c.getSchema(dataFrameName)
+                      response.sendData(getDataFrameDocumentJsonString(document, schema).getBytes("UTF-8"))
+                    }, response.sendError(404, s"unknown action: ${request.getActionName()}"))
+                  case "getDataFrameInfo" =>
+                    val dataFrameName = parameter.get("dataFrameName").get.toString
+                    catalogServiceHolder.invoke(c => {
+                      val dataFrameTitle = c.getDataFrameTitle(dataFrameName).getOrElse(dataFrameName)
+                      val statistics = c.getStatistics(dataFrameName)
+                      val jo = new JSONObject()
+                      jo.put("byteSize", statistics.byteSize)
+                      jo.put("rowCount", statistics.rowCount)
+                      jo.put("title", dataFrameTitle)
+                      response.sendData(jo.toString().getBytes("UTF-8"))
+                    }, response.sendError(404, s"unknown action: ${request.getActionName()}"))
+                  case "getSchema" =>
+                    val dataFrameName = parameter.get("dataFrameName").get.toString
+                    catalogServiceHolder.invoke(c => {
+                      response.sendData(c.getSchema(dataFrameName)
+                        .getOrElse(StructType.empty)
+                        .toString.getBytes("UTF-8"))
+                    }, response.sendError(404, s"unknown action: ${request.getActionName()}"))
+                  case "getHostInfo" => response.sendData(getHostInfoString(serverContext).getBytes("UTF-8"))
+                  case "getServerInfo" => response.sendData(getHostResourceString().getBytes("UTF-8"))
+                  case _ => response.sendError(404, s"unknown action: ${request.getActionName()}")
+                }
+              }catch {
+                case e: Exception =>
+                  response.sendError(500, e.getMessage)
+                  throw e
+              }
+            }
+          })
           case r: CollectGetStreamMethodEvent => r.addFilter(0, new GetStreamFilter {
             override def doFilter(request: DftpGetStreamRequest, response: DftpGetStreamResponse, chain: GetStreamFilterChain): Unit = {
               request match {

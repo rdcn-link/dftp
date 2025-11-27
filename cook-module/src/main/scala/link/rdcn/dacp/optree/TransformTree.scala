@@ -39,10 +39,10 @@ object TransformTree {
       val ja: JSONArray = parsed.getJSONArray("input")
       val inputs = (0 until ja.length).map(ja.getJSONObject(_).toString()).map(fromJsonString(_))
       opType match {
-        case "Map" => MapSlice(FunctionWrapper(parsed.getJSONObject("function")), inputs: _*)
-        case "Filter" => FilterSlice(FunctionWrapper(parsed.getJSONObject("function")), inputs: _*)
-        case "Limit" => LimitSlice(parsed.getJSONArray("args").getInt(0), inputs: _*)
-        case "Select" => SelectSlice(inputs.head, parsed.getJSONArray("args").toList.asScala.map(_.toString): _*)
+        case "Map" => MapOp(FunctionWrapper(parsed.getJSONObject("function")), inputs: _*)
+        case "Filter" => FilterOp(FunctionWrapper(parsed.getJSONObject("function")), inputs: _*)
+        case "Limit" => LimitOp(parsed.getJSONArray("args").getInt(0), inputs: _*)
+        case "Select" => SelectOp(inputs.head, parsed.getJSONArray("args").toList.asScala.map(_.toString): _*)
         case "TransformerNode" => TransformerNode(TransformFunctionWrapper.fromJsonObject(parsed.getJSONObject("function")), inputs: _*)
         case "FifoFileNode" => FiFoFileNode(parsed.getString("filePath"), inputs: _*)
       }

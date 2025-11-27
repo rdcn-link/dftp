@@ -50,10 +50,10 @@ object TransformOp {
       val ja: JSONArray = parsed.getJSONArray("input")
       val inputs = (0 until ja.length).map(ja.getJSONObject(_).toString()).map(fromJsonString(_))
       opType match {
-        case "Map" => MapSlice(FunctionWrapper(parsed.getJSONObject("function")), inputs: _*)
-        case "Filter" => FilterSlice(FunctionWrapper(parsed.getJSONObject("function")), inputs: _*)
-        case "Limit" => LimitSlice(parsed.getJSONArray("args").getInt(0), inputs: _*)
-        case "Select" => SelectSlice(inputs.head, parsed.getJSONArray("args").toList.asScala.map(_.toString): _*)
+        case "Map" => MapOp(FunctionWrapper(parsed.getJSONObject("function")), inputs: _*)
+        case "Filter" => FilterOp(FunctionWrapper(parsed.getJSONObject("function")), inputs: _*)
+        case "Limit" => LimitOp(parsed.getJSONArray("args").getInt(0), inputs: _*)
+        case "Select" => SelectOp(inputs.head, parsed.getJSONArray("args").toList.asScala.map(_.toString): _*)
       }
     }
   }
@@ -73,7 +73,7 @@ case class SourceOp(dataFrameUrl: String) extends TransformOp {
     .getOrElse(throw new Exception(s"dataFrame $dataFrameUrl not found"))
 }
 
-case class MapSlice(functionWrapper: FunctionWrapper, inputOperations: TransformOp*) extends TransformOp {
+case class MapOp(functionWrapper: FunctionWrapper, inputOperations: TransformOp*) extends TransformOp {
 
   override var inputs = inputOperations
 
@@ -93,7 +93,7 @@ case class MapSlice(functionWrapper: FunctionWrapper, inputOperations: Transform
   }
 }
 
-case class FilterSlice(functionWrapper: FunctionWrapper, inputOperations: TransformOp*) extends TransformOp {
+case class FilterOp(functionWrapper: FunctionWrapper, inputOperations: TransformOp*) extends TransformOp {
 
   override var inputs = inputOperations
 
@@ -113,7 +113,7 @@ case class FilterSlice(functionWrapper: FunctionWrapper, inputOperations: Transf
   }
 }
 
-case class LimitSlice(n: Int, inputOperations: TransformOp*) extends TransformOp {
+case class LimitOp(n: Int, inputOperations: TransformOp*) extends TransformOp {
 
   override var inputs = inputOperations
 
@@ -133,7 +133,7 @@ case class LimitSlice(n: Int, inputOperations: TransformOp*) extends TransformOp
   }
 }
 
-case class SelectSlice(input: TransformOp, columns: String*) extends TransformOp {
+case class SelectOp(input: TransformOp, columns: String*) extends TransformOp {
 
   override var inputs: Seq[TransformOp] = Seq(input)
 

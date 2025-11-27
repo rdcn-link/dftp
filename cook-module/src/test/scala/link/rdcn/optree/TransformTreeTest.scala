@@ -77,8 +77,8 @@ class TransformTreeTest {
     }"""
     val op = TransformTree.fromJsonString(json)
 
-    assertTrue(op.isInstanceOf[LimitSlice], "Op 类型应为 LimitSlice")
-    assertEquals(10, op.asInstanceOf[LimitSlice].n, "Limit 的 n 参数不匹配")
+    assertTrue(op.isInstanceOf[LimitOp], "Op 类型应为 LimitOp")
+    assertEquals(10, op.asInstanceOf[LimitOp].n, "Limit 的 n 参数不匹配")
 
     assertEquals(1, op.inputs.length, "应有 1 个 input")
     val inputOp = op.inputs.head
