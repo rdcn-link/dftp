@@ -25,6 +25,7 @@ import java.io.File
 import java.nio.file.{Path, Paths}
 import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
+import org.apache.commons.io.FileUtils
 
 object DacpClientDemo {
 

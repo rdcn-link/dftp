@@ -61,6 +61,7 @@ class BaseDftpModule extends DftpModule {
               override def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
                 request match {
                   case r: DftpGetPathStreamRequest =>
+                    var dataFrame = DataFrame.empty()
                     try {
                     val dataFrame = r.getTransformOp().execute(new ExecutionContext {
                       override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
