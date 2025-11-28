@@ -2,7 +2,9 @@ package link.rdcn.util
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import link.rdcn.dacp.user.KeyPairCredentials
 import link.rdcn.user.{Credentials, TokenAuth, UsernamePassword}
+import org.json.JSONObject
 
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
@@ -60,6 +62,7 @@ object CodecUtils {
     credentials match {
       case up: UsernamePassword => encodePairWithTypeId(NAME_PASSWORD, up.username, up.password)
       case token: TokenAuth => encodePairWithTypeId(TOKEN, token.token, "")
+      case keypair: KeyPairCredentials => encodePairWithTypeId(KEYPAIR, keypair.toJson().toString, "")
       case Credentials.ANONYMOUS => encodePairWithTypeId(ANONYMOUS, "", "")
       case _ => throw new IllegalArgumentException(s"$credentials not supported")
     }
@@ -71,6 +74,7 @@ object CodecUtils {
       case NAME_PASSWORD => UsernamePassword(result._2, result._3)
       case TOKEN => TokenAuth(result._2)
       case ANONYMOUS => Credentials.ANONYMOUS
+      case KEYPAIR => KeyPairCredentials.fromJson(new JSONObject(result._2))
       case _ => throw new IllegalArgumentException(s"${result._1} not supported")
     }
   }
@@ -78,4 +82,5 @@ object CodecUtils {
   private val NAME_PASSWORD: Byte = 1
   private val TOKEN: Byte = 2
   private val ANONYMOUS: Byte = 3
+  private val KEYPAIR: Byte = 4
 }

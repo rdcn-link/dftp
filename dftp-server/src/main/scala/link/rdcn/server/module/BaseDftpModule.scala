@@ -4,7 +4,7 @@ import link.rdcn.client.UrlValidator
 import link.rdcn.operation.{ExecutionContext, TransformOp}
 import link.rdcn.server._
 import link.rdcn.server.exception.{DataFrameAccessDeniedException, DataFrameNotFoundException}
-import link.rdcn.struct.{BlobRegistry, DataFrame, DefaultDataFrame, Row, StructType}
+import link.rdcn.struct.{BlobRegistry, DataFrame, DataStreamSource, DefaultDataFrame, Row, StructType}
 import link.rdcn.user.UserPrincipal
 import link.rdcn.util.DataUtils
 

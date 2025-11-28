@@ -1,9 +1,9 @@
 package link.rdcn.dacp.cook
 
-import link.rdcn.dacp.user.{PermissionService, RequirePermissionServiceEvent}
+import link.rdcn.dacp.user.{KeyPairUserPrincipal, PermissionService, RequirePermissionServiceEvent}
 import link.rdcn.server.{Anchor, CrossModuleEvent, DftpModule, EventHandler, EventHub, EventSource, ServerContext}
 import link.rdcn.server.exception.{DataFrameAccessDeniedException, DataFrameNotFoundException}
-import link.rdcn.server.module.{DataFrameProviderService, TaskRunner, Workers, CollectDataFrameProviderEvent}
+import link.rdcn.server.module.{CollectDataFrameProviderEvent, DataFrameProviderService, TaskRunner, Workers}
 import link.rdcn.struct.DataFrame
 import link.rdcn.user.UserPrincipal
 
@@ -32,17 +32,19 @@ class SecuredDataFrameProviderModule(dataFrameProvider: DataFrameProviderService
 
                 override def getDataFrame(dataFrameUrl: String, userPrincipal: UserPrincipal)
                                          (implicit ctx: ServerContext): DataFrame = {
-                  if (permissionHolder.work(new TaskRunner[PermissionService, Boolean] {
-                    override def isReady(worker: PermissionService): Boolean = worker.accepts(userPrincipal)
+                  val permission = userPrincipal match {
+                    case key: KeyPairUserPrincipal => key.checkPermission()
+                    case _ => permissionHolder.work(new TaskRunner[PermissionService, Boolean] {
+                      override def isReady(worker: PermissionService): Boolean = worker.accepts(userPrincipal)
 
-                    override def executeWith(worker: PermissionService): Boolean = worker.checkPermission(userPrincipal, dataFrameUrl)
+                      override def executeWith(worker: PermissionService): Boolean = worker.checkPermission(userPrincipal, dataFrameUrl)
 
-                    override def handleFailure(): Boolean = throw new DataFrameAccessDeniedException(dataFrameUrl)
-
-                  })) {
-                    dataFrameProvider.getDataFrame(dataFrameUrl, userPrincipal)
+                      override def handleFailure(): Boolean = throw new DataFrameAccessDeniedException(dataFrameUrl)
+                    })
                   }
-                  else {
+                  if (permission) {
+                    dataFrameProvider.getDataFrame(dataFrameUrl, userPrincipal)
+                  } else {
                     throw new DataFrameAccessDeniedException(dataFrameUrl)
                   }
                 }

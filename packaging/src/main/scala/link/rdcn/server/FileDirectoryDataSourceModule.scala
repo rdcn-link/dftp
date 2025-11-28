@@ -77,8 +77,11 @@ class FileDirectoryDataSourceModule extends DftpModule {
   override def init(anchor: Anchor, serverContext: ServerContext): Unit =
     anchor.hook(new EventHandler {
       override def accepts(event: CrossModuleEvent): Boolean =
-        event.isInstanceOf[CollectDataFrameProviderEvent] ||
-          event.isInstanceOf[CollectCatalogServiceEvent]
+        event match {
+          case _: CollectDataFrameProviderEvent => true
+          case _: CollectCatalogServiceEvent => true
+          case _ => false
+        }
 
       override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
