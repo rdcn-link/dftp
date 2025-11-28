@@ -1,6 +1,7 @@
 package link.rdcn.dacp.catalog
 
 import CatalogFormatter.{getDataFrameDocumentJsonString, getDataFrameStatisticsString, getHostInfoString, getHostResourceString}
+import link.rdcn.dacp.cook.DacpCookStreamRequest
 import link.rdcn.server._
 import link.rdcn.server.module.{ActionMethod, CollectActionMethodEvent, CollectGetStreamMethodEvent, GetStreamFilter, GetStreamFilterChain, GetStreamMethod, TaskRunner, Workers}
 import link.rdcn.struct.StructType
@@ -132,6 +133,7 @@ class DacpCatalogModule extends DftpModule {
                     })
                   case _ => chain.doFilter(request, response)
                 }
+                case _ => chain.doFilter(request, response)
               }
             }
           })

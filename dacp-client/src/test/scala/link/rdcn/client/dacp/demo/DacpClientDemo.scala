@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.{AfterAll, BeforeAll, Disabled, Test}
 
 import java.io.File
-import java.nio.file.{Path, Paths}
+import java.nio.file.{Files, Path, Paths}
 import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
 import org.apache.commons.io.FileUtils
@@ -167,6 +167,12 @@ object DacpClientDemo {
       .getOrElse(throw new RuntimeException(s"Resource not found: $resourceName"))
     val nativePath: Path = Paths.get(url.toURI())
     nativePath.toString
+  }
+
+  def getTempDirectory(baseDir: String, id: String): String = {
+    val tmpDir = Paths.get(baseDir, s"container_${id}").toAbsolutePath
+    Files.createDirectories(tmpDir)
+    tmpDir.toString
   }
 
   @BeforeAll
@@ -332,7 +338,7 @@ class DacpClientDemo {
     val commands = operatorInfo.getJSONObject("data").getString("command").split(" ")
 
     val nodeGullySlopId = s"${opName}_${UUID.randomUUID().toString}"
-    val hostPath = FileUtils.getTempDirectory("", nodeGullySlopId)
+    val hostPath = getTempDirectory("", nodeGullySlopId)
     val containerPath = s"/$nodeGullySlopId"
 
     val commandsWithParams = commands ++ files.flatMap(file => Seq(file._3, Paths.get(containerPath, file._5).toString))
@@ -356,7 +362,7 @@ class DacpClientDemo {
 
 
     val nodeGullySlopId = s"${opName}_${UUID.randomUUID().toString}"
-    val hostPath = FileUtils.getTempDirectory("", nodeGullySlopId)
+    val hostPath = getTempDirectory("", nodeGullySlopId)
     val containerPath = s"/$nodeGullySlopId"
     val nodeGullySlop = FifoFileBundleFlowNode(
       Seq("python", "/dem/gully_slop.py", "--record_file", Paths.get(containerPath, "input1.csv").toString
