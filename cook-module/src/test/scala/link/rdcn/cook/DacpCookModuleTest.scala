@@ -28,10 +28,10 @@ class DacpCookModuleTest {
   implicit private var mockContext: ServerContext = _
 
   // Holders
-  private var dataFrameHolder: ObjectHolder[DataFrameProviderService] = _
-  private var permissionHolder: ObjectHolder[PermissionService] = _
-  private var getStreamParserHolder: ObjectHolder[GetStreamRequestParser] = _
-  private var getStreamHandlerHolder: ObjectHolder[GetStreamHandler] = _
+  private var dataFrameHolder: Workers[DataFrameProviderService] = _
+  private var permissionHolder: Workers[PermissionService] = _
+  private var getStreamParserHolder: Workers[ParseRequestMethod] = _
+  private var getStreamHandlerHolder: FilteredGetStreamMethods = _
 
   @BeforeEach
   def setUp(): Unit = {
@@ -51,26 +51,26 @@ class DacpCookModuleTest {
     // 触发 EventSource 来捕获用于依赖注入的 holder
     mockAnchor.hookedEventSource.init(mockEventHub)
 
-    dataFrameHolder = mockEventHub.eventsFired.find(_.isInstanceOf[RequireDataFrameProviderEvent]).get
-      .asInstanceOf[RequireDataFrameProviderEvent].holder
+    dataFrameHolder = mockEventHub.eventsFired.find(_.isInstanceOf[CollectDataFrameProviderEvent]).get
+      .asInstanceOf[CollectDataFrameProviderEvent].holder
     permissionHolder = mockEventHub.eventsFired.find(_.isInstanceOf[RequirePermissionServiceEvent]).get
       .asInstanceOf[RequirePermissionServiceEvent].holder
 
     // 触发 EventHandler 来捕获用于链式调用的 holder
-    getStreamParserHolder = new ObjectHolder[GetStreamRequestParser]
-    mockEventHub.fireEvent(new RequireGetStreamRequestParserEvent(getStreamParserHolder))
+    getStreamParserHolder = new Workers[ParseRequestMethod]
+    mockEventHub.fireEvent(new CollectParseRequestMethodEvent(getStreamParserHolder))
 
-    getStreamHandlerHolder = new ObjectHolder[GetStreamHandler]
-    mockEventHub.fireEvent(new RequireGetStreamHandlerEvent(getStreamHandlerHolder))
+    getStreamHandlerHolder = new FilteredGetStreamMethods
+    mockEventHub.fireEvent(new CollectGetStreamMethodEvent(getStreamHandlerHolder))
   }
 
   /**
-   * 测试 init 是否正确触发了 RequireDataFrameProviderEvent 和 RequirePermissionServiceEvent
+   * 测试 init 是否正确触发了 CollectDataFrameProviderEvent 和 RequirePermissionServiceEvent
    */
   @Test
   def testInit_FiresAndHooksEvents(): Unit = {
     assertEquals(4, mockEventHub.eventsFired.length, "EventSource.init() 应触发 4 个事件")
-    assertTrue(mockEventHub.eventsFired.exists(_.isInstanceOf[RequireDataFrameProviderEvent]), "RequireDataFrameProviderEvent 未被触发")
+    assertTrue(mockEventHub.eventsFired.exists(_.isInstanceOf[CollectDataFrameProviderEvent]), "CollectDataFrameProviderEvent 未被触发")
     assertTrue(mockEventHub.eventsFired.exists(_.isInstanceOf[RequirePermissionServiceEvent]), "RequirePermissionServiceEvent 未被触发")
   }
 
@@ -79,7 +79,7 @@ class DacpCookModuleTest {
    */
   @Test
   def testParser_ParsesCookTicket(): Unit = {
-    val chainedParser = getStreamParserHolder.invoke(run = s => s, onNull = null)
+    val chainedParser = getStreamParserHolder.invoke(runMethod = s => s, onNull = null)
     assertNotNull(chainedParser, "GetStreamRequestParser 未被设置")
 
     // 准备 Ticket
@@ -111,10 +111,10 @@ class DacpCookModuleTest {
   def testParser_ChainsToOld(): Unit = {
     // 准备: 创建一个 "old" 解析器并注入
     val mockOldParser = new MockGetStreamRequestParser()
-    getStreamParserHolder.set(mockOldParser) // 覆盖
-    mockEventHub.fireEvent(new RequireGetStreamRequestParserEvent(getStreamParserHolder)) // 重新触发事件
+    getStreamParserHolder.add(mockOldParser) // 覆盖
+    mockEventHub.fireEvent(new CollectParseRequestMethodEvent(getStreamParserHolder)) // 重新触发事件
 
-    val chainedParser = getStreamParserHolder.invoke(run = s => s, onNull = null)
+    val chainedParser = getStreamParserHolder.invoke(runMethod = s => s, onNull = null)
 
     // 准备一个非 COOK_TICKET (e.g., type 1)
     val otherTicketBytes = Array[Byte](1, 0, 0, 0, 0)
@@ -134,16 +134,14 @@ class DacpCookModuleTest {
   def testHandler_ChainsToOld(): Unit = {
     // 准备: 创建一个 "old" 处理器并注入
     val mockOldHandler = new MockGetStreamHandler()
-    getStreamHandlerHolder.set(mockOldHandler) // 覆盖
-    mockEventHub.fireEvent(new RequireGetStreamHandlerEvent(getStreamHandlerHolder)) // 重新触发
-
-    val chainedHandler = getStreamHandlerHolder.invoke(run = s => s, onNull = null)
+    getStreamHandlerHolder.addMethod(mockOldHandler) // 覆盖
+    mockEventHub.fireEvent(new CollectGetStreamMethodEvent(getStreamHandlerHolder)) // 重新触发
 
     // 准备一个非 DacpCookStreamRequest
     val otherRequest = new MockDftpGetStreamRequest("NotCook")
 
     // 执行
-    chainedHandler.doGetStream(otherRequest, null) // response 在此路径中不被使用
+    getStreamHandlerHolder.handle(otherRequest, null) // response 在此路径中不被使用
 
     // 验证
     assertTrue(mockOldHandler.doGetStreamCalled, "'old' 处理器的 doGetStream() 方法应被调用")
@@ -156,13 +154,11 @@ class DacpCookModuleTest {
   @Test
   @Disabled("集成测试：此测试要求在运行环境中设置 'PYTHON_HOME' 环境变量")
   def testHandler_Execute_HappyPath(): Unit = {
-    val chainedHandler = getStreamHandlerHolder.invoke(run = s => s, onNull = null)
-    assertNotNull(chainedHandler, "GetStreamHandler 未被设置")
 
     // 准备: 注入模拟服务
     val mockDf = DefaultDataFrame(StructType.empty.add("result", StringType), Seq(Row("Success")).iterator)
-    dataFrameHolder.set(new MockDataFrameProviderService(Some(mockDf)))
-    permissionHolder.set(new MockPermissionService(allowAccess = true))
+    dataFrameHolder.add(new MockDataFrameProviderService(Some(mockDf)))
+    permissionHolder.add(new MockPermissionService(allowAccess = true))
 
     // 准备: 模拟请求
     val mockTree = new MockTransformOp("test-tree", mockDf)
@@ -170,7 +166,7 @@ class DacpCookModuleTest {
     val response = new MockDftpGetStreamResponse()
 
     // 执行
-    chainedHandler.doGetStream(request, response)
+    getStreamHandlerHolder.handle(request, response)
 
     // 验证
     assertTrue(mockTree.executeCalled, "TransformTree.execute 应被调用")
@@ -185,11 +181,10 @@ class DacpCookModuleTest {
   @Test
   @Disabled("集成测试：此测试要求在运行环境中设置 'PYTHON_HOME' 环境变量")
   def testHandler_Execute_PermissionDenied(): Unit = {
-    val chainedHandler = getStreamHandlerHolder.invoke(run = s => s, onNull = null)
 
     // 准备: 注入*拒绝*的 PermissionService
-    dataFrameHolder.set(new MockDataFrameProviderService(None)) // (不应被调用)
-    permissionHolder.set(new MockPermissionService(allowAccess = false))
+    dataFrameHolder.add(new MockDataFrameProviderService(None)) // (不应被调用)
+    permissionHolder.add(new MockPermissionService(allowAccess = false))
 
     // 准备: 模拟请求 (MockTransformOp 会调用 loadSourceDataFrame)
     val mockTree = new MockTransformOp("test-tree", DefaultDataFrame(StructType.empty, Iterator.empty))
@@ -199,7 +194,7 @@ class DacpCookModuleTest {
     // 执行并验证
     // (doGetStream -> execute -> loadSourceDataFrame -> checkPermission -> throw IllegalAccessException -> catch -> sendError(403))
     val ex = assertThrows(classOf[RuntimeException], () => {
-      chainedHandler.doGetStream(request, response)
+      getStreamHandlerHolder.handle(request, response)
       ()
     }, "doGetStream 应抛出由 sendError(403) 模拟的 RuntimeException")
 
@@ -214,11 +209,10 @@ class DacpCookModuleTest {
   @Test
   @Disabled("集成测试：此测试要求在运行环境中设置 'PYTHON_HOME' 环境变量")
   def testHandler_Execute_DataFrameNotFound(): Unit = {
-    val chainedHandler = getStreamHandlerHolder.invoke(run = s => s, onNull = null)
 
     // 准备: 注入允许的 PermissionService, 但注入一个*失败*的 DataFrameProvider
-    dataFrameHolder.set(new MockDataFrameProviderService(None)) // (将抛出 DataFrameNotFoundException)
-    permissionHolder.set(new MockPermissionService(allowAccess = true))
+    dataFrameHolder.add(new MockDataFrameProviderService(None)) // (将抛出 DataFrameNotFoundException)
+    permissionHolder.add(new MockPermissionService(allowAccess = true))
 
     // 准备: 模拟请求
     val mockTree = new MockTransformOp("test-tree", DefaultDataFrame(StructType.empty, Iterator.empty))
@@ -228,7 +222,7 @@ class DacpCookModuleTest {
     // 执行并验证
     // (doGetStream -> execute -> loadSourceDataFrame -> getDataFrame -> throw DataFrameNotFoundException -> catch -> sendError(404))
     val ex = assertThrows(classOf[RuntimeException], () => {
-      chainedHandler.doGetStream(request, response)
+      getStreamHandlerHolder.handle(request, response)
       ()
     }, "doGetStream 应抛出由 sendError(404) 模拟的 RuntimeException")
 

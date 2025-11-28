@@ -7,10 +7,10 @@
         <version>0.5.0-20251028</version>
     </parent>
 
-    <artifactId>dacp-client</artifactId>
+    <artifactId>dacp-server</artifactId>
     <packaging>jar</packaging>
 
-    <name>dacp-client</name>
+    <name>dacp-server</name>
     <url>http://maven.apache.org</url>
 
     <properties>
@@ -20,26 +20,18 @@
     <dependencies>
         <dependency>
             <groupId>link.rdcn</groupId>
-            <artifactId>catalog-module</artifactId>
+            <artifactId>dftp-server</artifactId>
             <version>0.5.0-20251028</version>
-            <scope>test</scope>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>link.rdcn</groupId>
             <artifactId>cook-module</artifactId>
             <version>0.5.0-20251028</version>
-        </dependency>
-        <dependency>
-            <groupId>link.rdcn</groupId>
-            <artifactId>dftp-client</artifactId>
-            <version>0.5.0-20251028</version>
-        </dependency>
-        <dependency>
-            <groupId>link.rdcn</groupId>
-            <artifactId>dftp-server</artifactId>
-            <version>0.5.0-20251028</version>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
+
     <build>
         <plugins>
             <!-- 编译 Scala -->
@@ -70,8 +62,8 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.11.0</version>
                 <configuration>
-                    <source>1.8</source>
-                    <target>1.8</target>
+                    <source>11</source>
+                    <target>11</target>
                 </configuration>
             </plugin>
             <plugin>
@@ -160,7 +152,6 @@
             <url>http://10.0.82.220:8081/repository/maven-releases</url>
         </repository>
     </distributionManagement>
-
     <repositories>
         <repository>
             <id>sdc</id>

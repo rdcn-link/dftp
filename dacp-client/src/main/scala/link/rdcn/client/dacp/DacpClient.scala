@@ -41,12 +41,12 @@ class DacpClient(host: String, port: Int, useTLS: Boolean = false) extends DftpC
   }
 
   def getDataSetMetaData(dsName: String): Model = {
-    val rdfString = new String(doAction(s"/getDataSetMetaData/${dsName}"), "UTF-8").trim
+    val rdfString = new String(doAction(s"getDataSetMetaData", Map("dataSetName"-> dsName)), "UTF-8").trim
     getModelByString(rdfString)
   }
 
   def getDataFrameMetaData(dfName: String): Model = {
-    val rdfString = new String(doAction(s"/getDataFrameMetaData/${dfName}"), "UTF-8").trim
+    val rdfString = new String(doAction(s"getDataFrameMetaData", Map("dataFrameName" -> dfName)), "UTF-8").trim
     getModelByString(rdfString)
   }
 
@@ -62,17 +62,19 @@ class DacpClient(host: String, port: Int, useTLS: Boolean = false) extends DftpC
   }
 
   def getSchema(dataFrameName: String): StructType = {
-    val structTypeStr = new String(doAction(s"/getSchema/${dataFrameName}"), "UTF-8")
+    val structTypeStr = new String(doAction(s"getSchema", Map("dataFrameName" -> dataFrameName)), "UTF-8")
     StructType.fromString(structTypeStr)
   }
 
   def getDataFrameTitle(dataFrameName: String): String = {
-    new String(doAction(s"/getDataFrameTitle/${dataFrameName}"), "UTF-8")
+    val jsonString = new String(doAction(s"getDataFrameInfo", Map("dataFrameName" -> dataFrameName)), "UTF-8")
+    val jo = new JSONObject(jsonString)
+    jo.getString("title")
   }
 
   def getDocument(dataFrameName: String): DataFrameDocument = {
 
-    new String(doAction(s"/getDocument/${dataFrameName}"), "UTF-8").trim match {
+    new String(doAction(s"getDocument", Map("dataFrameName" -> dataFrameName)), "UTF-8").trim match {
       case s if s.nonEmpty =>
         val jo = new JSONArray(s).getJSONObject(0)
         new DataFrameDocument {
@@ -93,7 +95,7 @@ class DacpClient(host: String, port: Int, useTLS: Boolean = false) extends DftpC
 
   def getStatistics(dataFrameName: String): DataFrameStatistics = {
     val jsonString: String = {
-      new String(doAction(s"/getStatistics/${dataFrameName}"), "UTF-8").trim match {
+      new String(doAction(s"getDataFrameInfo", Map("dataFrameName" -> dataFrameName)), "UTF-8").trim match {
         case s if s.isEmpty => ""
         case s => s
       }
@@ -106,30 +108,15 @@ class DacpClient(host: String, port: Int, useTLS: Boolean = false) extends DftpC
     }
   }
 
-  def getDataFrameSize(dataFrameName: String): Long = {
-    new String(doAction(s"/getDataFrameSize/${dataFrameName}"), "UTF-8").trim match {
-      case s if s.nonEmpty => s.toLong
-      case _ => 0L
-    }
-  }
-
   def getHostInfo: Map[String, String] = {
-    val result = mutable.Map[String, String]()
-    get(dacpUrlPrefix + "/listHostInfo").mapIterator(iter => iter.foreach(row => {
-      result.put(row.getAs[String](0), row.getAs[String](1))
-    }))
-    val jo = new JSONObject(result.toMap.head._2)
+    val jo = new JSONObject(new String(doAction("getHostInfo"), "UTF-8").trim)
     jo.keys().asScala.map { key =>
       key -> jo.getString(key)
     }.toMap
   }
 
   def getServerResourceInfo: Map[String, String] = {
-    val result = mutable.Map[String, String]()
-    get(dacpUrlPrefix + "/listHostInfo").mapIterator(iter => iter.foreach(row => {
-      result.put(row.getAs[String](0), row.getAs[String](2))
-    }))
-    val jo = new JSONObject(result.toMap.head._2)
+    val jo = new JSONObject(new String(doAction("getServerInfo"), "UTF-8").trim)
     jo.keys().asScala.map { key =>
       key -> jo.getString(key)
     }.toMap
@@ -220,35 +207,39 @@ object DacpClient {
   val protocolSchema = "dacp"
   private val urlValidator = UrlValidator(protocolSchema)
 
-  def connect(url: String, credentials: Credentials = Credentials.ANONYMOUS, useUnifiedLogin: Boolean = false): DacpClient = {
+  def connect(url: String, credentials: Credentials = null, useUnifiedLogin: Boolean = false): DacpClient = {
     urlValidator.validate(url) match {
       case Right(parsed) =>
         val client = new DacpClient(parsed._1, parsed._2.getOrElse(3101))
-        if(useUnifiedLogin){
-          credentials match {
-            case AnonymousCredentials => client.login(credentials)
-            case c: UsernamePassword => client.login(AuthPlatform.authenticate(c))
-            case _ => throw new IllegalArgumentException(s"the $credentials is not supported")
-          }
-        }else client.login(credentials)
+        if(credentials != null) {
+          if(useUnifiedLogin){
+            credentials match {
+              case AnonymousCredentials => client.login(credentials)
+              case c: UsernamePassword => client.login(OdcAuthClient.requestAccessToken(c))
+              case _ => throw new IllegalArgumentException(s"the $credentials is not supported")
+            }
+          }else client.login(credentials)
+        }
         client
       case Left(err) =>
         throw new IllegalArgumentException(s"Invalid DACP URL: $err")
     }
   }
 
-  def connectTLS(url: String, file: File, credentials: Credentials = Credentials.ANONYMOUS, useUnifiedLogin: Boolean = false): DacpClient = {
+  def connectTLS(url: String, file: File, credentials: Credentials = null, useUnifiedLogin: Boolean = false): DacpClient = {
     System.setProperty("javax.net.ssl.trustStore", file.getAbsolutePath)
     urlValidator.validate(url) match {
       case Right(parsed) =>
         val client = new DacpClient(parsed._1, parsed._2.getOrElse(3101), true)
-        if(useUnifiedLogin){
-          credentials match {
-            case AnonymousCredentials => client.login(credentials)
-            case c: UsernamePassword => client.login(AuthPlatform.authenticate(c))
-            case _ => throw new IllegalArgumentException(s"the $credentials is not supported")
-          }
-        }else client.login(credentials)
+        if(credentials != null) {
+          if(useUnifiedLogin){
+            credentials match {
+              case AnonymousCredentials => client.login(credentials)
+              case c: UsernamePassword => client.login(OdcAuthClient.requestAccessToken(c))
+              case _ => throw new IllegalArgumentException(s"the $credentials is not supported")
+            }
+          }else client.login(credentials)
+        }
         client
       case Left(err) =>
         throw new IllegalArgumentException(s"Invalid DACP URL: $err")

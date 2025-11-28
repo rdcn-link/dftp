@@ -8,7 +8,7 @@ import link.rdcn.dacp.optree.TransformTree
 import link.rdcn.server.module._
 import link.rdcn.server._
 import link.rdcn.struct.{BlobRegistry, DefaultDataFrame, Row, StructType}
-import link.rdcn.user.{AuthenticationService, Credentials, UserPrincipal}
+import link.rdcn.user.{AuthenticationMethod, Credentials, UserPrincipal}
 import link.rdcn.util.DataUtils
 
 import java.io.{File, FileInputStream, InputStreamReader}
@@ -35,7 +35,7 @@ class DacpServerProxy(targetServerUrl: String) {
   }
 
   private val putStreamProxyModule = new DftpModule {
-    private val putMethodService = new PutStreamHandler {
+    private val putMethodService = new PutStreamMethod {
       override def accepts(request: DftpPutStreamRequest): Boolean = true
 
       override def doPutStream(request: DftpPutStreamRequest, response: DftpPutStreamResponse): Unit = {
@@ -53,11 +53,11 @@ class DacpServerProxy(targetServerUrl: String) {
     override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
       anchor.hook(new EventHandler {
         override def accepts(event: CrossModuleEvent): Boolean =
-          event.isInstanceOf[RequirePutStreamHandlerEvent]
+          event.isInstanceOf[CollectPutStreamMethodEvent]
 
         override def doHandleEvent(event: CrossModuleEvent): Unit = {
           event match {
-            case r: RequirePutStreamHandlerEvent => r.holder.set(putMethodService)
+            case r: CollectPutStreamMethodEvent => r.collect(putMethodService)
             case _ =>
           }
         }
@@ -68,7 +68,7 @@ class DacpServerProxy(targetServerUrl: String) {
   }
 
   private val actionProxyModule = new DftpModule {
-    private val actionMethodService = new ActionHandler {
+    private val actionMethodService = new ActionMethod {
       override def accepts(request: DftpActionRequest): Boolean = true
 
       override def doAction(request: DftpActionRequest, response: DftpActionResponse): Unit = {
@@ -92,12 +92,12 @@ class DacpServerProxy(targetServerUrl: String) {
     override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
       anchor.hook(new EventHandler {
         override def accepts(event: CrossModuleEvent): Boolean = {
-          event.isInstanceOf[RequireActionHandlerEvent]
+          event.isInstanceOf[CollectActionMethodEvent]
         }
 
         override def doHandleEvent(event: CrossModuleEvent): Unit = {
           event match {
-            case r: RequireActionHandlerEvent => r.holder.set(actionMethodService)
+            case r: CollectActionMethodEvent => r.collect(actionMethodService)
             case _ =>
           }
         }
@@ -112,15 +112,15 @@ class DacpServerProxy(targetServerUrl: String) {
       anchor.hook(new EventHandler {
         override def accepts(event: CrossModuleEvent): Boolean =
           event match {
-            case _: RequireGetStreamRequestParserEvent => true
-            case _: RequireGetStreamHandlerEvent => true
+            case _: CollectParseRequestMethodEvent => true
+            case _: CollectGetStreamMethodEvent => true
             case _ => false
           }
 
         override def doHandleEvent(event: CrossModuleEvent): Unit = {
           event match {
-            case r: RequireGetStreamRequestParserEvent => {
-              r.holder.set(new GetStreamRequestParser {
+            case r: CollectParseRequestMethodEvent => {
+              r.collect(new ParseRequestMethod {
                 val BLOB_TICKET: Byte = 1
                 val URL_GET_TICKET: Byte = 2
                 val COOK_TICKET: Byte = 3
@@ -176,8 +176,8 @@ class DacpServerProxy(targetServerUrl: String) {
                 }
               })
             }
-            case r: RequireGetStreamHandlerEvent => {
-              r.holder.set(new GetStreamHandler {
+            case r: CollectGetStreamMethodEvent => {
+              r.collect(new GetStreamMethod {
                 override def accepts(request: DftpGetStreamRequest): Boolean = true
 
                 override def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
@@ -232,17 +232,16 @@ class DacpServerProxy(targetServerUrl: String) {
     override def init(anchor: Anchor, serverContext: ServerContext): Unit =
       anchor.hook(new EventHandler {
         override def accepts(event: CrossModuleEvent): Boolean =
-          event.isInstanceOf[RequireAuthenticatorEvent]
+          event.isInstanceOf[CollectAuthenticationMethodEvent]
 
         override def doHandleEvent(event: CrossModuleEvent): Unit = {
           event match {
-            case require: RequireAuthenticatorEvent =>
-              require.holder.set(new AuthenticationService {
-                override type C = Credentials
+            case require: CollectAuthenticationMethodEvent =>
+              require.collect(new AuthenticationMethod {
 
-                override def accepts(credentials: C): Boolean = true
+                override def accepts(credentials: Credentials): Boolean = true
 
-                override def authenticate(credentials: C): UserPrincipal =
+                override def authenticate(credentials: Credentials): UserPrincipal =
                   ProxyUserPrincipal(credentials)
               })
             case _ =>

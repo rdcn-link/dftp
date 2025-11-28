@@ -21,8 +21,7 @@ class DataFrameNotFoundException(
 class DataFrameAccessDeniedException(
                                       val frameName: String,
                                       cause: Throwable = null
-                                    ) extends DftpServerException(
-  s"Access denied to DataFrame $frameName", cause)
+                                    ) extends DftpServerException(s"Access denied to DataFrame $frameName", cause)
 
 class AuthenticationFailedException(
                                      val credential: Credentials,

@@ -7,7 +7,7 @@
 package link.rdcn.server.module
 
 import link.rdcn.server._
-import link.rdcn.user.AuthenticationService
+import link.rdcn.user.{AuthenticationMethod, Credentials}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{BeforeEach, Test}
 
@@ -45,7 +45,7 @@ class UserPasswordAuthModuleTest {
    */
   @Test
   def testEventHandlerAcceptsLogic(): Unit = {
-    val validEvent = new RequireAuthenticatorEvent(new ObjectHolder[AuthenticationService])
+    val validEvent = new CollectAuthenticationMethodEvent(new Workers[AuthenticationMethod])
     val invalidEvent = new OtherMockEvent()
 
     assertTrue(hookedEventHandler.accepts(validEvent),
@@ -68,22 +68,22 @@ class UserPasswordAuthModuleTest {
     mockOldService.acceptsCreds = false
 
     // 2. 模拟事件: 将 'mockOldService' 放入 holder
-    val holder = new ObjectHolder[AuthenticationService]()
-    holder.set(mockOldService)
-    val event = new RequireAuthenticatorEvent(holder)
+    val holder = new Workers[AuthenticationMethod]()
+    holder.add(mockOldService)
+    val event = new CollectAuthenticationMethodEvent(holder)
 
     // 3. 执行: 处理事件，创建链式服务
     hookedEventHandler.doHandleEvent(event)
 
     // 4. 提取: 获取新的链式服务
-    val chainedService = holder.invoke(run = s => s, onNull = null)
+    val chainedService = holder.invoke(runMethod = s => s, onNull = null)
     assertNotNull(chainedService, "Holder 不应为空")
 
     // 5. 验证 accepts() 链 (OR 逻辑)
-    assertTrue(chainedService.accepts(MockCredentials.asInstanceOf[chainedService.C]), "链式 accepts() 应返回 true (因为 InnerService 接受)")
+    assertTrue(chainedService.accepts(MockCredentials), "链式 accepts() 应返回 true (因为 InnerService 接受)")
 
     // 6. 验证 authenticate() 链 (InnerService 优先)
-    val user = chainedService.authenticate(MockCredentials.asInstanceOf[chainedService.C])
+    val user = chainedService.authenticate(MockCredentials)
 
     assertEquals(mockInnerService.userToReturn, user, "链式 authenticate() 应返回 InnerService 的 User")
 
@@ -108,22 +108,22 @@ class UserPasswordAuthModuleTest {
     mockOldService.userToReturn = MockUser // 确保返回的是 OldService 的用户
 
     // 2. 模拟事件
-    val holder = new ObjectHolder[AuthenticationService]()
-    holder.set(mockOldService)
-    val event = new RequireAuthenticatorEvent(holder)
+    val holder = new Workers[AuthenticationMethod]()
+    holder.add(mockOldService)
+    val event = new CollectAuthenticationMethodEvent(holder)
 
     // 3. 执行
     hookedEventHandler.doHandleEvent(event)
 
     // 4. 提取
-    val chainedService = holder.invoke(run = s => s, onNull = null)
+    val chainedService = holder.invoke(runMethod = s => s, onNull = null)
     assertNotNull(chainedService, "Holder 不应为空")
 
     // 5. 验证 accepts() 链 (OR 逻辑)
-    assertTrue(chainedService.accepts(MockCredentials.asInstanceOf[chainedService.C]), "链式 accepts() 应返回 true (因为 OldService 接受)")
+    assertTrue(chainedService.accepts(MockCredentials), "链式 accepts() 应返回 true (因为 OldService 接受)")
 
     // 6. 验证 authenticate() 链 (Inner 失败, Old 成功)
-    val user = chainedService.authenticate(MockCredentials.asInstanceOf[chainedService.C])
+    val user = chainedService.authenticate(MockCredentials)
 
     assertEquals(mockOldService.userToReturn, user, "链式 authenticate() 应返回 OldService 的 User")
 
@@ -145,19 +145,19 @@ class UserPasswordAuthModuleTest {
     mockOldService.acceptsCreds = false
 
     // 2. 模拟事件
-    val holder = new ObjectHolder[AuthenticationService]()
-    holder.set(mockOldService)
-    val event = new RequireAuthenticatorEvent(holder)
+    val holder = new Workers[AuthenticationMethod]()
+    holder.add(mockOldService)
+    val event = new CollectAuthenticationMethodEvent(holder)
 
     // 3. 执行
     hookedEventHandler.doHandleEvent(event)
 
     // 4. 提取
-    val chainedService = holder.invoke(run = s => s, onNull = null)
+    val chainedService = holder.invoke(runMethod = s => s, onNull = null)
     assertNotNull(chainedService, "Holder 不应为空")
 
     // 5. 验证 accepts() 链
-    assertFalse(chainedService.accepts(MockCredentials.asInstanceOf[chainedService.C]), "链式 accepts() 应返回 false (因为两者都拒绝)")
+    assertFalse(chainedService.accepts(MockCredentials), "链式 accepts() 应返回 false (因为两者都拒绝)")
 
     // 验证调用
     assertFalse(mockInnerService.authenticateCalled, "InnerService.authenticate 不应被调用")
@@ -174,21 +174,21 @@ class UserPasswordAuthModuleTest {
     mockInnerService.acceptsCreds = true
 
     // 2. 模拟事件: Holder 为空 (old = null)
-    val holder = new ObjectHolder[AuthenticationService]()
-    val event = new RequireAuthenticatorEvent(holder)
+    val holder = new Workers[AuthenticationMethod]()
+    val event = new CollectAuthenticationMethodEvent(holder)
 
     // 3. 执行
     hookedEventHandler.doHandleEvent(event)
 
     // 4. 提取
-    val chainedService = holder.invoke(run = s => s, onNull = null)
+    val chainedService = holder.invoke(runMethod = s => s, onNull = null)
     assertNotNull(chainedService, "Holder 不应为空")
 
     // 5. 验证 accepts() 链 (OR 逻辑)
-    assertTrue(chainedService.accepts(MockCredentials.asInstanceOf[chainedService.C]), "链式 accepts() 应返回 true (因为 InnerService 接受)")
+    assertTrue(chainedService.accepts(MockCredentials), "链式 accepts() 应返回 true (因为 InnerService 接受)")
 
     // 6. 验证 authenticate() 链 (InnerService 优先)
-    val user = chainedService.authenticate(MockCredentials.asInstanceOf[chainedService.C])
+    val user = chainedService.authenticate(MockCredentials)
 
     assertEquals(mockInnerService.userToReturn, user, "链式 authenticate() 应返回 InnerService 的 User")
 

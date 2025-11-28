@@ -1,6 +1,6 @@
 package link.rdcn.dacp.catalog
 
-import CatalogFormatter._
+import link.rdcn.dacp.catalog.CatalogFormatter._
 import link.rdcn.server.ServerContext
 import link.rdcn.struct.ValueType.{LongType, RefType, StringType}
 import link.rdcn.struct._
@@ -15,6 +15,12 @@ import java.io.StringWriter
  * @Data 2025/7/9 17:14
  * @Modified By:
  */
+trait CatalogServiceRequest {
+  def getDataSetId: String
+
+  def getDataFrameUrl: String
+}
+
 trait CatalogService {
 
    def accepts(request: CatalogServiceRequest): Boolean

@@ -5,27 +5,29 @@
            http://www.springframework.org/schema/beans
            http://www.springframework.org/schema/beans/spring-beans.xsd">
 
+    <bean id="clientManage" class="link.rdcn.dacp.proxy.ClientManage">
+        <property name="targetServerUrl" value="${proxy.target.url}"/>
+    </bean>
+
     <!-- DftpServerConfig Bean -->
     <bean id="dftpServerConfigBean" class="link.rdcn.server.DftpServerConfigBean">
-        <property name="host" value="${dftp.host.position}"/>
-        <property name="port" value="${dftp.host.port}"/>
-        <property name="useTls" value="${dftp.tls.enabled}"/>
+        <property name="protocolScheme" value="dacp"/>
+        <property name="host" value="${proxy.host.position}"/>
+        <property name="port" value="${proxy.host.port}"/>
         <property name="modules">
             <bean class="link.rdcn.server.ModulesBean">
                 <property name="modules">
                     <list>
-                        <!-- DftpModule Bean -->
-                        <bean class="link.rdcn.server.module.BaseDftpModule"/>
-                        <bean class="link.rdcn.server.FileDirectoryDataSourceModule">
-                            <property name="rootDirectory">
-                                <value type="java.io.File">file:${configDir}/../data</value>
-                            </property>
+                        <bean class="link.rdcn.dacp.proxy.PutStreamProxyModule">
+                            <constructor-arg ref="clientManage"/>
                         </bean>
-                        <bean class="link.rdcn.server.module.UserPasswordAuthModule">
-                            <constructor-arg>
-                                <bean class="link.rdcn.server.module.DefaultUserPasswordAuthService" />
-                            </constructor-arg>
+                        <bean class="link.rdcn.dacp.proxy.ActionProxyModule">
+                            <constructor-arg ref="clientManage"/>
                         </bean>
+                        <bean class="link.rdcn.dacp.proxy.StreamProxyModule">
+                            <constructor-arg ref="clientManage"/>
+                        </bean>
+                        <bean class="link.rdcn.dacp.proxy.AuthProxyModule"/>
                     </list>
                 </property>
             </bean>
@@ -35,7 +37,7 @@
     <bean class="org.springframework.context.support.PropertySourcesPlaceholderConfigurer">
         <property name="locations">
             <list>
-                <value>file:${configDir}/dftp.conf</value>
+                <value>file:${configDir}/proxy.conf</value>
             </list>
         </property>
         <property name="ignoreUnresolvablePlaceholders" value="true"/>

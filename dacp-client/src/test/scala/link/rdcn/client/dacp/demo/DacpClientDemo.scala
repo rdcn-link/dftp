@@ -9,9 +9,9 @@ import link.rdcn.dacp.optree.RepositoryClient
 import link.rdcn.dacp.optree.fifo.{DockerContainer, FileType}
 import link.rdcn.dacp.recipe._
 import link.rdcn.dacp.user.{DataOperationType, PermissionService, PermissionServiceModule}
-import link.rdcn.dacp.utils.FileUtils
-import link.rdcn.server.module.{BaseDftpModule, DataFrameProviderModule, DataFrameProviderService, UserPasswordAuthModule}
-import link.rdcn.server.{DftpServer, DftpServerConfig, ServerContext}
+import link.rdcn.server.ServerContext
+import link.rdcn.server.module.{BaseDftpModule, DataFrameProviderService, UserPasswordAuthModule}
+import link.rdcn.server.{DftpServer, DftpServerConfig}
 import link.rdcn.struct.ValueType.StringType
 import link.rdcn.struct._
 import link.rdcn.user._
@@ -146,10 +146,10 @@ object DacpClientDemo {
   }
 
   val userPasswordAuthService = new UserPasswordAuthService {
-    override def authenticate(credentials: UsernamePassword): UserPrincipal =
+    override def authenticate(credentials: Credentials): UserPrincipal =
       UserPrincipalWithCredentials(credentials)
 
-    override def accepts(credentials: UsernamePassword): Boolean = true
+    override def accepts(credentials: Credentials): Boolean = true
   }
 
   val operatorClient = new RepositoryClient("http://10.0.89.39", 8090)
@@ -205,7 +205,6 @@ class DacpClientDemo {
     println("getSchema-------------")
     println(dc.getSchema("/abc"))
 
-    println(dc.getDataFrameSize("/abc"))
     println(dc.getDocument("/abc"))
     println(dc.getStatistics("/abc"))
 
@@ -228,7 +227,6 @@ class DacpClientDemo {
     val dc = DacpClient.connect("dacp://0.0.0.0:3102", UsernamePassword("admin", "admin"))
     val df = dc.get("dacp://0.0.0.0:3102/DataFrame")
     df.foreach(println)
-
   }
 
   @Test

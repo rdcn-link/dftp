@@ -7,24 +7,27 @@
 
     <!-- DftpServerConfig Bean -->
     <bean id="dftpServerConfigBean" class="link.rdcn.server.DftpServerConfigBean">
-        <property name="host" value="${dftp.host.position}"/>
-        <property name="port" value="${dftp.host.port}"/>
-        <property name="useTls" value="${dftp.tls.enabled}"/>
+        <property name="protocolScheme" value="dacp"/>
+        <property name="host" value="${dacp.host.position}"/>
+        <property name="port" value="${dacp.host.port}"/>
+        <property name="useTls" value="${dacp.tls.enabled}"/>
         <property name="modules">
             <bean class="link.rdcn.server.ModulesBean">
                 <property name="modules">
                     <list>
                         <!-- DftpModule Bean -->
                         <bean class="link.rdcn.server.module.BaseDftpModule"/>
-                        <bean class="link.rdcn.server.FileDirectoryDataSourceModule">
-                            <property name="rootDirectory">
-                                <value type="java.io.File">file:${configDir}/../data</value>
-                            </property>
-                        </bean>
                         <bean class="link.rdcn.server.module.UserPasswordAuthModule">
                             <constructor-arg>
                                 <bean class="link.rdcn.server.module.DefaultUserPasswordAuthService" />
                             </constructor-arg>
+                        </bean>
+                        <bean class="link.rdcn.dacp.cook.DacpCookModule"/>
+                        <bean class="link.rdcn.dacp.catalog.DacpCatalogModule"/>
+                        <bean class="link.rdcn.server.FileDirectoryDataSourceModule">
+                            <property name="rootDirectory">
+                                <value type="java.io.File">file:${configDir}/../data</value>
+                            </property>
                         </bean>
                     </list>
                 </property>
@@ -35,7 +38,7 @@
     <bean class="org.springframework.context.support.PropertySourcesPlaceholderConfigurer">
         <property name="locations">
             <list>
-                <value>file:${configDir}/dftp.conf</value>
+                <value>file:${configDir}/dacp.conf</value>
             </list>
         </property>
         <property name="ignoreUnresolvablePlaceholders" value="true"/>

@@ -8,13 +8,14 @@ package link.rdcn.client.dacp
 
 import link.rdcn.dacp.catalog._
 import link.rdcn.client.DftpClient
-import link.rdcn.client.dacp.DacpCatalogModuleTest.{baseUrl, catalogService, client}
+import link.rdcn.client.dacp.DacpCatalogModuleTest.{baseUrl, client}
 import link.rdcn.client.dacp.MockCatalogData.mockDF
+import link.rdcn.client.dacp.demo.DacpClientDemo.catalogService
 import link.rdcn.server._
-import link.rdcn.server.module.{BaseDftpModule, ObjectHolder, RequireGetStreamHandlerEvent, UserPasswordAuthModule}
+import link.rdcn.server.module.{BaseDftpModule, CollectGetStreamMethodEvent, FilteredGetStreamMethods, GetStreamMethod, UserPasswordAuthModule, Workers}
 import link.rdcn.struct.ValueType.{IntType, StringType}
 import link.rdcn.struct._
-import link.rdcn.user.{UserPasswordAuthService, UserPrincipal, UserPrincipalWithCredentials, UsernamePassword}
+import link.rdcn.user.{Credentials, UserPasswordAuthService, UserPrincipal, UserPrincipalWithCredentials, UsernamePassword}
 import org.apache.arrow.flight.FlightRuntimeException
 import org.apache.jena.rdf.model.{Model, ModelFactory}
 import org.junit.jupiter.api.Assertions.{assertEquals, assertNotNull, assertThrows, assertTrue}
@@ -28,47 +29,47 @@ object DacpCatalogModuleTest {
   private var client: DftpClient = _
   private val testPort = 3101 // 为此测试使用一个唯一的端口
   private val baseUrl = s"dftp://0.0.0.0:$testPort"
-  private val catalogService = new CatalogService {
-    override def getDataSetMetaData(datasetName: String, model: Model): Unit =
-      model.add(MockCatalogData.getMockModel)
-
-    override def getDataFrameMetaData(dataFrameName: String, model: Model): Unit =
-      model.add(MockCatalogData.getMockModel)
-
-    override def getDocument(dataFrameName: String): DataFrameDocument =
-      if (dataFrameName == "my_table") MockCatalogData.mockDoc else throw new NoSuchElementException("Doc not found")
-
-    override def getStatistics(dataFrameName: String): DataFrameStatistics =
-      if (dataFrameName == "my_table") MockCatalogData.mockStats else throw new NoSuchElementException("Stats not found")
-
-    override def getSchema(dataFrameName: String): Option[StructType] =
-      if (dataFrameName == "my_table") Some(MockCatalogData.mockSchema) else None
-
-    override def getDataFrameTitle(dataFrameName: String): Option[String] =
-      if (dataFrameName == "my_table") Some(MockCatalogData.mockTitle) else None
-
-    override def accepts(request: CatalogServiceRequest): Boolean = true
-
-    /**
-     * 列出所有数据集名称
-     *
-     * @return java.util.List[String]
-     */
-    override def listDataSetNames(): List[String] = List("my_set")
-
-    /**
-     * 列出指定数据集下的所有数据帧名称
-     *
-     * @param dataSetId 数据集 ID
-     * @return java.util.List[String]
-     */
-    override def listDataFrameNames(dataSetId: String): List[String] = List("my_table")
-  }
+//  private val catalogService = new CatalogService {
+//    override def getDataSetMetaData(datasetName: String, model: Model): Unit =
+//      model.add(MockCatalogData.getMockModel)
+//
+//    override def getDataFrameMetaData(dataFrameName: String, model: Model): Unit =
+//      model.add(MockCatalogData.getMockModel)
+//
+//    override def getDocument(dataFrameName: String): DataFrameDocument =
+//      if (dataFrameName == "my_table") MockCatalogData.mockDoc else throw new NoSuchElementException("Doc not found")
+//
+//    override def getStatistics(dataFrameName: String): DataFrameStatistics =
+//      if (dataFrameName == "my_table") MockCatalogData.mockStats else throw new NoSuchElementException("Stats not found")
+//
+//    override def getSchema(dataFrameName: String): Option[StructType] =
+//      if (dataFrameName == "my_table") Some(MockCatalogData.mockSchema) else None
+//
+//    override def getDataFrameTitle(dataFrameName: String): Option[String] =
+//      if (dataFrameName == "my_table") Some(MockCatalogData.mockTitle) else None
+//
+//    override def accepts(request: CatalogServiceRequest): Boolean = true
+//
+//    /**
+//     * 列出所有数据集名称
+//     *
+//     * @return java.util.List[String]
+//     */
+//    override def listDataSetNames(): List[String] = List("my_set")
+//
+//    /**
+//     * 列出指定数据集下的所有数据帧名称
+//     *
+//     * @param dataSetId 数据集 ID
+//     * @return java.util.List[String]
+//     */
+//    override def listDataFrameNames(dataSetId: String): List[String] = List("my_table")
+//  }
   private val userPasswordAuthService = new UserPasswordAuthService {
-    override def authenticate(credentials: UsernamePassword): UserPrincipal =
+    override def authenticate(credentials: Credentials): UserPrincipal =
       UserPrincipalWithCredentials(credentials)
 
-    override def accepts(credentials: UsernamePassword): Boolean = true
+    override def accepts(credentials: Credentials): Boolean = true
   }
 
   @BeforeAll
@@ -78,7 +79,7 @@ object DacpCatalogModuleTest {
       new BaseDftpModule,
       new DacpCatalogModule,
       new GetStreamModule(),
-      new CatalogServiceModule(catalogService),
+//      new CatalogServiceModule(catalogService),
       new UserPasswordAuthModule(userPasswordAuthService),
     )
     server = DftpServer.start(config, modules)
@@ -309,7 +310,7 @@ object MockCatalogData {
 
 class GetStreamModule extends DftpModule {
   private val mockSchema: StructType = StructType.empty.add("id", IntType).add("name", StringType)
-  private val getStreamHolder = new ObjectHolder[GetStreamHandler]
+  private val getStreamHolder = new FilteredGetStreamMethods
   private var serverContext: ServerContext = _
   private val eventHandler = new EventHandler {
 
@@ -317,19 +318,18 @@ class GetStreamModule extends DftpModule {
 
     override def doHandleEvent(event: CrossModuleEvent): Unit = {
       event match {
-        case r: RequireGetStreamHandlerEvent => r.holder.set(old =>
-          new GetStreamHandler {
+        case r: CollectGetStreamMethodEvent => r.collect(
+          new GetStreamMethod {
             override def accepts(request: DftpGetStreamRequest): Boolean = request.asInstanceOf[DftpGetPathStreamRequest].getRequestURL().contains("oldStream")
 
             override def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
               request.asInstanceOf[DftpGetPathStreamRequest].getRequestURL() match {
                 case url if url.contains("oldStream") =>
                   response.sendDataFrame(mockDF)
-                case url =>
-                  old.doGetStream(request, response)
               }
             }
           })
+
         case _ =>
       }
     }
@@ -344,7 +344,7 @@ class GetStreamModule extends DftpModule {
     anchor.hook(eventHandler)
     anchor.hook(new EventSource {
       override def init(eventHub: EventHub): Unit =
-        eventHub.fireEvent(new RequireGetStreamHandlerEvent(getStreamHolder))
+        eventHub.fireEvent(new CollectGetStreamMethodEvent(getStreamHolder))
     })
   }
 
