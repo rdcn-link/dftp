@@ -93,48 +93,51 @@ class DacpCatalogModule extends DftpModule {
               }
             }
           })
-          case r: CollectGetStreamMethodEvent => r.addFilter(0, new GetStreamFilter {
-            override def doFilter(request: DftpGetStreamRequest, response: DftpGetStreamResponse, chain: GetStreamFilterChain): Unit = {
-              request match {
-                case r: DftpGetPathStreamRequest => r.getRequestPath() match {
-                  case "/listDataSets" =>
-                    catalogServiceHolder.work(new TaskRunner[CatalogService, Unit] {
-                      override def isReady(worker: CatalogService): Boolean = true
+          case r: CollectGetStreamMethodEvent =>
+            r.collect(new GetStreamMethod {
+              override def accepts(request: DftpGetStreamRequest): Boolean =
+                request match {
+                  case r: DftpGetPathStreamRequest =>
+                    r.getRequestPath() match {
+                      case "/listDataSets" => true
+                      case path if path.startsWith("/listDataFrames") => true
+                      case _ => false
+                    }
+                  case _ => false
+                }
 
-                      override def executeWith(worker: CatalogService): Unit =
-                        response.sendDataFrame(worker.doListDataSets(serverContext.baseUrl))
+              override def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
+                request match {
+                  case r: DftpGetPathStreamRequest => r.getRequestPath() match {
+                    case "/listDataSets" =>
+                      catalogServiceHolder.work(new TaskRunner[CatalogService, Unit] {
+                        override def isReady(worker: CatalogService): Boolean = true
 
-                      override def handleFailure(): Unit =
-                        response.sendError(404, s"DataFrame ${r.getRequestPath()} not Found")
-                    })
-                  case path if path.startsWith("/listDataFrames") =>
-                    catalogServiceHolder.work(new TaskRunner[CatalogService, Unit] {
-                      override def isReady(worker: CatalogService): Boolean = worker.accepts(
-                        new CatalogServiceRequest {
-                        override def getDataSetId: String = null
+                        override def executeWith(worker: CatalogService): Unit =
+                          response.sendDataFrame(worker.doListDataSets(serverContext.baseUrl))
 
-                        override def getDataFrameUrl: String = serverContext.baseUrl + r.getRequestPath()
+                        override def handleFailure(): Unit =
+                          response.sendError(404, s"DataFrame ${r.getRequestPath()} not Found")
                       })
+                    case path if path.startsWith("/listDataFrames") =>
+                      catalogServiceHolder.work(new TaskRunner[CatalogService, Unit] {
+                        override def isReady(worker: CatalogService): Boolean = worker.accepts(
+                          new CatalogServiceRequest {
+                            override def getDataSetId: String = null
 
-                      override def executeWith(worker: CatalogService): Unit =
-                        response.sendDataFrame(worker.doListDataFrames(path, serverContext.baseUrl))
+                            override def getDataFrameUrl: String = serverContext.baseUrl + r.getRequestPath()
+                          })
 
-                      override def handleFailure(): Unit = response.sendError(404, s"DataFrame ${r.getRequestPath()} not Found")
-                    })
-                  case "/listHosts" =>
-                    catalogServiceHolder.work(new TaskRunner[CatalogService, Unit] {
-                      override def isReady(worker: CatalogService): Boolean = true
+                        override def executeWith(worker: CatalogService): Unit =
+                          response.sendDataFrame(worker.doListDataFrames(path, serverContext.baseUrl))
 
-                      override def executeWith(worker: CatalogService): Unit =
-                        response.sendDataFrame(worker.doListHostInfo(serverContext))
-
-                      override def handleFailure(): Unit = response.sendError(404, s"DataFrame ${r.getRequestPath()} not Found")
-                    })
-                  case _ => chain.doFilter(request, response)
+                        override def handleFailure(): Unit = response.sendError(404, s"DataFrame ${r.getRequestPath()} not Found")
+                      })
+                    case _ =>
+                  }
                 }
               }
-            }
-          })
+            })
 
           case _ =>
         }
