@@ -1,16 +1,15 @@
 package link.rdcn.dacp.optree
 
 import link.rdcn.client.UrlValidator
-import link.rdcn.dacp.optree.fifo.{FileDataFrame, FileType, RowFilePipe}
+import link.rdcn.dacp.optree.fifo.FileType
 import link.rdcn.operation._
 import link.rdcn.struct.DataFrame
 import link.rdcn.user.TokenAuth
 import org.json.{JSONArray, JSONObject}
 
 import scala.collection.JavaConverters.asScalaBufferConverter
-import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.{Failure, Success}
+import scala.concurrent.Future
 
 /**
  * @Author renhao
