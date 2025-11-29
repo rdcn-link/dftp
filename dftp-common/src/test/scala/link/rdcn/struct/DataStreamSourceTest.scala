@@ -83,7 +83,7 @@ class DataStreamSourceTest extends CommonTestProvider {
     val mockDir = new File(fileDataFrameInfo.path)
 
     // 覆盖 filePath(dir, false)
-    val source = DataStreamSource.filePath(mockDir, recursive = false)
+    val source = DataStreamSource.filePath(mockDir, "")
 
     // 验证返回的 DataStreamSource 属性
     assertEquals(-1L, source.rowCount, "rowCount must be -1")
@@ -92,6 +92,6 @@ class DataStreamSourceTest extends CommonTestProvider {
     // 验证迭代器内容 (Row.fromTuple(_))
     val iter = source.iterator
     val row = iter.next()
-    assertEquals(7, row.values.size, "Row must contain 7 file attributes and Blob")
+    assertEquals(8, row.values.size, "Row must contain 8 file attributes and Blob")
   }
 }

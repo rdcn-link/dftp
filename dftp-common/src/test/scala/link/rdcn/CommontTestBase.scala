@@ -113,7 +113,7 @@ object CommonTestBase {
       })
       dataFrameInfo.inputSource match {
         case _: CSVSource => DataStreamSource.csv(new File(dataFrameInfo.path))
-        case _: DirectorySource => DataStreamSource.filePath(new File(dataFrameInfo.path))
+        case _: DirectorySource => DataStreamSource.filePath(new File(dataFrameInfo.path), dataFrameName)
         case _: ExcelSource => DataStreamSource.excel(dataFrameInfo.path.toString)
         case _: InputSource => ???
       }
