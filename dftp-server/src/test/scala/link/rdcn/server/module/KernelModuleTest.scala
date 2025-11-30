@@ -342,6 +342,7 @@ class KernelModuleTest {
     authHolder.add(mockAuth) // 注入
     val user = kernelModule.authenticate(MockCredentials)
 
+    //FIXME: Redundant check of Workers.work(), which is already completed by WorkerTest!!! check all similar tests to clean redundant code
     assertTrue(mockAuth.authenticateCalled, "注入的 AuthenticationService.authenticate 应被调用")
     assertEquals(mockAuth.userToReturn, user, "返回的 UserPrincipal 不匹配")
   }
