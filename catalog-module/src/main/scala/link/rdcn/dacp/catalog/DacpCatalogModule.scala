@@ -35,6 +35,7 @@ class DacpCatalogModule extends DftpModule {
         event match {
           case r: CollectActionMethodEvent => r.collect(new ActionMethod {
 
+            //FIXME: match each request and returns true or false
             override def accepts(request: DftpActionRequest): Boolean = true
 
             override def doAction(request: DftpActionRequest, response: DftpActionResponse): Unit = {
@@ -44,29 +45,29 @@ class DacpCatalogModule extends DftpModule {
                 actionName match {
                   case "getDataSetMetaData" =>
                     val model: Model = ModelFactory.createDefaultModel
-                    val prefix: String = "/getDataSetMetaData/"
-                    catalogServiceHolder.invoke(_.getDataSetMetaData(parameter.get("dataSetName").get.toString, model),
+                    val prefix: String = "/getDataSetMetaData/" //FIXME: never used variable, remove it
+                    catalogServiceHolder.work(_.getDataSetMetaData(parameter.get("dataSetName").get.toString, model),
                       response.sendError(404, s"unknown action: ${request.getActionName()}"))
                     val writer = new StringWriter();
                     model.write(writer, "RDF/XML");
                     response.sendData(writer.toString.getBytes("UTF-8"))
                   case "getDataFrameMetaData" =>
                     val model: Model = ModelFactory.createDefaultModel
-                    catalogServiceHolder.invoke(_.getDataFrameMetaData(parameter.get("dataFrameName").get.toString, model),
+                    catalogServiceHolder.work(_.getDataFrameMetaData(parameter.get("dataFrameName").get.toString, model),
                       response.sendError(404, s"unknown action: ${request.getActionName()}"))
                     val writer = new StringWriter();
                     model.write(writer, "RDF/XML");
                     response.sendData(writer.toString.getBytes("UTF-8"))
                   case "getDocument" =>
                     val dataFrameName = parameter.get("dataFrameName").get.toString
-                    catalogServiceHolder.invoke(c => {
+                    catalogServiceHolder.work(c => {
                       val document = c.getDocument(dataFrameName)
                       val schema = c.getSchema(dataFrameName)
                       response.sendData(getDataFrameDocumentJsonString(document, schema).getBytes("UTF-8"))
                     }, response.sendError(404, s"unknown action: ${request.getActionName()}"))
                   case "getDataFrameInfo" =>
                     val dataFrameName = parameter.get("dataFrameName").get.toString
-                    catalogServiceHolder.invoke(c => {
+                    catalogServiceHolder.work(c => {
                       val dataFrameTitle = c.getDataFrameTitle(dataFrameName).getOrElse(dataFrameName)
                       val statistics = c.getStatistics(dataFrameName)
                       val jo = new JSONObject()
@@ -77,13 +78,14 @@ class DacpCatalogModule extends DftpModule {
                     }, response.sendError(404, s"unknown action: ${request.getActionName()}"))
                   case "getSchema" =>
                     val dataFrameName = parameter.get("dataFrameName").get.toString
-                    catalogServiceHolder.invoke(c => {
+                    catalogServiceHolder.work(c => {
                       response.sendData(c.getSchema(dataFrameName)
                         .getOrElse(StructType.empty)
                         .toString.getBytes("UTF-8"))
                     }, response.sendError(404, s"unknown action: ${request.getActionName()}"))
                   case "getHostInfo" => response.sendData(getHostInfoString(serverContext).getBytes("UTF-8"))
                   case "getServerInfo" => response.sendData(getHostResourceString().getBytes("UTF-8"))
+                  //FIXME: remove case _, default case match error will be handled by outer level method, e.g Workers.work()
                   case _ => response.sendError(404, s"unknown action: ${request.getActionName()}")
                 }
               }catch {
@@ -93,6 +95,7 @@ class DacpCatalogModule extends DftpModule {
               }
             }
           })
+
           case r: CollectGetStreamMethodEvent =>
             r.collect(new GetStreamMethod {
               override def accepts(request: DftpGetStreamRequest): Boolean =
@@ -111,7 +114,7 @@ class DacpCatalogModule extends DftpModule {
                   case r: DftpGetPathStreamRequest => r.getRequestPath() match {
                     case "/listDataSets" =>
                       catalogServiceHolder.work(new TaskRunner[CatalogService, Unit] {
-                        override def isReady(worker: CatalogService): Boolean = true
+                        override def acceptedBy(worker: CatalogService): Boolean = true
 
                         override def executeWith(worker: CatalogService): Unit =
                           response.sendDataFrame(worker.doListDataSets(serverContext.baseUrl))
@@ -121,7 +124,7 @@ class DacpCatalogModule extends DftpModule {
                       })
                     case path if path.startsWith("/listDataFrames") =>
                       catalogServiceHolder.work(new TaskRunner[CatalogService, Unit] {
-                        override def isReady(worker: CatalogService): Boolean = worker.accepts(
+                        override def acceptedBy(worker: CatalogService): Boolean = worker.accepts(
                           new CatalogServiceRequest {
                             override def getDataSetId: String = null
 

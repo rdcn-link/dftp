@@ -31,6 +31,7 @@ class ClientManage(val targetServerUrl: String) {
   }
 }
 
+//FIXME: provides an all-in-one ProxyModule which handles all requests
 class PutStreamProxyModule(clientManage: ClientManage) extends DftpModule {
   private val putMethodService = new PutStreamMethod {
     override def accepts(request: DftpPutStreamRequest): Boolean = true
@@ -67,15 +68,16 @@ class PutStreamProxyModule(clientManage: ClientManage) extends DftpModule {
 class ActionProxyModule(clientManage: ClientManage) extends DftpModule {
 
   private val actionMethodService = new ActionMethod {
-    override def accepts(request: DftpActionRequest): Boolean = true
+    override def accepts(request: DftpActionRequest): Boolean = true //returns true or false
 
     override def doAction(request: DftpActionRequest, response: DftpActionResponse): Unit = {
       val internalClient = clientManage.getInternalClient(request.getUserPrincipal()
         .asInstanceOf[ProxyUserPrincipal].credentials)
       request.getActionName() match {
+        //FIXME: do not output target url for security and encapsulation
         case name if name == "/getTargetServerUrl" =>
           response.sendData(clientManage.targetServerUrl.getBytes("UTF-8"))
-        case _ =>
+        case _ => //FIXME: case _ handle is unnecessary
           try{
             val resultBytes: Array[Byte] =
               internalClient.doAction(request.getActionName(), request.getParameterAsMap())
@@ -96,7 +98,7 @@ class ActionProxyModule(clientManage: ClientManage) extends DftpModule {
       override def doHandleEvent(event: CrossModuleEvent): Unit = {
         event match {
           case r: CollectActionMethodEvent => r.collect(actionMethodService)
-          case _ =>
+          case _ => //FIXME: case _ handle is unnecessary
         }
       }
     })

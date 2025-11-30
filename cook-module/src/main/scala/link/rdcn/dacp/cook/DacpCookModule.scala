@@ -93,7 +93,7 @@ class DacpCookModule() extends DftpModule with Logging {
                           try {
                               Some(dataFrameHolder.work(new TaskRunner[DataFrameProviderService, DataFrame]() {
 
-                                override def isReady(worker: DataFrameProviderService): Boolean = worker.accepts(dataFrameNameUrl)
+                                override def acceptedBy(worker: DataFrameProviderService): Boolean = worker.accepts(dataFrameNameUrl)
 
                                 override def executeWith(worker: DataFrameProviderService): DataFrame = worker.getDataFrame(dataFrameNameUrl, userPrincipal)(serverContext)
 

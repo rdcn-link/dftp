@@ -13,7 +13,7 @@ class KernelModule extends DftpModule {
   def parseGetStreamRequest(token: Array[Byte], principal: UserPrincipal): DftpGetStreamRequest = {
     parseMethods.work(new TaskRunner[ParseRequestMethod, DftpGetStreamRequest] {
 
-      override def isReady(worker: ParseRequestMethod): Boolean = worker.accepts(token)
+      override def acceptedBy(worker: ParseRequestMethod): Boolean = worker.accepts(token)
 
       override def executeWith(worker: ParseRequestMethod): DftpGetStreamRequest = worker.parse(token, principal)
 
@@ -30,7 +30,7 @@ class KernelModule extends DftpModule {
   def putStream(request: DftpPutStreamRequest, response: DftpPutStreamResponse): Unit = {
     putMethods.work(new TaskRunner[PutStreamMethod, Unit] {
 
-      override def isReady(worker: PutStreamMethod): Boolean = worker.accepts(request)
+      override def acceptedBy(worker: PutStreamMethod): Boolean = worker.accepts(request)
 
       override def executeWith(worker: PutStreamMethod): Unit = worker.doPutStream(request, response)
 
@@ -43,7 +43,7 @@ class KernelModule extends DftpModule {
   def doAction(request: DftpActionRequest, response: DftpActionResponse): Unit = {
     actionMethods.work(new TaskRunner[ActionMethod, Unit] {
 
-      override def isReady(worker: ActionMethod): Boolean = worker.accepts(request)
+      override def acceptedBy(worker: ActionMethod): Boolean = worker.accepts(request)
 
       override def executeWith(worker: ActionMethod): Unit = worker.doAction(request, response)
 
@@ -56,7 +56,7 @@ class KernelModule extends DftpModule {
   def authenticate(credentials: Credentials): UserPrincipal = {
     authMethods.work(new TaskRunner[AuthenticationMethod, UserPrincipal] {
 
-      override def isReady(worker: AuthenticationMethod): Boolean = worker.accepts(credentials)
+      override def acceptedBy(worker: AuthenticationMethod): Boolean = worker.accepts(credentials)
 
       override def executeWith(worker: AuthenticationMethod): UserPrincipal = worker.authenticate(credentials)
 
@@ -162,7 +162,7 @@ class FilteredGetStreamMethods {
         _workers.work(
           new TaskRunner[GetStreamMethod, Unit] {
 
-            override def isReady(worker: GetStreamMethod): Boolean = worker.accepts(args._1)
+            override def acceptedBy(worker: GetStreamMethod): Boolean = worker.accepts(args._1)
 
             override def executeWith(worker: GetStreamMethod): Unit = worker.doGetStream(args._1, args._2)
 

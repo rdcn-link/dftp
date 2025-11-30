@@ -66,7 +66,7 @@ class BaseDftpModule extends DftpModule {
                         try {
                           Some(dataFrameHolder.work(new TaskRunner[DataFrameProviderService, DataFrame] {
 
-                            override def isReady(worker: DataFrameProviderService): Boolean = worker.accepts(dataFrameNameUrl)
+                            override def acceptedBy(worker: DataFrameProviderService): Boolean = worker.accepts(dataFrameNameUrl)
 
                             override def executeWith(worker: DataFrameProviderService): DataFrame = worker.getDataFrame(dataFrameNameUrl, r.getUserPrincipal())
 

@@ -40,7 +40,7 @@ class WorkersTest {
   def testPerform() {
     val oa = new Workers[Int]()
     val op1 = new TaskRunner[Int, Int] {
-      override def isReady(worker: Int): Boolean = true
+      override def acceptedBy(worker: Int): Boolean = true
 
       override def executeWith(worker: Int): Int = worker + 100
 
@@ -48,7 +48,7 @@ class WorkersTest {
     }
 
     val op2 = new TaskRunner[Int, Int] {
-      override def isReady(worker: Int): Boolean = worker > 50
+      override def acceptedBy(worker: Int): Boolean = worker > 50
 
       override def executeWith(worker: Int): Int = worker + 100
 
@@ -75,7 +75,7 @@ class WorkersTest {
     val oa = new Workers[Int]()
 
     val op2 = new TaskRunner[Int, String] {
-      override def isReady(worker: Int): Boolean = worker > 50
+      override def acceptedBy(worker: Int): Boolean = worker > 50
 
       override def executeWith(worker: Int): String = {
         s"[[$worker]]"

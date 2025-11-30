@@ -35,7 +35,7 @@ class SecuredDataFrameProviderModule(dataFrameProvider: DataFrameProviderService
                   val permission = userPrincipal match {
                     case key: KeyPairUserPrincipal => key.checkPermission()
                     case _ => permissionHolder.work(new TaskRunner[PermissionService, Boolean] {
-                      override def isReady(worker: PermissionService): Boolean = worker.accepts(userPrincipal)
+                      override def acceptedBy(worker: PermissionService): Boolean = worker.accepts(userPrincipal)
 
                       override def executeWith(worker: PermissionService): Boolean = worker.checkPermission(userPrincipal, dataFrameUrl)
 
