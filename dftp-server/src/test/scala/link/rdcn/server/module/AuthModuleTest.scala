@@ -76,7 +76,7 @@ class UserPasswordAuthModuleTest {
     hookedEventHandler.doHandleEvent(event)
 
     // 4. 提取: 获取新的链式服务
-    val chainedService = holder.work(runMethod = s => s, onNull = null)
+    val chainedService = holder.work(runMethod = s => s, onFail = null)
     assertNotNull(chainedService, "Holder 不应为空")
 
     // 5. 验证 accepts() 链 (OR 逻辑)
@@ -116,7 +116,7 @@ class UserPasswordAuthModuleTest {
     hookedEventHandler.doHandleEvent(event)
 
     // 4. 提取
-    val chainedService = holder.work(runMethod = s => s, onNull = null)
+    val chainedService = holder.work(runMethod = s => s, onFail = null)
     assertNotNull(chainedService, "Holder 不应为空")
 
     // 5. 验证 accepts() 链 (OR 逻辑)
@@ -153,7 +153,7 @@ class UserPasswordAuthModuleTest {
     hookedEventHandler.doHandleEvent(event)
 
     // 4. 提取
-    val chainedService = holder.work(runMethod = s => s, onNull = null)
+    val chainedService = holder.work(runMethod = s => s, onFail = null)
     assertNotNull(chainedService, "Holder 不应为空")
 
     // 5. 验证 accepts() 链
@@ -181,7 +181,7 @@ class UserPasswordAuthModuleTest {
     hookedEventHandler.doHandleEvent(event)
 
     // 4. 提取
-    val chainedService = holder.work(runMethod = s => s, onNull = null)
+    val chainedService = holder.work(runMethod = s => s, onFail = null)
     assertNotNull(chainedService, "Holder 不应为空")
 
     // 5. 验证 accepts() 链 (OR 逻辑)

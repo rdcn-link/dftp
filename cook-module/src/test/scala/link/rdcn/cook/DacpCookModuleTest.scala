@@ -79,7 +79,7 @@ class DacpCookModuleTest {
    */
   @Test
   def testParser_ParsesCookTicket(): Unit = {
-    val chainedParser = getStreamParserHolder.work(runMethod = s => s, onNull = null)
+    val chainedParser = getStreamParserHolder.work(runMethod = s => s, onFail = null)
     assertNotNull(chainedParser, "GetStreamRequestParser 未被设置")
 
     // 准备 Ticket
@@ -114,7 +114,7 @@ class DacpCookModuleTest {
     getStreamParserHolder.add(mockOldParser) // 覆盖
     mockEventHub.fireEvent(new CollectParseRequestMethodEvent(getStreamParserHolder)) // 重新触发事件
 
-    val chainedParser = getStreamParserHolder.work(runMethod = s => s, onNull = null)
+    val chainedParser = getStreamParserHolder.work(runMethod = s => s, onFail = null)
 
     // 准备一个非 COOK_TICKET (e.g., type 1)
     val otherTicketBytes = Array[Byte](1, 0, 0, 0, 0)

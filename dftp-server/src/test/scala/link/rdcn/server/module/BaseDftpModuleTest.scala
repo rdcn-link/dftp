@@ -90,7 +90,7 @@ class BaseDftpModuleTest {
   def testParser_BLOB_TICKET(): Unit = {
     val holder = new Workers[ParseRequestMethod]()
     parserEventHandler.doHandleEvent(new CollectParseRequestMethodEvent(holder))
-    val parser = holder.work(runMethod = s => s, onNull = null)
+    val parser = holder.work(runMethod = s => s, onFail = null)
     assertNotNull(parser, "Parser 未被注入")
 
     val blobId = "my-blob-id-123"
@@ -108,7 +108,7 @@ class BaseDftpModuleTest {
   def testParser_URL_GET_TICKET_PartialPath(): Unit = {
     val holder = new Workers[ParseRequestMethod]()
     parserEventHandler.doHandleEvent(new CollectParseRequestMethodEvent(holder))
-    val parser = holder.work(runMethod = s => s, onNull = null)
+    val parser = holder.work(runMethod = s => s, onFail = null)
 
     // 2 = URL_GET_TICKET
     // 使用一个部分路径
@@ -133,7 +133,7 @@ class BaseDftpModuleTest {
   def testParser_URL_GET_TICKET_FullUrl(): Unit = {
     val holder = new Workers[ParseRequestMethod]()
     parserEventHandler.doHandleEvent(new CollectParseRequestMethodEvent(holder))
-    val parser = holder.work(runMethod = s => s, onNull = null)
+    val parser = holder.work(runMethod = s => s, onFail = null)
 
     // 2 = URL_GET_TICKET
     // 使用一个完整的 URL
