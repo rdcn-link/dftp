@@ -136,18 +136,16 @@ case class TransformerNode(transformFunctionWrapperT: TransformFunctionWrapper, 
 
   override def execute(ctx: ExecutionContext): DataFrame = {
     val flowCtx = ctx.asInstanceOf[FlowExecutionContext]
-    if(flowCtx.isAsyncEnabled){
-      val inputDataFrames = inputs.map(_.execute(ctx))
-      val result = transformFunctionWrapperT.applyToDataFrames(inputDataFrames, flowCtx)
-      transformFunctionWrapper = transformFunctionWrapperT match {
-        case r: RepositoryOperator => r.transformFunctionWrapper
-        case _ => transformFunctionWrapperT
-      }
-
-      var thread: Thread = null
-
-      transformFunctionWrapper match {
-        case bundle: FileRepositoryBundle if bundle.outputFilePath.head._2 == FileType.FIFO_BUFFER =>
+    val inputDataFrames = inputs.map(_.execute(ctx))
+    val result = transformFunctionWrapperT.applyToDataFrames(inputDataFrames, flowCtx)
+    transformFunctionWrapper = transformFunctionWrapperT match {
+      case r: RepositoryOperator => r.transformFunctionWrapper
+      case _ => transformFunctionWrapperT
+    }
+    transformFunctionWrapper match {
+      case bundle: FileRepositoryBundle if bundle.outputFilePath.head._2 == FileType.FIFO_BUFFER =>
+        if(flowCtx.isAsyncEnabled(this.transformFunctionWrapperT)) {
+          var thread: Thread = null
           val future: Future[DataFrame] = Future {
             try {
               thread = Thread.currentThread()
@@ -159,23 +157,10 @@ case class TransformerNode(transformFunctionWrapperT: TransformFunctionWrapper, 
             }
           }
           flowCtx.registerAsyncResult(this, future, thread)
-        case _ =>
-      }
-      result
-    }else{
-      val inputDataFrames = inputs.map(_.execute(ctx))
-      val result = transformFunctionWrapperT.applyToDataFrames(inputDataFrames, flowCtx)
-      transformFunctionWrapper = transformFunctionWrapperT match {
-        case r: RepositoryOperator => r.transformFunctionWrapper
-        case _ => transformFunctionWrapperT
-      }
-      transformFunctionWrapper match {
-        case bundle: FileRepositoryBundle if bundle.outputFilePath.head._2 == FileType.FIFO_BUFFER ||
-          bundle.outputFilePath.head._2 == FileType.MMAP_FILE=>
-              bundle.runOperator()
-        case _ =>
-      }
-      result
+        } else
+          bundle.runOperator()
+      case _ =>
     }
+    result
   }
 }

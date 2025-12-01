@@ -20,7 +20,6 @@ import scala.collection.JavaConverters.{asJavaIterableConverter, asScalaBufferCo
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.{Failure, Success, Try}
-import org.apache.commons.io.FileUtils
 
 /**
  * @Author renhao
@@ -54,12 +53,18 @@ object TransformFunctionWrapper {
         val inputFilePath = jo.getJSONArray("inputFilePath").toList.asScala
           .map(_.asInstanceOf[util.HashMap[String, FileType]])
           .map(jo => (jo.get("filePath").toString, FileType.fromString(jo.get("fileType").toString)))
+        var outputFileType = FileType.FIFO_BUFFER
         val outPutFilePath = jo.getJSONArray("outputFilePath").toList.asScala
           .map(_.asInstanceOf[util.HashMap[String, FileType]])
-          .map(jo => (jo.get("filePath").toString, FileType.fromString(jo.get("fileType").toString)))
+          .map{jo =>
+            outputFileType = FileType.fromString(jo.get("fileType").toString)
+            (jo.get("filePath").toString, outputFileType)
+          }
         val dockerContainer = DockerContainer.fromJson(jo.getJSONObject("dockerContainer"))
-
-        FileRepositoryBundle(command, inputFilePath, outPutFilePath, dockerContainer)
+        if (outputFileType == FileType.FIFO_BUFFER)
+          FifoFileRepositoryBundle(command, inputFilePath, outPutFilePath, dockerContainer)
+        else
+          TempFileRepositoryBundle(command, inputFilePath, outPutFilePath, dockerContainer)
       }
     }
   }
@@ -375,13 +380,15 @@ case class RepositoryOperator(functionName: String,
   }
 }
 
-case class FileRepositoryBundle(
-                                 command: Seq[String],
-                                 inputFilePath: Seq[(String, FileType)],
-                                 outputFilePath: Seq[(String, FileType)],
-                                 dockerContainer: DockerContainer
-                               )
-  extends TransformFunctionWrapper {
+trait FileRepositoryBundle extends TransformFunctionWrapper {
+
+  def command: Seq[String]
+
+  def inputFilePath: Seq[(String, FileType)]
+
+  def outputFilePath: Seq[(String, FileType)]
+
+  def dockerContainer: DockerContainer
 
   override def toJson: JSONObject = {
     val jo = new JSONObject
@@ -497,5 +504,14 @@ case class FileRepositoryBundle(
       }
     }
   }
-
 }
+
+case class FifoFileRepositoryBundle(command: Seq[String],
+                                    inputFilePath: Seq[(String, FileType)],
+                                    outputFilePath: Seq[(String, FileType)],
+                                    dockerContainer: DockerContainer) extends FileRepositoryBundle
+
+case class TempFileRepositoryBundle(command: Seq[String],
+                                    inputFilePath: Seq[(String, FileType)],
+                                    outputFilePath: Seq[(String, FileType)],
+                                    dockerContainer: DockerContainer) extends FileRepositoryBundle

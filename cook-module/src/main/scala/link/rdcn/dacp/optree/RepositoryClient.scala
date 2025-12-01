@@ -6,6 +6,7 @@ import akka.http.scaladsl.model._
 import akka.stream.scaladsl.{FileIO, Source}
 import akka.util.ByteString
 import cn.cnic.operatordownload.client.OperatorClient
+import link.rdcn.dacp.optree.fifo.FileType.FileType
 import link.rdcn.dacp.optree.fifo.{DockerContainer, FileType}
 import link.rdcn.dacp.recipe.FifoFileBundleFlowNode
 import link.rdcn.dacp.utils.FileUtils
@@ -14,6 +15,7 @@ import org.json.{JSONArray, JSONObject}
 
 import java.io.File
 import java.nio.file.Paths
+import java.util
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicLong
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -62,20 +64,27 @@ class RepositoryClient(host: String = "http://10.0.89.39", port: Int = 8090) ext
       val containerPath = s"/$operationId"
 
       val commandsWithParams = commands ++ files.flatMap(file => Seq(file._3, Paths.get(containerPath, file._5).toString))
+      var outputFileType = FileType.FIFO_BUFFER
 
       val inputFiles = files.filter(_._4 == "INPUT_FILE")
         .map(file => (Paths.get(hostPath, file._5).toString, FileType.fromString(file._2)))
       val outputFiles = files.filter(_._4 == "OUTPUT_FILE")
-        .map(file => (Paths.get(hostPath, file._5).toString, FileType.fromString(file._2)))
+        .map { file =>
+          outputFileType = FileType.fromString(file._2)
+          (Paths.get(hostPath, file._5).toString, outputFileType)
+        }
       val dockerContainer = DockerContainer(functionName, Some(hostPath), Some(containerPath), Some(operatorImage))
-      FileRepositoryBundle(commandsWithParams, inputFiles, outputFiles, dockerContainer)
+      if (outputFileType == FileType.FIFO_BUFFER)
+        FifoFileRepositoryBundle(commandsWithParams, inputFiles, outputFiles, dockerContainer)
+      else
+        TempFileRepositoryBundle(commandsWithParams, inputFiles, outputFiles, dockerContainer)
     } else {
       val operatorDir = ctx.fairdHome
       val downloadFuture = downloadPackage(functionName, functionVersion.getOrElse("1.0.0"), operatorDir)
       Await.result(downloadFuture, 30.seconds)
       val infoFuture = getOperatorInfo(functionName, functionVersion.getOrElse("1.0.0"))
       val info = Await.result(infoFuture, 30.seconds)
-      val filePath = sanitizeArtifact(Paths.get(operatorDir,info.getString("packageName")))
+      val filePath = sanitizeArtifact(Paths.get(operatorDir, info.getString("packageName")))
       val fileName = filePath.getFileName.toString
       val operatorFunctionName = info.get("functionName").toString
       info.get("type") match {
@@ -133,7 +142,7 @@ class RepositoryClient(host: String = "http://10.0.89.39", port: Int = 8090) ext
       Await.result(downloadFuture, 30.seconds)
       val infoFuture = getOperatorInfo(functionId, functionVersion.getOrElse("1.0.0"))
       val info = Await.result(infoFuture, 30.seconds)
-      val fileName = sanitizeArtifact(Paths.get(operatorDir,info.getString("packageName")))
+      val fileName = sanitizeArtifact(Paths.get(operatorDir, info.getString("packageName")))
       val filePath = Paths.get(operatorDir, fileName.toString).toString()
       val functionName = info.get("functionName").toString
       info.get("type") match {
@@ -269,7 +278,7 @@ class RepositoryClient(host: String = "http://10.0.89.39", port: Int = 8090) ext
 
     val downloadUrl = s"$baseUrl/downloadPackage?id=$functionName&version=$functionVersion"
 
-    val outputFilePath = sanitizeArtifact(Paths.get(targetPath,info.getString("packageName"))).toString
+    val outputFilePath = sanitizeArtifact(Paths.get(targetPath, info.getString("packageName"))).toString
 
     // 创建 HTTP GET 请求
     val request = HttpRequest(
@@ -306,46 +315,46 @@ class RepositoryClient(host: String = "http://10.0.89.39", port: Int = 8090) ext
   import java.nio.file.{Files, Path, Paths, StandardCopyOption}
   import scala.util.matching.Regex
 
-    // 定义正则：捕获 (基础名) (连字符+版本号) (.whl后缀)
-    // 说明：
-    // 1. (.+) 贪婪匹配，会尽可能往后吃，直到剩下必须满足后面条件的部分
-    // 2. (-\d+(?:\.\d+)+) 匹配末尾的类似 -2.0.0 的结构
-    // 3. (\.whl) 匹配后缀
-    private val WhlRedundantVersionPattern: Regex = """(.+)(-\d+(?:\.\d+)+)(\.whl)$""".r
+  // 定义正则：捕获 (基础名) (连字符+版本号) (.whl后缀)
+  // 说明：
+  // 1. (.+) 贪婪匹配，会尽可能往后吃，直到剩下必须满足后面条件的部分
+  // 2. (-\d+(?:\.\d+)+) 匹配末尾的类似 -2.0.0 的结构
+  // 3. (\.whl) 匹配后缀
+  private val WhlRedundantVersionPattern: Regex = """(.+)(-\d+(?:\.\d+)+)(\.whl)$""".r
 
-    /**
-     * 规范化文件名称
-     *
-     * @param originalPath 下载后的原始文件路径
-     * @return 处理后的文件路径（如果是 whl 则为新路径，否则为原路径）
-     */
-    def sanitizeArtifact(originalPath: Path): Path = {
-      val fileName = originalPath.getFileName.toString
+  /**
+   * 规范化文件名称
+   *
+   * @param originalPath 下载后的原始文件路径
+   * @return 处理后的文件路径（如果是 whl 则为新路径，否则为原路径）
+   */
+  def sanitizeArtifact(originalPath: Path): Path = {
+    val fileName = originalPath.getFileName.toString
 
-      // 仅处理 .whl 文件，忽略 jar 和 cpp/exe
-      if (fileName.endsWith(".whl")) {
-        fileName match {
-          case WhlRedundantVersionPattern(baseName, redundantVersion, extension) =>
-            // 拼接符合 PEP 427 规范的新名称
-            val newFileName = baseName + extension
-            originalPath.resolveSibling(newFileName)
-          case _ =>
-            // 正则未匹配（说明文件名本身没带额外的 -2.0.0 后缀），保持原样
-            originalPath
-        }
-      } else {
-        // 非 whl 文件直接返回
-        originalPath
+    // 仅处理 .whl 文件，忽略 jar 和 cpp/exe
+    if (fileName.endsWith(".whl")) {
+      fileName match {
+        case WhlRedundantVersionPattern(baseName, redundantVersion, extension) =>
+          // 拼接符合 PEP 427 规范的新名称
+          val newFileName = baseName + extension
+          originalPath.resolveSibling(newFileName)
+        case _ =>
+          // 正则未匹配（说明文件名本身没带额外的 -2.0.0 后缀），保持原样
+          originalPath
       }
+    } else {
+      // 非 whl 文件直接返回
+      originalPath
     }
-//
-//  def replaceVersionId(functionVersion: String, info: JSONObject, targetPath: String): String = {
-//    val extension = ".whl"
-//    val suffixToRemove = s"-$functionVersion"
-//    val fixedFilename = info.get("packageName").asInstanceOf[String]
-//      .stripSuffix(extension)
-//      .stripSuffix(suffixToRemove) + extension
-//    Paths.get(targetPath, fixedFilename).toString // 下载文件保存路径
-//  }
+  }
+  //
+  //  def replaceVersionId(functionVersion: String, info: JSONObject, targetPath: String): String = {
+  //    val extension = ".whl"
+  //    val suffixToRemove = s"-$functionVersion"
+  //    val fixedFilename = info.get("packageName").asInstanceOf[String]
+  //      .stripSuffix(extension)
+  //      .stripSuffix(suffixToRemove) + extension
+  //    Paths.get(targetPath, fixedFilename).toString // 下载文件保存路径
+  //  }
 
 }

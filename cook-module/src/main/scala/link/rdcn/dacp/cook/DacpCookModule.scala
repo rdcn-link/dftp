@@ -1,12 +1,11 @@
 package link.rdcn.dacp.cook
 
 import link.rdcn.Logging
-import link.rdcn.dacp.optree.{FlowExecutionContext, OperatorRepository, RepositoryClient, TransformTree}
-import link.rdcn.dacp.user.{PermissionService, RequirePermissionServiceEvent}
+import link.rdcn.dacp.optree._
 import link.rdcn.operation.TransformOp
-import link.rdcn.server.module.{CollectGetStreamMethodEvent, CollectParseRequestMethodEvent, DataFrameProviderService, GetStreamMethod, TaskRunner, Workers, ParseRequestMethod, CollectDataFrameProviderEvent}
 import link.rdcn.server._
 import link.rdcn.server.exception.{DataFrameAccessDeniedException, DataFrameNotFoundException}
+import link.rdcn.server.module._
 import link.rdcn.struct.DataFrame
 import link.rdcn.user.{Credentials, UserPrincipal}
 
@@ -88,6 +87,14 @@ class DacpCookModule() extends DftpModule with Logging {
 
                         override def pythonHome: String = sys.env
                           .getOrElse("PYTHON_HOME", throw new Exception("PYTHON_HOME environment variable is not set"))
+
+                        override def isAsyncEnabled(wrapper: TransformFunctionWrapper): Boolean = wrapper match {
+                          case r: RepositoryOperator => r.transformFunctionWrapper match {
+                            case r if r.isInstanceOf[FifoFileRepositoryBundle] => true
+                            case other  => false
+                          }
+                          case other => false
+                        }
 
                         override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
                           try {

@@ -275,7 +275,7 @@ class MockFlowExecutionContextForTransformTree(asyncEnabled: Boolean = false) ex
 
   override def fairdHome: String = "/mock/faird/home"
   override def pythonHome: String = "/mock/python/home"
-  isAsyncEnabled = asyncEnabled
+  override def isAsyncEnabled(wrapper: TransformFunctionWrapper) = asyncEnabled
 
   override def registerAsyncResult(transformOp: TransformOp, future: Future[DataFrame], thread: Thread): Unit = {
     registeredFutures.append(transformOp)

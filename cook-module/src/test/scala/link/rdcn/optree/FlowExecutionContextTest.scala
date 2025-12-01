@@ -110,7 +110,10 @@ class FlowExecutionContextTest {
    */
   @Test
   def testIsAsyncEnabled(): Unit = {
-    assertFalse(mockContext.isAsyncEnabled, "isAsyncEnabled 默认应为 false")
+    val jo = new JSONObject()
+    jo.put("type",LangTypeV2.PYTHON_CODE.name)
+    jo.put("code","")
+    assertFalse(mockContext.isAsyncEnabled(TransformFunctionWrapper.fromJsonObject(jo)), "isAsyncEnabled 默认应为 false")
   }
 
   /**
