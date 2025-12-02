@@ -12,6 +12,7 @@ import link.rdcn.util.DataUtils
 
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.ConcurrentHashMap
+import java.beans.BeanProperty
 
 /**
  * @Author renhao
@@ -19,9 +20,13 @@ import java.util.concurrent.ConcurrentHashMap
  * @Data 2025/11/5 11:31
  * @Modified By:
  */
-class ClientManage(val targetServerUrl: String) {
+class ProxyModule extends DftpModule {
+
+  @BeanProperty var targetServerUrl: String = _
+
   private val clientCache = new ConcurrentHashMap[Credentials, DacpClient]()
-  def getInternalClient(credentials: Credentials): DacpClient = {
+
+  private def getInternalClient(credentials: Credentials): DacpClient = {
     if(clientCache.contains(credentials)) clientCache.get(credentials)
     else {
       val client = DacpClient.connect(targetServerUrl, credentials)
@@ -29,15 +34,33 @@ class ClientManage(val targetServerUrl: String) {
       client
     }
   }
-}
 
-//FIXME: provides an all-in-one ProxyModule which handles all requests
-class PutStreamProxyModule(clientManage: ClientManage) extends DftpModule {
+  private val actionMethodService = new ActionMethod {
+    override def accepts(request: DftpActionRequest): Boolean = true
+
+    override def doAction(request: DftpActionRequest, response: DftpActionResponse): Unit = {
+      val internalClient = getInternalClient(request.getUserPrincipal()
+        .asInstanceOf[ProxyUserPrincipal].credentials)
+      request.getActionName() match {
+        case name if name == "/getTargetServerUrl" =>
+          response.sendData(targetServerUrl.getBytes("UTF-8"))
+        case _ =>
+          try{
+            val resultBytes: Array[Byte] =
+              internalClient.doAction(request.getActionName(), request.getParameterAsMap())
+            response.sendData(resultBytes)
+          }catch {
+            case e: Exception => response.sendError(500, e.getMessage)
+          }
+      }
+    }
+  }
+
   private val putMethodService = new PutStreamMethod {
     override def accepts(request: DftpPutStreamRequest): Boolean = true
 
     override def doPutStream(request: DftpPutStreamRequest, response: DftpPutStreamResponse): Unit = {
-      val internalClient = clientManage.getInternalClient(request.getUserPrincipal()
+      val internalClient = getInternalClient(request.getUserPrincipal()
         .asInstanceOf[ProxyUserPrincipal].credentials)
       try{
         val resultBytes = internalClient.put(request.getDataFrame())
@@ -51,69 +74,12 @@ class PutStreamProxyModule(clientManage: ClientManage) extends DftpModule {
   override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
     anchor.hook(new EventHandler {
       override def accepts(event: CrossModuleEvent): Boolean =
-        event.isInstanceOf[CollectPutStreamMethodEvent]
-
-      override def doHandleEvent(event: CrossModuleEvent): Unit = {
-        event match {
-          case r: CollectPutStreamMethodEvent => r.collect(putMethodService)
-          case _ =>
-        }
-      }
-    })
-  }
-
-  override def destroy(): Unit = {}
-}
-
-class ActionProxyModule(clientManage: ClientManage) extends DftpModule {
-
-  private val actionMethodService = new ActionMethod {
-    override def accepts(request: DftpActionRequest): Boolean = true //returns true or false
-
-    override def doAction(request: DftpActionRequest, response: DftpActionResponse): Unit = {
-      val internalClient = clientManage.getInternalClient(request.getUserPrincipal()
-        .asInstanceOf[ProxyUserPrincipal].credentials)
-      request.getActionName() match {
-        //FIXME: do not output target url for security and encapsulation
-        case name if name == "/getTargetServerUrl" =>
-          response.sendData(clientManage.targetServerUrl.getBytes("UTF-8"))
-        case _ => //FIXME: case _ handle is unnecessary
-          try{
-            val resultBytes: Array[Byte] =
-              internalClient.doAction(request.getActionName(), request.getParameterAsMap())
-            response.sendData(resultBytes)
-          }catch {
-            case e: Exception => response.sendError(500, e.getMessage)
-          }
-      }
-    }
-  }
-
-  override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
-    anchor.hook(new EventHandler {
-      override def accepts(event: CrossModuleEvent): Boolean = {
-        event.isInstanceOf[CollectActionMethodEvent]
-      }
-
-      override def doHandleEvent(event: CrossModuleEvent): Unit = {
-        event match {
-          case r: CollectActionMethodEvent => r.collect(actionMethodService)
-          case _ => //FIXME: case _ handle is unnecessary
-        }
-      }
-    })
-  }
-
-  override def destroy(): Unit = {}
-}
-
-class StreamProxyModule(clientManage: ClientManage) extends DftpModule {
-  override def init(anchor: Anchor, serverContext: ServerContext): Unit = {
-    anchor.hook(new EventHandler {
-      override def accepts(event: CrossModuleEvent): Boolean =
         event match {
           case _: CollectParseRequestMethodEvent => true
           case _: CollectGetStreamMethodEvent => true
+          case _: CollectAuthenticationMethodEvent => true
+          case _: CollectActionMethodEvent => true
+          case _: CollectPutStreamMethodEvent => true
           case _ => false
         }
 
@@ -181,7 +147,7 @@ class StreamProxyModule(clientManage: ClientManage) extends DftpModule {
               override def accepts(request: DftpGetStreamRequest): Boolean = true
 
               override def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
-                val internalClient = clientManage.getInternalClient(request.getUserPrincipal().asInstanceOf[ProxyUserPrincipal].credentials)
+                val internalClient = getInternalClient(request.getUserPrincipal().asInstanceOf[ProxyUserPrincipal].credentials)
                 request match {
                   case r: DacpCookStreamRequest => {
                     try{
@@ -219,35 +185,21 @@ class StreamProxyModule(clientManage: ClientManage) extends DftpModule {
               }
             })
           }
-          case _ =>
-        }
-      }
-    })
-  }
-
-  override def destroy(): Unit = {}
-}
-
-class AuthProxyModule extends DftpModule {
-  override def init(anchor: Anchor, serverContext: ServerContext): Unit =
-    anchor.hook(new EventHandler {
-      override def accepts(event: CrossModuleEvent): Boolean =
-        event.isInstanceOf[CollectAuthenticationMethodEvent]
-
-      override def doHandleEvent(event: CrossModuleEvent): Unit = {
-        event match {
-          case require: CollectAuthenticationMethodEvent =>
-            require.collect(new AuthenticationMethod {
+          case r: CollectAuthenticationMethodEvent =>
+            r.collect(new AuthenticationMethod {
 
               override def accepts(credentials: Credentials): Boolean = true
 
               override def authenticate(credentials: Credentials): UserPrincipal =
                 ProxyUserPrincipal(credentials)
             })
+          case r: CollectActionMethodEvent => r.collect(actionMethodService)
+          case r: CollectPutStreamMethodEvent => r.collect(putMethodService)
           case _ =>
         }
       }
     })
+  }
 
   override def destroy(): Unit = {}
 }

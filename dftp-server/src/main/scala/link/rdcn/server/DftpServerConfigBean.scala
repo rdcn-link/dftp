@@ -1,9 +1,9 @@
 package link.rdcn.server
 
+import link.rdcn.util.KeyBasedAuthUtils
+
 import java.beans.BeanProperty
 import java.io.File
-import java.security.{PrivateKey, PublicKey}
-import scala.collection.convert.ImplicitConversions.`map AsScala`
 
 /**
  * @Author renhao
@@ -20,9 +20,9 @@ class DftpServerConfigBean {
   @BeanProperty var protocolScheme: String = "dftp"
   @BeanProperty var tlsCertFile: File = _
   @BeanProperty var tlsKeyFile: File = _
-  @BeanProperty var pubKeyMap: java.util.Map[String, PublicKey] = new java.util.HashMap()
-  @BeanProperty var privateKey: PrivateKey = _
-  @BeanProperty var modules: ModulesBean = _
+  @BeanProperty var publicKeyMapPath: String  = _
+  @BeanProperty var privateKeyPath: String = _
+  @BeanProperty var modules: Array[DftpModule] = Array.empty
 
   def toDftpServerConfig: DftpServerConfig = {
     DftpServerConfig(
@@ -34,8 +34,16 @@ class DftpServerConfigBean {
       protocolScheme = protocolScheme,
       tlsCertFile = Option(tlsCertFile),
       tlsKeyFile = Option(tlsKeyFile),
-      pubKeyMap = if (pubKeyMap != null) pubKeyMap.toMap else Map.empty,
-      privateKey = Option(privateKey)
+      pubKeyMap = {
+        val pubKeyFile = new File(publicKeyMapPath)
+        if(pubKeyFile.exists()) KeyBasedAuthUtils.loadPublicKeys(publicKeyMapPath)
+        else Map.empty
+      },
+      privateKey = {
+        val privateKeyFile = new File(privateKeyPath)
+        if(privateKeyFile.exists()) Option(KeyBasedAuthUtils.loadPrivateKey(privateKeyPath))
+        else None
+      }
     )
   }
 }

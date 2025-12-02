@@ -1,6 +1,5 @@
 package link.rdcn.dacp.recipe
 
-import link.rdcn.dacp.optree.FileRepositoryBundle
 import scala.annotation.varargs
 
 /**

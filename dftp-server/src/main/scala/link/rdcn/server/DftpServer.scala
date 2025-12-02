@@ -379,14 +379,11 @@ object DftpServer {
     reader.loadBeanDefinitions(new FileUrlResource(configXmlFile.getAbsolutePath))
     context.refresh()
 
-    val configBean = context.getBean("dftpServerConfigBean").asInstanceOf[DftpServerConfigBean]
+    val configBean = context.getBean(classOf[DftpServerConfigBean])
     val config: DftpServerConfig = configBean.toDftpServerConfig
 
-    val modulesBean = configBean.modules
-    val modulesArray: Array[DftpModule] =
-      if (modulesBean != null) modulesBean.getModules else Array.empty
     new DftpServer(config) {
-      modulesArray.foreach(modules.addModule(_))
+      configBean.modules.foreach(modules.addModule(_))
     }
   }
 }

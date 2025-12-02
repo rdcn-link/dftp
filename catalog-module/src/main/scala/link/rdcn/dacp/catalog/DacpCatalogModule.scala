@@ -45,7 +45,6 @@ class DacpCatalogModule extends DftpModule {
                 actionName match {
                   case "getDataSetMetaData" =>
                     val model: Model = ModelFactory.createDefaultModel
-                    val prefix: String = "/getDataSetMetaData/" //FIXME: never used variable, remove it
                     catalogServiceHolder.work(_.getDataSetMetaData(parameter.get("dataSetName").get.toString, model),
                       response.sendError(404, s"unknown action: ${request.getActionName()}"))
                     val writer = new StringWriter();

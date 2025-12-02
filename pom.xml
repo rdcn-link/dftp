@@ -1,10 +1,10 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>link.rdcn</groupId>
   <artifactId>dftp</artifactId>
-  <version>0.5.0-20251028</version>
+  <version>0.5.0-20251201</version>
   <packaging>pom</packaging>
 
   <name>dftp</name>
@@ -13,9 +13,9 @@
     <module>dftp-client</module>
     <module>dftp-server</module>
     <module>dftp-common</module>
-      <module>packaging</module>
-      <module>cook-module</module>
-      <module>catalog-module</module>
+    <module>packaging</module>
+    <module>cook-module</module>
+    <module>catalog-module</module>
     <module>dacp-proxy</module>
     <module>dacp-client</module>
   </modules>
@@ -48,12 +48,12 @@
       <artifactId>flight-grpc</artifactId>
       <version>13.0.0</version>
     </dependency>
-      <!-- https://mvnrepository.com/artifact/org.apache.arrow/flight-core -->
-      <dependency>
-          <groupId>org.apache.arrow</groupId>
-          <artifactId>flight-core</artifactId>
-          <version>13.0.0</version>
-      </dependency>
+    <!-- https://mvnrepository.com/artifact/org.apache.arrow/flight-core -->
+    <dependency>
+      <groupId>org.apache.arrow</groupId>
+      <artifactId>flight-core</artifactId>
+      <version>13.0.0</version>
+    </dependency>
     <dependency>
       <groupId>org.apache.arrow</groupId>
       <artifactId>flight-sql</artifactId>

@@ -5,32 +5,17 @@
            http://www.springframework.org/schema/beans
            http://www.springframework.org/schema/beans/spring-beans.xsd">
 
-    <bean id="clientManage" class="link.rdcn.dacp.proxy.ClientManage">
-        <property name="targetServerUrl" value="${proxy.target.url}"/>
-    </bean>
-
     <!-- DftpServerConfig Bean -->
-    <bean id="dftpServerConfigBean" class="link.rdcn.server.DftpServerConfigBean">
+    <bean class="link.rdcn.server.DftpServerConfigBean">
         <property name="protocolScheme" value="dacp"/>
         <property name="host" value="${proxy.host.position}"/>
         <property name="port" value="${proxy.host.port}"/>
         <property name="modules">
-            <bean class="link.rdcn.server.ModulesBean">
-                <property name="modules">
-                    <list>
-                        <bean class="link.rdcn.dacp.proxy.PutStreamProxyModule">
-                            <constructor-arg ref="clientManage"/>
-                        </bean>
-                        <bean class="link.rdcn.dacp.proxy.ActionProxyModule">
-                            <constructor-arg ref="clientManage"/>
-                        </bean>
-                        <bean class="link.rdcn.dacp.proxy.StreamProxyModule">
-                            <constructor-arg ref="clientManage"/>
-                        </bean>
-                        <bean class="link.rdcn.dacp.proxy.AuthProxyModule"/>
-                    </list>
-                </property>
-            </bean>
+            <list>
+                <bean class="link.rdcn.dacp.proxy.ProxyModule">
+                    <property name="targetServerUrl" value="${proxy.target.url}"/>
+                </bean>
+            </list>
         </property>
     </bean>
     <!-- Property placeholder 配置 -->

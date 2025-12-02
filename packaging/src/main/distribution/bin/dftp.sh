@@ -4,7 +4,7 @@
 # Filename: dftp.sh
 # Usage: ./dftp.sh [start|stop|restart|status]
 
-JAR_FILE="dftp-dist-0.5.0-20251028.jar"
+JAR_FILE="dftp-dist-0.5.0-20251201.jar"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 DATA_DIR="$PARENT_DIR/data"

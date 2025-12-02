@@ -4,7 +4,7 @@
 # Filename: dacp.sh
 # Usage: ./dacp.sh [start|stop|restart|status]
 
-JAR_FILE="dacp-dist-0.5.0-20251028.jar"
+JAR_FILE="dacp-dist-0.5.0-20251201.jar"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 DATA_DIR="$PARENT_DIR/data"
@@ -38,7 +38,7 @@ start() {
     fi
 
     echo "Starting DACP server..."
-    nohup java -cp "$PARENT_DIR/lib/$JAR_FILE$PLUGIN_JARS" link.rdcn.dacp.DacpServerStart "$PARENT_DIR" > "$PARENT_DIR/logs/dacp.log" 2>&1 &
+    nohup java -cp "$PARENT_DIR/lib/$JAR_FILE$PLUGIN_JARS" link.rdcn.server.ServerStart "$PARENT_DIR" > "$PARENT_DIR/logs/dacp.log" 2>&1 &
     echo "DACP server started successfully"
 }
 

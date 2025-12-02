@@ -1,6 +1,6 @@
 #!/bin/bash
 
-JAR_FILE="dacp-proxy-dist-0.5.0-20251028.jar"
+JAR_FILE="dacp-proxy-dist-0.5.0-20251201.jar"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 
