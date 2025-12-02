@@ -10,7 +10,7 @@ import link.rdcn.catalog.MockCatalogData.{mockDoc, mockStats}
 import link.rdcn.dacp.catalog.{CatalogService, CatalogServiceRequest}
 import link.rdcn.server.{Anchor, CrossModuleEvent, EventHandler, ServerContext}
 import link.rdcn.struct.ValueType.{IntType, StringType}
-import link.rdcn.struct.{DataFrame, DataFrameDocument, DataFrameStatistics, DefaultDataFrame, Row, StructType}
+import link.rdcn.struct._
 import org.apache.jena.rdf.model.{Model, ModelFactory}
 
 import java.io.StringWriter

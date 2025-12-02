@@ -1,20 +1,18 @@
 package link.rdcn.client
 
-import link.rdcn.dacp.optree.{FiFoFileNode, FileRepositoryBundle, LangTypeV2, RepositoryOperator, TransformFunctionWrapper, TransformerNode}
-import link.rdcn.dacp.recipe.{ExecutionResult, FifoFileBundleFlowNode, FifoFileFlowNode, Flow, FlowPath, RepositoryNode, SourceNode, Transformer11, Transformer21}
+import link.rdcn.dacp.optree._
+import link.rdcn.dacp.recipe._
 import link.rdcn.message.DftpTicket
-import link.rdcn.operation.{DataFrameCall11, DataFrameCall21, SerializableFunction, SourceOp, TransformOp}
-import link.rdcn.struct.{ClosableIterator, DFRef, DataFrame, DataFrameDocument, DataFrameStatistics, DefaultDataFrame, Row, StructType}
+import link.rdcn.operation._
+import link.rdcn.struct._
 import link.rdcn.user.{AnonymousCredentials, Credentials, UsernamePassword}
 import org.apache.arrow.flight.Ticket
 import org.apache.jena.rdf.model.{Model, ModelFactory}
 import org.json.{JSONArray, JSONObject}
 
 import java.io.{File, StringReader}
-import scala.collection.JavaConverters.asJavaCollectionConverter
-import scala.collection.mutable
+import scala.collection.JavaConverters.{asJavaCollectionConverter, asScalaIteratorConverter}
 import scala.collection.mutable.ArrayBuffer
-import scala.collection.JavaConverters.asScalaIteratorConverter
 
 /**
  * @Author renhao
@@ -162,23 +160,26 @@ class DacpClient(host: String, port: Int, useTLS: Boolean = false) extends DftpC
       case node: RepositoryNode =>
         val jo = new JSONObject()
         jo.put("type", LangTypeV2.REPOSITORY_OPERATOR.name)
-        jo.put("functionID", node.functionId)
+        jo.put("functionName", node.functionName)
+        jo.put("functionVersion", node.functionVersion.orNull)
         val transformerNode: TransformerNode = TransformerNode(
           TransformFunctionWrapper.fromJsonObject(jo).asInstanceOf[RepositoryOperator],
-          transformFlowToOperation(path.children.head))
+          path.children.map(transformFlowToOperation(_)): _*)
         transformerNode
       case FifoFileBundleFlowNode(command, inputFilePath, outputFilePath, dockerContainer) =>
         val jo = new JSONObject()
         jo.put("type", LangTypeV2.FILE_REPOSITORY_BUNDLE.name)
         jo.put("command", new JSONArray(command.asJavaCollection))
-        jo.put("inputFilePath", new JSONArray(inputFilePath.asJavaCollection))
-        jo.put("outputFilePath", new JSONArray(outputFilePath.asJavaCollection))
+        jo.put("inputFilePath", new JSONArray(inputFilePath.map(file => new JSONObject().put("filePath", file._1)
+        .put("fileType", file._2)).asJavaCollection))
+        jo.put("outputFilePath", new JSONArray(outputFilePath.map(file => new JSONObject().put("filePath", file._1)
+          .put("fileType", file._2)).asJavaCollection))
         jo.put("dockerContainer", dockerContainer.toJson())
         val transformerNode: TransformerNode = TransformerNode(
           TransformFunctionWrapper.fromJsonObject(jo).asInstanceOf[FileRepositoryBundle],
           path.children.map(transformFlowToOperation(_)): _* )
         transformerNode
-      case FifoFileFlowNode(filePath) => FiFoFileNode(filePath, path.children.map(transformFlowToOperation(_)): _*)
+      case FifoFileFlowNode() => FiFoFileNode(path.children.map(transformFlowToOperation(_)): _*)
       case s: SourceNode => SourceOp(s.dataFrameName)
       case other => throw new IllegalArgumentException(s"This FlowNode ${other} is not supported please extend Transformer11 trait")
     }

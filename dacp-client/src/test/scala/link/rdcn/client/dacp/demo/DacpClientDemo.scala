@@ -183,7 +183,6 @@ class DacpClientDemo {
 
   @Test
   def cookTest(): Unit = {
-
     val dc = DacpClient.connect("dacp://0.0.0.0:3102", UsernamePassword("admin", "admin"))
 
     val udf = new Transformer11 {

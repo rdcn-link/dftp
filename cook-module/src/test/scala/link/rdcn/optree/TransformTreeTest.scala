@@ -270,7 +270,7 @@ class TransformTreeTest {
       override var inputs: Seq[TransformOp] = Seq.empty
     }
 
-    val node = FiFoFileNode(filePath, inputOp)
+    val node = FiFoFileNode(inputOp)
     val mockCtx = new MockFlowExecutionContextForTransformTree()
 
     // 执行

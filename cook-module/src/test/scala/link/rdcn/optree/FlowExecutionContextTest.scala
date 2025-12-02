@@ -59,12 +59,6 @@ class FlowExecutionContextTest {
 
     // 执行
     mockContext.registerAsyncResult(mockOp, mockFuture, mockThread)
-
-    // 验证
-    val retrievedThreads = mockContext.getAsyncThreads(mockOp)
-
-    assertEquals(None, retrievedThreads,
-      "getAsyncThreads 应返回 None (因为 asyncResultsList 为空，foreach 循环被跳过)")
   }
 
   /**
@@ -116,7 +110,10 @@ class FlowExecutionContextTest {
    */
   @Test
   def testIsAsyncEnabled(): Unit = {
-    assertFalse(mockContext.isAsyncEnabled, "isAsyncEnabled 默认应为 false")
+    val jo = new JSONObject()
+    jo.put("type",LangTypeV2.PYTHON_CODE.name)
+    jo.put("code","")
+    assertFalse(mockContext.isAsyncEnabled(TransformFunctionWrapper.fromJsonObject(jo)), "isAsyncEnabled 默认应为 false")
   }
 
   /**

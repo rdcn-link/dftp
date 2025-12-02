@@ -54,6 +54,11 @@
             <artifactId>akka-actor_2.12</artifactId>
             <version>${akka.version}</version>
         </dependency>
+        <dependency>
+            <groupId>cn.cnic</groupId>
+            <artifactId>operatordownload-api</artifactId>
+            <version>0.0.3</version>
+        </dependency>
     </dependencies>
 
     <build>
