@@ -3,7 +3,7 @@ package link.rdcn.optree
 import jep.SharedInterpreter
 import link.rdcn.dacp.optree.fifo.DockerContainer
 import link.rdcn.dacp.optree.{CppBin, FileRepositoryBundle, FlowExecutionContext, JavaBin, JavaCode, JavaJar, OperatorRepository, PythonBin, PythonCode, RepositoryClient, RepositoryOperator, TransformFunctionWrapper}
-import link.rdcn.operation.{ExecutionContext, GenericFunctionCall, SharedInterpreterManager}
+import link.rdcn.operation.{ExecutionContext, GenericFunctionCall, SharedInterpreterManager, TransformOp}
 import link.rdcn.struct._
 import link.rdcn.user.Credentials
 // 修复：添加 JUnit 断言
@@ -157,7 +157,7 @@ class TransformFunctionWrapperTest {
 
       override def pythonHome: String = ""
 
-      override def loadRemoteDataFrame(baseUrl: String, path: String, credentials: Credentials): Option[DataFrame] = None
+      override def loadRemoteDataFrame(baseUrl: String, transformOp: TransformOp, credentials: Credentials): Option[DataFrame] = None
 
       override def getRepositoryClient(): Option[OperatorRepository] = Some(mockRepoClient)
 
@@ -294,7 +294,7 @@ class TransformFunctionWrapperTest {
     // 修复：此处的 'fairdHome' 应引用外部类的 'fairdHome'
     override val fairdHome: String = TransformFunctionWrapperTest.this.fairdHome
 
-    override def loadRemoteDataFrame(baseUrl: String, path: String, credentials: Credentials): Option[DataFrame] = None // 模拟
+    override def loadRemoteDataFrame(baseUrl: String, path: TransformOp, credentials: Credentials): Option[DataFrame] = None // 模拟
   }
 
 }

@@ -218,7 +218,7 @@ class MockFlowExecutionContext extends FlowExecutionContext {
     if (pyHome != null) pyHome else "/mock/python/home"
   }
 
-  override def loadRemoteDataFrame(baseUrl: String, path: String, credentials: Credentials): Option[DataFrame] = None
+  override def loadRemoteDataFrame(baseUrl: String, path: TransformOp, credentials: Credentials): Option[DataFrame] = None
   override def getRepositoryClient(): Option[OperatorRepository] = None
   override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = None
 }
@@ -281,7 +281,7 @@ class MockFlowExecutionContextForTransformTree(asyncEnabled: Boolean = false) ex
     registeredFutures.append(transformOp)
   }
 
-  override def loadRemoteDataFrame(baseUrl: String, path: String, credentials: Credentials): Option[DataFrame] = {
+  override def loadRemoteDataFrame(baseUrl: String, path: TransformOp, credentials: Credentials): Option[DataFrame] = {
     remoteDataFrames.get(baseUrl + path)
   }
 

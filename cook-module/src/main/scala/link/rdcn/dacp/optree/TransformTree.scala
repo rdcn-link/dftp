@@ -1,6 +1,5 @@
 package link.rdcn.dacp.optree
 
-import link.rdcn.client.UrlValidator
 import link.rdcn.dacp.optree.fifo.FileType
 import link.rdcn.operation._
 import link.rdcn.struct.DataFrame
@@ -34,7 +33,7 @@ object TransformTree {
     if (opType == "SourceOp") {
       SourceOp(parsed.getString("dataFrameName"))
     } else if (opType == "RemoteSourceProxyOp") {
-      RemoteSourceProxyOp(parsed.getString("baseUrl") + parsed.getString("path"), parsed.getString("token"))
+      RemoteSourceProxyOp(parsed.getString("baseUrl"), fromJsonString(parsed.getString("transformOpString")), parsed.getString("token"))
     } else {
       val ja: JSONArray = parsed.getJSONArray("input")
       val inputs = (0 until ja.length).map(ja.getJSONObject(_).toString()).map(fromJsonString(_))
@@ -50,17 +49,7 @@ object TransformTree {
   }
 }
 
-case class RemoteSourceProxyOp(url: String, certificate: String) extends TransformOp {
-
-  val baseUrlAndPath = UrlValidator.extractBaseUrlAndPath(url)
-  var baseUrl: String = _
-  var path: String = _
-  baseUrlAndPath match {
-    case Right(value) =>
-      baseUrl = value._1
-      path = value._2
-    case Left(message) => throw new IllegalArgumentException(message)
-  }
+case class RemoteSourceProxyOp(baseUrl: String, transformOp: TransformOp, certificate: String) extends TransformOp {
 
   override var inputs: Seq[TransformOp] = Seq.empty
 
@@ -69,12 +58,12 @@ case class RemoteSourceProxyOp(url: String, certificate: String) extends Transfo
   override def operationType: String = "RemoteSourceProxyOp"
 
   override def toJson: JSONObject = new JSONObject().put("type", operationType)
-    .put("baseUrl", baseUrl).put("path", path).put("token", certificate)
+    .put("baseUrl", baseUrl).put("transformOpString", transformOp.toJsonString).put("token", certificate)
 
   override def execute(ctx: ExecutionContext): DataFrame = {
     require(ctx.isInstanceOf[FlowExecutionContext])
-    ctx.asInstanceOf[FlowExecutionContext].loadRemoteDataFrame(baseUrl, path, TokenAuth(certificate))
-      .getOrElse(throw new Exception(s"get remote DataFrame ${baseUrl+path} fail"))
+    ctx.asInstanceOf[FlowExecutionContext].loadRemoteDataFrame(baseUrl, transformOp, TokenAuth(certificate))
+      .getOrElse(throw new Exception(s"get remote Source ${transformOp.toJsonString} fail"))
   }
 }
 

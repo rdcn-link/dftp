@@ -51,7 +51,7 @@ trait FlowExecutionContext extends link.rdcn.operation.ExecutionContext with Log
 
   def isAsyncEnabled(wrapper: TransformFunctionWrapper): Boolean = false
 
-  def loadRemoteDataFrame(baseUrl: String, path:String, credentials: Credentials): Option[DataFrame]
+  def loadRemoteDataFrame(baseUrl: String, transformOp: TransformOp, credentials: Credentials): Option[DataFrame]
 
   def getSubInterpreter(sitePackagePath: String, whlPath: String): Option[SubInterpreter] =
     Some(JepInterpreterManager.getJepInterpreter(sitePackagePath, whlPath, Some(pythonHome)))

@@ -26,6 +26,12 @@ case class RepositoryNode(
                            args: Map[String, String] = Map.empty
                          ) extends FlowNode
 
+case class RemoteDataFrameFlowNode(
+                                    baseUrl: String,
+                                    flow: Flow,
+                                    certificate: String
+                                  ) extends FlowNode
+
 case class FifoFileBundleFlowNode(
                                    command: Seq[String],
                                    inputFilePath: Seq[(String, FileType)],

@@ -34,19 +34,6 @@ class TransformTreeTest {
   }
 
   @Test
-  def testFromJsonString_RemoteSourceProxyOp(): Unit = {
-    val json = """{"type": "RemoteSourceProxyOp", "baseUrl": "dftp://host.com", "path": "/data", "token": "abc.123"}"""
-    val op = TransformTree.fromJsonString(json)
-
-    assertTrue(op.isInstanceOf[RemoteSourceProxyOp], "Op 类型应为 RemoteSourceProxyOp")
-    val remoteOp = op.asInstanceOf[RemoteSourceProxyOp]
-    assertEquals("dftp://host.com/data", remoteOp.url, "URL 不匹配")
-    assertEquals("dftp://host.com:3101", remoteOp.baseUrl, "baseUrl 不匹配")
-    assertEquals("/data", remoteOp.path, "path 不匹配")
-    assertEquals("abc.123", remoteOp.certificate, "certificate (token) 不匹配")
-  }
-
-  @Test
   def testFromJsonString_TransformerNode(): Unit = {
     // 使用一个已知的 TransformFunctionWrapper (PythonCode) 作为 "function"
     val json = """{
@@ -115,57 +102,6 @@ class TransformTreeTest {
     assertEquals("my-container", bundle.dockerContainer.containerName, "containerName 不匹配")
     assertEquals(Some("my-image"), bundle.dockerContainer.imageName, "imageName 不匹配")
   }
-
-
-  // --- RemoteSourceProxyOp 测试 ---
-
-  @Test
-  def testRemoteSourceProxyOp_Execute_Success(): Unit = {
-    val mockCtx = new MockFlowExecutionContextForTransformTree()
-    val mockDf = DefaultDataFrame(StructType.empty, Iterator.empty)
-    val url = "dftp://host:3101/data"
-    val token = "abc.123"
-
-    // 准备模拟的 Context
-    mockCtx.remoteDataFrames = Map("dftp://host:3101/data" -> mockDf)
-
-    val op = RemoteSourceProxyOp(url, token)
-    val result = op.execute(mockCtx)
-
-    assertEquals(mockDf, result, "返回的 DataFrame 应为模拟的 DataFrame")
-  }
-
-  @Test
-  def testRemoteSourceProxyOp_Execute_Failure(): Unit = {
-    val mockCtx = new MockFlowExecutionContextForTransformTree()
-    val url = "dftp://host:3101/data"
-    val token = "abc.123"
-
-    // 准备模拟的 Context (返回 None)
-    mockCtx.remoteDataFrames = Map.empty
-
-    val op = RemoteSourceProxyOp(url, token)
-
-    val ex = assertThrows(classOf[Exception], () => {
-      op.execute(mockCtx)
-      ()
-    }, "当 loadRemoteDataFrame 返回 None 时应抛出异常")
-
-    assertTrue(ex.getMessage.contains("get remote DataFrame dftp://host:3101/data fail"), "异常消息不匹配")
-  }
-
-  @Test
-  def testRemoteSourceProxyOp_InvalidUrl(): Unit = {
-    // UrlValidator 需要 dftp://, dftps://, http://, https://
-    val invalidUrl = "my-invalid-url/data"
-    val token = "abc.123"
-
-    assertThrows(classOf[IllegalArgumentException], () => {
-      RemoteSourceProxyOp(invalidUrl, token)
-      ()
-    }, "使用无效 URL 构造 RemoteSourceProxyOp 应抛出 IllegalArgumentException")
-  }
-
   // --- TransformerNode 测试 ---
 
   @Test

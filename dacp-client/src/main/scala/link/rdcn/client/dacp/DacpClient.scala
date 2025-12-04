@@ -180,6 +180,8 @@ class DacpClient(host: String, port: Int, useTLS: Boolean = false) extends DftpC
           path.children.map(transformFlowToOperation(_)): _* )
         transformerNode
       case FifoFileFlowNode() => FiFoFileNode(path.children.map(transformFlowToOperation(_)): _*)
+      case RemoteDataFrameFlowNode(baseUrl, flow, certificate) =>
+        RemoteSourceProxyOp(baseUrl, transformFlowToOperation(flow.getExecutionPaths().head), certificate)
       case s: SourceNode => SourceOp(s.dataFrameName)
       case other => throw new IllegalArgumentException(s"This FlowNode ${other} is not supported please extend Transformer11 trait")
     }

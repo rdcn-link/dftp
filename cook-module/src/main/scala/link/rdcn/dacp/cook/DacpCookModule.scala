@@ -1,13 +1,16 @@
 package link.rdcn.dacp.cook
 
 import link.rdcn.Logging
+import link.rdcn.client.{DftpClient, UrlValidator}
 import link.rdcn.dacp.optree._
+import link.rdcn.message.DftpTicket
 import link.rdcn.operation.TransformOp
 import link.rdcn.server._
 import link.rdcn.server.exception.{DataFrameAccessDeniedException, DataFrameNotFoundException}
 import link.rdcn.server.module._
-import link.rdcn.struct.DataFrame
+import link.rdcn.struct.{ClosableIterator, DataFrame, DefaultDataFrame, Row}
 import link.rdcn.user.{Credentials, UserPrincipal}
+import org.apache.arrow.flight.Ticket
 
 import java.nio.charset.StandardCharsets
 
@@ -120,8 +123,24 @@ class DacpCookModule() extends DftpModule with Logging {
                         //TODO Repository config
                         override def getRepositoryClient(): Option[OperatorRepository] = Some(new RepositoryClient("http://10.0.89.39", 8090))
 
-                        //TODO UnionServer
-                        override def loadRemoteDataFrame(baseUrl: String, path: String, credentials: Credentials): Option[DataFrame] = ???
+                        override def loadRemoteDataFrame(baseUrl: String, transformOp: TransformOp, credentials: Credentials): Option[DataFrame] = {
+                          val urlInfo = UrlValidator.extractBase(baseUrl)
+                            .getOrElse(throw new IllegalArgumentException(s"Invalid URL format $baseUrl"))
+                          val client = new Client(urlInfo._2, urlInfo._3)
+                          client.login(credentials)
+                          Some(client.getRemoteDataFrame(transformOp.toJsonString))
+                        }
+
+                        private class Client(host: String, port: Int, useTLS: Boolean = false) extends DftpClient(host, port, useTLS) {
+                          def getRemoteDataFrame(transformOpStr: String): DataFrame = {
+                            val schemaAndIter = getStream(new Ticket(CookTicket(transformOpStr).encodeTicket()))
+                            val stream = schemaAndIter._2.map(seq => Row.fromSeq(seq))
+                            DefaultDataFrame(schemaAndIter._1, stream)
+                          }
+                        }
+                        private case class CookTicket(ticketContent: String) extends DftpTicket {
+                          override val typeId: Byte = 3
+                        }
                       }
                       try {
                         val result = transformTree.execute(flowExecutionContext)
