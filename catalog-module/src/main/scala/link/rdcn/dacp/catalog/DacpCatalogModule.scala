@@ -1,6 +1,7 @@
 package link.rdcn.dacp.catalog
 
 import CatalogFormatter.{getDataFrameDocumentJsonString, getDataFrameStatisticsString, getHostInfoString, getHostResourceString}
+import link.rdcn.Logging
 import link.rdcn.server._
 import link.rdcn.server.module.{ActionMethod, CollectActionMethodEvent, CollectGetStreamMethodEvent, GetStreamFilter, GetStreamFilterChain, GetStreamMethod, TaskRunner, Workers}
 import link.rdcn.struct.StructType
@@ -17,7 +18,7 @@ import java.io.StringWriter
  */
 case class CollectCatalogServiceEvent(holder: Workers[CatalogService]) extends CrossModuleEvent
 
-class DacpCatalogModule extends DftpModule {
+class DacpCatalogModule extends DftpModule with Logging {
 
   private val catalogServiceHolder = new Workers[CatalogService]
 
@@ -39,59 +40,56 @@ class DacpCatalogModule extends DftpModule {
             override def accepts(request: DftpActionRequest): Boolean = true
 
             override def doAction(request: DftpActionRequest, response: DftpActionResponse): Unit = {
-              try{
-                val actionName = request.getActionName()
-                val parameter = request.getParameterAsMap()
-                actionName match {
-                  case "getDataSetMetaData" =>
-                    val model: Model = ModelFactory.createDefaultModel
-                    catalogServiceHolder.work(_.getDataSetMetaData(parameter.get("dataSetName").get.toString, model),
-                      response.sendError(404, s"unknown action: ${request.getActionName()}"))
-                    val writer = new StringWriter();
-                    model.write(writer, "RDF/XML");
-                    response.sendData(writer.toString.getBytes("UTF-8"))
-                  case "getDataFrameMetaData" =>
-                    val model: Model = ModelFactory.createDefaultModel
-                    catalogServiceHolder.work(_.getDataFrameMetaData(parameter.get("dataFrameName").get.toString, model),
-                      response.sendError(404, s"unknown action: ${request.getActionName()}"))
-                    val writer = new StringWriter();
-                    model.write(writer, "RDF/XML");
-                    response.sendData(writer.toString.getBytes("UTF-8"))
-                  case "getDocument" =>
-                    val dataFrameName = parameter.get("dataFrameName").get.toString
-                    catalogServiceHolder.work(c => {
-                      val document = c.getDocument(dataFrameName)
-                      val schema = c.getSchema(dataFrameName)
+              val actionName = request.getActionName()
+              val parameter = request.getParameterAsMap()
+              catalogServiceHolder.work[Unit](new TaskRunner[CatalogService, Unit] {
+                override def acceptedBy(worker: CatalogService): Boolean =
+                  worker.accepts(new CatalogServiceRequest {
+                    override def getDataSetId: String = parameter.get("dataSetName").map(_.toString).orNull
+
+                    override def getDataFrameUrl: String = parameter.get("dataFrameName").map(_.toString).orNull
+                  })
+
+                override def executeWith(worker: CatalogService): Unit = {
+                  actionName match {
+                    case "getDataSetMetaData" =>
+                      val model: Model = ModelFactory.createDefaultModel
+                      worker.getDataSetMetaData(parameter("dataSetName").toString, model)
+                      val writer = new StringWriter();
+                      model.write(writer, "RDF/XML");
+                      response.sendData(writer.toString.getBytes("UTF-8"))
+                    case "getDataFrameMetaData" =>
+                      val model: Model = ModelFactory.createDefaultModel
+                      worker.getDataFrameMetaData(parameter("dataFrameName").toString, model)
+                      val writer = new StringWriter();
+                      model.write(writer, "RDF/XML");
+                      response.sendData(writer.toString.getBytes("UTF-8"))
+                    case "getDocument" =>
+                      val dataFrameName = parameter("dataFrameName").toString
+                      val document = worker.getDocument(dataFrameName)
+                      val schema = worker.getSchema(dataFrameName)
                       response.sendData(getDataFrameDocumentJsonString(document, schema).getBytes("UTF-8"))
-                    }, response.sendError(404, s"unknown action: ${request.getActionName()}"))
-                  case "getDataFrameInfo" =>
-                    val dataFrameName = parameter.get("dataFrameName").get.toString
-                    catalogServiceHolder.work(c => {
-                      val dataFrameTitle = c.getDataFrameTitle(dataFrameName).getOrElse(dataFrameName)
-                      val statistics = c.getStatistics(dataFrameName)
+                    case "getDataFrameInfo" =>
+                      val dataFrameName = parameter("dataFrameName").toString
+                      val dataFrameTitle = worker.getDataFrameTitle(dataFrameName).getOrElse(dataFrameName)
+                      val statistics = worker.getStatistics(dataFrameName)
                       val jo = new JSONObject()
                       jo.put("byteSize", statistics.byteSize)
                       jo.put("rowCount", statistics.rowCount)
                       jo.put("title", dataFrameTitle)
                       response.sendData(jo.toString().getBytes("UTF-8"))
-                    }, response.sendError(404, s"unknown action: ${request.getActionName()}"))
-                  case "getSchema" =>
-                    val dataFrameName = parameter.get("dataFrameName").get.toString
-                    catalogServiceHolder.work(c => {
-                      response.sendData(c.getSchema(dataFrameName)
+                    case "getSchema" =>
+                      val dataFrameName = parameter("dataFrameName").toString
+                      response.sendData(worker.getSchema(dataFrameName)
                         .getOrElse(StructType.empty)
                         .toString.getBytes("UTF-8"))
-                    }, response.sendError(404, s"unknown action: ${request.getActionName()}"))
-                  case "getHostInfo" => response.sendData(getHostInfoString(serverContext).getBytes("UTF-8"))
-                  case "getServerInfo" => response.sendData(getHostResourceString().getBytes("UTF-8"))
-                  //FIXME: remove case _, default case match error will be handled by outer level method, e.g Workers.work()
-                  case _ => response.sendError(404, s"unknown action: ${request.getActionName()}")
+                    case "getHostInfo" => response.sendData(getHostInfoString(serverContext).getBytes("UTF-8"))
+                    case "getServerInfo" => response.sendData(getHostResourceString().getBytes("UTF-8"))
+                  }
                 }
-              }catch {
-                case e: Exception =>
-                  response.sendError(500, e.getMessage)
-                  throw e
-              }
+                override def handleFailure(): Unit =
+                  response.sendError(404, s"unknown action: ${request.getActionName()}")
+              })
             }
           })
 

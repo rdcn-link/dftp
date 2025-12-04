@@ -1,7 +1,7 @@
 package link.rdcn.dacp.catalog
 
 import link.rdcn.dacp.catalog.CatalogFormatter._
-import link.rdcn.server.ServerContext
+import link.rdcn.server.{DftpActionRequest, ServerContext}
 import link.rdcn.struct.ValueType.{LongType, RefType, StringType}
 import link.rdcn.struct._
 import org.apache.jena.rdf.model.{Model, ModelFactory}

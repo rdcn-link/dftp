@@ -2,8 +2,8 @@ package link.rdcn.server
 
 import link.rdcn.util.KeyBasedAuthUtils
 
-import java.beans.BeanProperty
 import java.io.File
+import scala.beans.BeanProperty
 
 /**
  * @Author renhao

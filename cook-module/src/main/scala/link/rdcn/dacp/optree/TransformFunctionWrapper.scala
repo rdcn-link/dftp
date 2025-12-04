@@ -399,7 +399,7 @@ trait FileRepositoryBundle extends TransformFunctionWrapper {
     if (outputFilePath.head._2 != FileType.DIRECTORY) {
       //TODO: support outputting multiple DataFrames
       FileDataFrame(FilePipe.fromFilePath(outputFilePath.head._1, outputFilePath.head._2), outputFilePath.head._2)
-    } else DataStreamSource.filePath(new File(outputFilePath.head._1), "").dataFrame
+    } else DataStreamSource.filePath(new File(outputFilePath.head._1)).dataFrame
   }
 
   def deleteFiFOFile(): Unit = {
@@ -474,7 +474,7 @@ trait FileRepositoryBundle extends TransformFunctionWrapper {
     //TODO: support outputting multiple DataFrames
     if (outputFilePath.head._2 == FileType.DIRECTORY) {
       runOperator()
-      DataStreamSource.filePath(new File(outputFilePath.head._1), "").dataFrame
+      DataStreamSource.filePath(new File(outputFilePath.head._1)).dataFrame
     } else FileDataFrame(FilePipe.fromFilePath(outputFilePath.head._1, outputFilePath.head._2), outputFilePath.head._2)
   }
 
