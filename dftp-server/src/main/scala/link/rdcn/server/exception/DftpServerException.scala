@@ -27,5 +27,19 @@ class AuthenticationFailedException(
                                      val credential: Credentials,
                                      cause: Throwable = null
                                    ) extends DftpServerException(s"Authentication failed for: $credential", cause)
+class UnknownCredentialsException(
+                                   val credential: Credentials,
+                                   cause: Throwable = null
+                                 ) extends DftpServerException(s"unknown authentication request: $credential", cause)
+
+class UnknownGetStreamRequestException(
+                                        val token: Array[Byte],
+                                        cause: Throwable = null
+                                      ) extends DftpServerException(
+  s"Unknown get stream request: ${token.map("%02x".format(_)).mkString(",")}",
+  cause
+)
+
+
 
 

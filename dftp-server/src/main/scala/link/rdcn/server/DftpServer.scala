@@ -2,6 +2,7 @@ package link.rdcn.server
 
 import link.rdcn.Logging
 import link.rdcn.server.ServerUtils.convertStructTypeToArrowSchema
+import link.rdcn.server.exception.UnknownGetStreamRequestException
 import link.rdcn.server.module.KernelModule
 import link.rdcn.struct._
 import link.rdcn.user.UserPrincipal
@@ -282,7 +283,15 @@ class DftpServer(config: DftpServerConfig) extends Logging {
       }
 
       val authenticatedUser = authenticatedUserMap.get(callContext.peerIdentity())
-      val request: DftpGetStreamRequest = kernelModule.parseGetStreamRequest(ticket.getBytes, authenticatedUser)
+      val request: DftpGetStreamRequest = {
+        try{
+          kernelModule.parseGetStreamRequest(ticket.getBytes, authenticatedUser)
+        }catch {
+          case e:UnknownGetStreamRequestException =>
+            response.sendError(404, e.getMessage)
+            throw e
+        }
+      }
 
       kernelModule.getStream(request, response)
     }

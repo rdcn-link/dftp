@@ -1,5 +1,6 @@
 package link.rdcn.server.module
 
+import link.rdcn.server.exception.{UnknownCredentialsException, UnknownGetStreamRequestException}
 import link.rdcn.server.{DftpGetStreamRequest, _}
 import link.rdcn.user.{AuthenticationMethod, Credentials, UserPrincipal}
 
@@ -18,7 +19,7 @@ class KernelModule extends DftpModule {
       override def executeWith(worker: ParseRequestMethod): DftpGetStreamRequest = worker.parse(token, principal)
 
       override def handleFailure(): DftpGetStreamRequest = {
-        throw new Exception(s"unknown get stream request: $token") //FIXME: user defined exception
+        throw new UnknownGetStreamRequestException(token)
       }
     })
   }
@@ -61,7 +62,7 @@ class KernelModule extends DftpModule {
       override def executeWith(worker: AuthenticationMethod): UserPrincipal = worker.authenticate(credentials)
 
       override def handleFailure(): UserPrincipal = {
-        throw new Exception(s"unknown authentication request: ${credentials}") //FIXME: user defined exception
+        throw new UnknownCredentialsException(credentials)
       }
     })
   }
