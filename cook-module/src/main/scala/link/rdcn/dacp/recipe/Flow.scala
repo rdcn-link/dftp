@@ -70,6 +70,7 @@ case class Flow(
     rootNodes.foreach(rootKey => nodes.get(rootKey) match {
       case Some(_: SourceNode) => // 合法，继续
       case Some(_: FifoFileBundleFlowNode) => //合法, 继续
+      case Some(_: RemoteDataFrameFlowNode) => // 合法， 继续
       case Some(other) => throw new IllegalArgumentException(s"Invalid DAG: root node '$other' is not of type SourceOp, but ${other.getClass.getSimpleName}.")
       case None => throw new IllegalArgumentException(s"Invalid DAG: root node '$rootKey' is not defined in the node map.")
     })

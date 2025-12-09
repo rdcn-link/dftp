@@ -16,6 +16,10 @@ import java.io.StringWriter
  * @Modified By:
  */
 trait CatalogServiceRequest {
+
+  final def isNull: Boolean =
+    getDataSetId == null && getDataFrameUrl == null
+
   def getDataSetId: String
 
   def getDataFrameUrl: String

@@ -346,7 +346,6 @@ case class CppBin(cppPath: String) extends TransformFunctionWrapper {
          |Last words from Stdout: [$stdoutResidue]
     """.stripMargin
 
-    // 直接抛出包含丰富信息的异常
     throw new RuntimeException(errorDetail)
   }
 }
@@ -444,31 +443,35 @@ trait FileRepositoryBundle extends TransformFunctionWrapper {
           if (dfAndInput._2._1 != f.filePipe.path) {
             f.filePipe.copyToFile(FilePipe.fromFilePath(dfAndInput._2._1, dfAndInput._2._2))
           }
-        case f: DataFrame => if (f.schema.columns.length == 1 && f.schema.columns.head.colType == BlobType) {
-          val blob = f.collect().head.getAs[Blob](0)
-          val file = new File(dfAndInput._2._1)
-          writeBlobToFile(blob, file)
-        } else if (f.schema == StructType.binaryStructType) {
-          val dir = Paths.get(dfAndInput._2._1).toFile
-          dir.deleteOnExit()
-          dir.mkdirs()
-          f.foreach(row => {
-            writeBlobToFile(row.getAs[Blob](6), Paths.get(dfAndInput._2._1, row.getAs[String](0)).toFile)
-          })
-        } else {
-          if (dfAndInput._2._2 == FileType.FIFO_BUFFER) {
-            val future = Future {
+        case f: DataFrame =>
+          if (f.schema.columns.length == 1 && f.schema.columns.head.colType == BlobType) {
+//            非结构化数据
+            val blob = f.collect().head.getAs[Blob](0)
+            val file = new File(dfAndInput._2._1)
+            writeBlobToFile(blob, file)
+          } else if (f.schema == StructType.binaryStructType) {
+//            文件夹
+            val dir = Paths.get(dfAndInput._2._1).toFile
+            dir.deleteOnExit()
+            dir.mkdirs()
+            f.foreach(row => {
+              writeBlobToFile(row.getAs[Blob](6), Paths.get(dfAndInput._2._1, row.getAs[String](0)).toFile)
+            })
+          } else {
+//            结构化数据默认csv数据
+            if (dfAndInput._2._2 == FileType.FIFO_BUFFER) {
+              val future = Future {
+                FilePipe.fromFilePath(dfAndInput._2._1, dfAndInput._2._2).write(f.mapIterator(iter => iter.map(row => row.toSeq.mkString(","))))
+              }
+              future onComplete {
+                case Success(value) => logger.debug(s"load ${dfAndInput._2._1} success")
+                case Failure(e) => logger.debug(s"load ${dfAndInput._2._1} faild")
+                  throw e
+              }
+            } else {
               FilePipe.fromFilePath(dfAndInput._2._1, dfAndInput._2._2).write(f.mapIterator(iter => iter.map(row => row.toSeq.mkString(","))))
             }
-            future onComplete {
-              case Success(value) => logger.debug(s"load ${dfAndInput._2._1} success")
-              case Failure(e) => logger.debug(s"load ${dfAndInput._2._1} faild")
-                throw e
-            }
-          } else {
-            FilePipe.fromFilePath(dfAndInput._2._1, dfAndInput._2._2).write(f.mapIterator(iter => iter.map(row => row.toSeq.mkString(","))))
           }
-        }
       }
     })
     //TODO: support outputting multiple DataFrames

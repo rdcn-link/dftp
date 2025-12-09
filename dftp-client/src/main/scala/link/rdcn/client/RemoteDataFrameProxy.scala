@@ -46,7 +46,7 @@ case class RemoteDataFrameProxy(operation: TransformOp,
 
   private lazy val schemaAndRows = getRows(operation.toJsonString)
 
-  override def mapIterator[T](f: ClosableIterator[Row] => T): T = f(getRows(operation.toJsonString)._2)
+  override def mapIterator[T](f: ClosableIterator[Row] => T): T = f(schemaAndRows._2)
 }
 
 
