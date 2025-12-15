@@ -449,19 +449,26 @@ trait FileRepositoryBundle extends TransformFunctionWrapper {
             val blob = f.collect().head.getAs[Blob](0)
             val file = new File(dfAndInput._2._1)
             writeBlobToFile(blob, file)
-          } else if (f.schema == StructType.binaryStructType) {
+          } else if (f.schema.contains("file") && f.schema.getType("file").get == ValueType.BlobType) {
 //            文件夹
+            val fileIndex = f.schema.indexOf("file").get
             val dir = Paths.get(dfAndInput._2._1).toFile
             dir.deleteOnExit()
             dir.mkdirs()
             f.foreach(row => {
-              writeBlobToFile(row.getAs[Blob](6), Paths.get(dfAndInput._2._1, row.getAs[String](0)).toFile)
+              try{
+                val fileBlob = row.getAs[Blob](fileIndex)
+                writeBlobToFile(fileBlob, Paths.get(dfAndInput._2._1, row.getAs[String](0)).toFile)
+              }catch {
+                case e: Exception => logger.error(e)
+              }
             })
           } else {
 //            结构化数据默认csv数据
             if (dfAndInput._2._2 == FileType.FIFO_BUFFER) {
               val future = Future {
-                FilePipe.fromFilePath(dfAndInput._2._1, dfAndInput._2._2).write(f.mapIterator(iter => iter.map(row => row.toSeq.mkString(","))))
+                FilePipe.fromFilePath(dfAndInput._2._1, dfAndInput._2._2)
+                  .write(f.mapIterator(iter => Seq(f.schema.columns.map(_.name).mkString(",")).iterator ++ iter.map(row => row.toSeq.mkString(",")) ))
               }
               future onComplete {
                 case Success(value) => logger.debug(s"load ${dfAndInput._2._1} success")

@@ -140,6 +140,20 @@ class DacpClient(host: String, port: Int, useTLS: Boolean = false) extends DftpC
     }
   }
 
+  def cook(flowJson: String): ExecutionResult = {
+    val dfs: Seq[DataFrame] = TransformTree.fromFlowdJsonString(flowJson)
+      .map(RemoteDataFrameProxy(_, getCookRows))
+    new ExecutionResult() {
+      override def single(): DataFrame = dfs.head
+
+      override def get(name: String): DataFrame = dfs(name.toInt - 1)
+
+      override def map(): Map[String, DataFrame] = dfs.zipWithIndex.map {
+        case (dataFrame, id) => (id.toString, dataFrame)
+      }.toMap
+    }
+  }
+
   private def transformFlowToOperation(path: FlowPath): TransformOp = {
     path.node match {
       case f: Transformer11 =>
@@ -187,7 +201,7 @@ class DacpClient(host: String, port: Int, useTLS: Boolean = false) extends DftpC
     }
   }
 
-  def getCookRows(transformOpStr: String): (StructType, ClosableIterator[Row]) = {
+  private def getCookRows(transformOpStr: String): (StructType, ClosableIterator[Row]) = {
     val schemaAndIter = getStream(new Ticket(CookTicket(transformOpStr).encodeTicket()))
     val stream = schemaAndIter._2.map(seq => Row.fromSeq(seq))
     (schemaAndIter._1, ClosableIterator(stream)())
