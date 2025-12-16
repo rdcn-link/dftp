@@ -37,7 +37,17 @@ class DacpCatalogModule extends DftpModule with Logging {
           case r: CollectActionMethodEvent => r.collect(new ActionMethod {
 
             //FIXME: match each request and returns true or false
-            override def accepts(request: DftpActionRequest): Boolean = true
+            override def accepts(request: DftpActionRequest): Boolean =
+              request.getActionName() match {
+                case "getDataSetMetaData" => true
+                case "getDataFrameMetaData" => true
+                case "getDocument" => true
+                case "getDataFrameInfo" => true
+                case "getSchema" => true
+                case "getHostInfo" => true
+                case "getServerInfo" => true
+                case _ => false
+              }
 
             override def doAction(request: DftpActionRequest, response: DftpActionResponse): Unit = {
               val actionName = request.getActionName()
