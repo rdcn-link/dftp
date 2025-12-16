@@ -4,11 +4,23 @@ JAR_FILE="dacp-proxy-dist-0.5.0-20251201.jar"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 
-# Verify JAR file existence
+PID_FILE="$PARENT_DIR/run/dacp-proxy.pid"
+LOG_FILE="$PARENT_DIR/logs/proxy.log"
+
 if [ ! -f "$PARENT_DIR/lib/$JAR_FILE" ]; then
-    echo "Error: Required JAR file not found $JAR_FILE"
+    echo "Error: Required JAR file not found: $JAR_FILE"
     exit 1
 fi
+
+get_pid() {
+    [ -f "$PID_FILE" ] && cat "$PID_FILE"
+}
+
+is_running() {
+    local pid
+    pid=$(get_pid)
+    [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
+}
 
 start() {
     if is_running; then
@@ -17,8 +29,18 @@ start() {
     fi
 
     echo "Starting dacp-proxy server..."
-    nohup java -jar "$PARENT_DIR/lib/$JAR_FILE" "$PARENT_DIR" > "$PARENT_DIR/logs/proxy.log" 2>&1 &
-    echo "dacp-proxy server started successfully"
+    nohup java -jar "$PARENT_DIR/lib/$JAR_FILE" "$PARENT_DIR" > "$LOG_FILE" 2>&1 &
+
+    echo $! > "$PID_FILE"
+
+    sleep 1
+    if is_running; then
+        echo "dacp-proxy server started successfully (PID: $(get_pid))"
+    else
+        echo "Failed to start dacp-proxy server. See $LOG_FILE"
+        rm -f "$PID_FILE"
+        return 1
+    fi
 }
 
 stop() {
@@ -27,19 +49,22 @@ stop() {
         return 1
     fi
 
-    echo "Initiating dacp-proxy server shutdown..."
-    kill $(get_pid)
+    pid=$(get_pid)
+    echo "Initiating dacp-proxy server shutdown (PID: $pid)..."
+    kill "$pid"
+
     sleep 2
     if is_running; then
-        echo "Graceful shutdown unsuccessful, forcing termination..."
-        kill -9 $(get_pid)
+        echo "Graceful shutdown unsuccessful, forcing termination (PID: $pid)..."
+        kill -9 "$pid"
         sleep 1
     fi
+    rm -f "$PID_FILE"
     echo "dacp-proxy service has stopped."
 }
 
 restart() {
-  echo "Restarting dacp-proxy server..."
+    echo "Restarting dacp-proxy server..."
     stop
     start
 }

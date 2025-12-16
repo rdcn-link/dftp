@@ -10,6 +10,10 @@ PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 DATA_DIR="$PARENT_DIR/data"
 PLUGINS_DIR="$PARENT_DIR/plugins"
 
+# Define PID file path
+PID_FILE="$PARENT_DIR/run/dftp.pid"
+LOG_FILE="$PARENT_DIR/logs/dftp.log"
+
 # Verify JAR file existence
 if [ ! -f "$PARENT_DIR/lib/$JAR_FILE" ]; then
     echo "Error: Required JAR file not found $JAR_FILE"
@@ -31,6 +35,19 @@ if [ -d "$PLUGINS_DIR" ]; then
     done
 fi
 
+# Get PID from PID file
+get_pid() {
+    [ -f "$PID_FILE" ] && cat "$PID_FILE"
+}
+
+# Check if server is running by checking the PID file
+is_running() {
+    local pid
+    pid=$(get_pid)
+    [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
+}
+
+# Start DFTP server
 start() {
     if is_running; then
         echo "DFTP server is already running (PID: $(get_pid))"
@@ -38,33 +55,50 @@ start() {
     fi
 
     echo "Starting DFTP server..."
-    nohup java -cp "$PARENT_DIR/lib/$JAR_FILE$PLUGIN_JARS" link.rdcn.server.DftpServerStart "$PARENT_DIR" > "$PARENT_DIR/logs/dftp.log" 2>&1 &
-    echo "DFTP server started successfully"
+    nohup java -cp "$PARENT_DIR/lib/$JAR_FILE$PLUGIN_JARS" link.rdcn.server.DftpServerStart "$PARENT_DIR" > "$LOG_FILE" 2>&1 &
+
+    # Save the PID of the started process to the PID file
+    echo $! > "$PID_FILE"
+    sleep 1
+
+    if is_running; then
+        echo "DFTP server started successfully (PID: $(get_pid))"
+    else
+        echo "Failed to start DFTP server. See $LOG_FILE"
+        rm -f "$PID_FILE"
+        return 1
+    fi
 }
 
+# Stop DFTP server
 stop() {
     if ! is_running; then
         echo "DFTP server is not currently running"
         return 1
     fi
 
-    echo "Initiating DFTP server shutdown..."
-    kill $(get_pid)
+    pid=$(get_pid)
+    echo "Initiating DFTP server shutdown (PID: $pid)..."
+    kill "$pid"  # Graceful shutdown
+
     sleep 2
     if is_running; then
-        echo "Graceful shutdown unsuccessful, forcing termination..."
-        kill -9 $(get_pid)
+        echo "Graceful shutdown unsuccessful, forcing termination (PID: $pid)..."
+        kill -9 "$pid"  # Force termination if the process is still running
         sleep 1
     fi
+    rm -f "$PID_FILE"  # Remove the PID file
     echo "DFTP service has stopped."
 }
 
+# Restart DFTP server
 restart() {
-  echo "Restarting DFTP server..."
+    echo "Restarting DFTP server..."
     stop
     start
 }
 
+# Get the status of the DFTP server
 status() {
     if is_running; then
         echo "DFTP server status: RUNNING (PID: $(get_pid))"
@@ -73,14 +107,10 @@ status() {
     fi
 }
 
-is_running() {
-    [ -n "$(get_pid)" ]
-}
+# Ensure the run directory exists
+mkdir -p "$PARENT_DIR/run"
 
-get_pid() {
-    pgrep -f "java.*$JAR_FILE"
-}
-
+# Process command-line arguments
 case "$1" in
     start)
         start

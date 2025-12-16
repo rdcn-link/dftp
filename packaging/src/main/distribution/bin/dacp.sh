@@ -1,26 +1,34 @@
 #!/bin/bash
 
-# DACP Control Script
-# Filename: dacp.sh
-# Usage: ./dacp.sh [start|stop|restart|status]
+# Usage:
+#   ./dacp.sh {start|stop|restart|status} <instance-id>
 
 JAR_FILE="dacp-dist-0.5.0-20251201.jar"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
-DATA_DIR="$PARENT_DIR/data"
-PLUGINS_DIR="$PARENT_DIR/plugins"
 
-# Verify JAR file existence
-if [ ! -f "$PARENT_DIR/lib/$JAR_FILE" ]; then
-    echo "Error: Required JAR file not found $JAR_FILE"
+INSTANCE_ID="instance"
+ACTION="$1"
+
+if [[ -z "$ACTION" || -z "$INSTANCE_ID" ]]; then
+    echo "Usage: $0 {start|stop|restart|status} <instance-id>"
     exit 1
 fi
 
-# Verify data directory existence
-if [ ! -d "$DATA_DIR" ]; then
-    echo "Warning: Data directory not found at $DATA_DIR"
-    echo "Creating data directory..."
-    mkdir -p "$DATA_DIR"
+DATA_DIR="$PARENT_DIR/data"
+PLUGINS_DIR="$PARENT_DIR/plugins"
+LOG_DIR="$PARENT_DIR/logs"
+RUN_DIR="$PARENT_DIR/run"
+
+PID_FILE="$RUN_DIR/dacp-${INSTANCE_ID}.pid"
+LOG_FILE="$LOG_DIR/dacp.log"
+
+mkdir -p "$DATA_DIR" "$PLUGINS_DIR" "$LOG_DIR" "$RUN_DIR"
+
+# Verify JAR
+if [ ! -f "$PARENT_DIR/lib/$JAR_FILE" ]; then
+    echo "Error: Required JAR file not found: $JAR_FILE"
+    exit 1
 fi
 
 # Collect plugin jars
@@ -31,6 +39,16 @@ if [ -d "$PLUGINS_DIR" ]; then
     done
 fi
 
+get_pid() {
+    [[ -f "$PID_FILE" ]] && cat "$PID_FILE"
+}
+
+is_running() {
+    local pid
+    pid="$(get_pid)"
+    [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null
+}
+
 start() {
     if is_running; then
         echo "DACP server is already running (PID: $(get_pid))"
@@ -38,66 +56,71 @@ start() {
     fi
 
     echo "Starting DACP server..."
-    nohup java -cp "$PARENT_DIR/lib/$JAR_FILE$PLUGIN_JARS" link.rdcn.server.ServerStart "$PARENT_DIR" > "$PARENT_DIR/logs/dacp.log" 2>&1 &
-    echo "DACP server started successfully"
+
+    nohup java \
+        -cp "$PARENT_DIR/lib/$JAR_FILE$PLUGIN_JARS" \
+        -Ddacp.instance.id="$INSTANCE_ID" \
+        link.rdcn.server.ServerStart \
+        "$PARENT_DIR" \
+        > "$LOG_FILE" 2>&1 &
+
+    echo $! > "$PID_FILE"
+
+    sleep 1
+    if is_running; then
+        echo "DACP server started (PID: $(get_pid))"
+    else
+        echo "Failed to start DACP server. See $LOG_FILE"
+        rm -f "$PID_FILE"
+        return 1
+    fi
 }
 
 stop() {
     if ! is_running; then
-        echo "DACP server is not currently running"
-        return 1
+        echo "DACP server not running"
+        rm -f "$PID_FILE"
+        return 0
     fi
 
-    echo "Initiating DACP server shutdown..."
-    kill $(get_pid)
-    sleep 2
-    if is_running; then
-        echo "Graceful shutdown unsuccessful, forcing termination..."
-        kill -9 $(get_pid)
+    pid="$(get_pid)"
+    echo "Stopping DACP server (PID: $pid)..."
+    kill "$pid"
+
+    for _ in {1..5}; do
+        if ! kill -0 "$pid" 2>/dev/null; then
+            rm -f "$PID_FILE"
+            echo "DACP server stopped"
+            return 0
+        fi
         sleep 1
-    fi
-    echo "DACP service has stopped."
-}
+    done
 
-restart() {
-  echo "Restarting DACP server..."
-    stop
-    start
+    echo "Force killing DACP instance '$INSTANCE_ID'"
+    kill -9 "$pid"
+    rm -f "$PID_FILE"
 }
 
 status() {
     if is_running; then
-        echo "DACP server status: RUNNING (PID: $(get_pid))"
+        echo "DACP instance '$INSTANCE_ID' RUNNING (PID: $(get_pid))"
     else
-        echo "DACP server status: NOT RUNNING"
+        echo "DACP instance '$INSTANCE_ID' NOT RUNNING"
     fi
 }
 
-is_running() {
-    [ -n "$(get_pid)" ]
+restart() {
+    stop
+    start
 }
 
-get_pid() {
-    pgrep -f "java.*$JAR_FILE"
-}
-
-case "$1" in
-    start)
-        start
-        ;;
-    stop)
-        stop
-        ;;
-    restart)
-        restart
-        ;;
-    status)
-        status
-        ;;
+case "$ACTION" in
+    start)   start ;;
+    stop)    stop ;;
+    restart) restart ;;
+    status)  status ;;
     *)
-        echo "Usage: $0 {start|stop|restart|status}"
+        echo "Usage: $0 {start|stop|restart|status} <instance-id>"
         exit 1
         ;;
 esac
-
-exit 0

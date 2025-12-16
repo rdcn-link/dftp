@@ -46,6 +46,15 @@
             </excludes>
         </fileSet>
         <fileSet>
+            <directory>src/main/distribution/run</directory>
+            <outputDirectory>run</outputDirectory>
+            <directoryMode>0755</directoryMode>
+            <fileMode>0755</fileMode>
+            <excludes>
+                <exclude>**/.keep</exclude>
+            </excludes>
+        </fileSet>
+        <fileSet>
             <directory>${project.build.directory}/unix/lib</directory>
             <outputDirectory>lib</outputDirectory>
             <directoryMode>0755</directoryMode>
