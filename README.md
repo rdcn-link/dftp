@@ -8,7 +8,7 @@ A high-performance protocol for dataframe transfer and processing.
 
 **DFTP (DataFrame Transfer Protocol)** is a fundamental data transfer protocol that provides efficient streaming data transfer capabilities, focusing on the delivery of raw data across nodes and processes (such as byte stream transfer and transmission reliability assurance).
 
-**DACP (Data Access and Communication Protocol)** is a communication protocol designed to support cross-node, cross-process data access in scientific and distributed computing environments. DACP provides standardized streaming-based data interactions over the **Apache Arrow Flight protocol** and defines a unified Streaming DataFrame (SDF) model, which acts as a high-performance abstraction for accessing and processing both structured and unstructured data.
+**DACP (Data Access and Collaboration Protocol)** is a protocol designed to support cross-node, cross-process data access in scientific and distributed computing environments. DACP provides standardized streaming-based data interactions over the **Apache Arrow Flight protocol** and defines a unified Streaming DataFrame (SDF) model, which acts as a high-performance abstraction for accessing and processing both structured and unstructured data.
 
 This project is **Powered by Apache Arrow Flight**, leveraging its efficient in-memory columnar format and high-performance RPC framework to enable fast, scalable data transfer across distributed systems.
 
