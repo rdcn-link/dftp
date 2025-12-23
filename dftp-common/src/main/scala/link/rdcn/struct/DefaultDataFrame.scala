@@ -11,7 +11,8 @@ import link.rdcn.util.{DataUtils, ResourceUtils}
 
 case class DefaultDataFrame(
                              schema: StructType,
-                             stream: ClosableIterator[Row]
+                             stream: ClosableIterator[Row],
+                             dataFrameStatistics: DataFrameStatistics = DataFrameStatistics.empty()
                            ) extends DataFrame {
 
   override def map(f: Row => Row): DataFrame = {
@@ -49,11 +50,13 @@ case class DefaultDataFrame(
   }
 
   override def mapIterator[T](f: ClosableIterator[Row] => T): T = f(stream)
+
+  override def getDataFrameStatistic: DataFrameStatistics = dataFrameStatistics
 }
 
 object DefaultDataFrame {
   def apply(schema: StructType,
             stream: Iterator[Row]): DefaultDataFrame = {
-    DefaultDataFrame(schema, ClosableIterator(stream)())
+    new DefaultDataFrame(schema, ClosableIterator(stream)())
   }
 }

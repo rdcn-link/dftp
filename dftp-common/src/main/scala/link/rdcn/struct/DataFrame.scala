@@ -27,6 +27,8 @@ trait DataFrame {
   def foreach(f: Row => Unit): Unit
 
   def collect(): List[Row]
+
+  def getDataFrameStatistic: DataFrameStatistics = DataFrameStatistics.empty()
 }
 
 object DataFrame {

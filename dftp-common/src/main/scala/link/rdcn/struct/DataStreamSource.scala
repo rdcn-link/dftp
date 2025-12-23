@@ -1,16 +1,12 @@
 package link.rdcn.struct
 
-import link.rdcn.struct
 import link.rdcn.struct.ValueType.RefType
 import link.rdcn.util.{DataUtils, JdbcUtils}
 
 import java.io.{BufferedReader, File, FileReader}
 import java.nio.file.attribute.BasicFileAttributes
 import java.sql.{Connection, DriverManager, ResultSet}
-import org.apache.commons.csv.{CSVFormat, CSVParser, CSVRecord}
 
-import java.nio.file.Paths
-import scala.collection.JavaConverters.{asScalaBufferConverter, asScalaIteratorConverter}
 import scala.collection.mutable.ArrayBuffer
 
 /**
@@ -21,7 +17,14 @@ import scala.collection.mutable.ArrayBuffer
  */
 
 trait DataStreamSource {
-  final def dataFrame: DataFrame = DefaultDataFrame(schema, iterator)
+  final def dataFrame: DataFrame = {
+    val dataFrameStatistics = new DataFrameStatistics {
+      override def rowCount: Long = DataStreamSource.this.rowCount
+
+      override def byteSize: Long = -1L
+    }
+    DefaultDataFrame(schema, iterator, dataFrameStatistics)
+  }
 
   def rowCount: Long
 
@@ -32,10 +35,9 @@ trait DataStreamSource {
 
 object DataStreamSource {
 
-  private val sampleSize = 10
   private val jdbcFetchSize = 500
 
-  def guessCsvDelimiter(sampleLines: Seq[String]): String = {
+  private def guessCsvDelimiter(sampleLines: Seq[String]): String = {
     val candidates = List(",", ";", "\t", "\\|")
     candidates.maxBy{
       delim => sampleLines.head.split(delim).length

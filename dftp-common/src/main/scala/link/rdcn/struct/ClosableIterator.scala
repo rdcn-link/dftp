@@ -16,6 +16,9 @@ case class ClosableIterator[T](
   //避免多次触发close
   private var hasMore = true
 
+  private val startTime: Long = System.currentTimeMillis()
+  private var itemCount: Long = 0L
+
   override def hasNext: Boolean = {
     if (!hasMore || closed) return false
     val more = underlying.hasNext
@@ -33,8 +36,16 @@ case class ClosableIterator[T](
       hasMore = false
       close()
     }
+    itemCount += 1
     value
   }
+
+  def itemsPerSecond: Double = {
+    val elapsedSeconds = (System.currentTimeMillis() - startTime) / 1000.0
+    if (elapsedSeconds > 0) itemCount / elapsedSeconds else 0
+  }
+
+  def consumeItems: Long = itemCount
 
   override def close(): Unit = {
     if (!closed) {

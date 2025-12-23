@@ -5,6 +5,7 @@ import link.rdcn.dacp.catalog.{CatalogService, CatalogServiceModule, CatalogServ
 import link.rdcn.dacp.cook.DacpCookModule
 import link.rdcn.dacp.recipe.{ExecutionResult, Flow, SourceNode, Transformer11}
 import link.rdcn.dacp.user.{DataOperationType, PermissionService, PermissionServiceModule}
+import link.rdcn.operation.{DataFrameCall11, FunctionSerializer, SerializableFunction}
 import link.rdcn.server.{DftpActionRequest, DftpServer, DftpServerConfig, ServerContext}
 import link.rdcn.server.module.{BaseDftpModule, DataFrameProviderService, UserPasswordAuthModule}
 import link.rdcn.struct.ValueType.StringType
@@ -58,7 +59,8 @@ object DacpClientDemo{
       rdfModel.add(model)
     }
 
-    override def listDataFrameNames(dataSetId: String): List[String] = List("DataFrame")
+    override def listDataFrameNames(dataSetId: String): List[String] =
+      List("DataFrame")
 
     override def getDocument(dataFrameName: String): DataFrameDocument = {
       new DataFrameDocument {
@@ -75,7 +77,7 @@ object DacpClientDemo{
     }
 
     override def getStatistics(dataFrameName: String): DataFrameStatistics = new DataFrameStatistics {
-      override def rowCount: Long = -1L
+      override def rowCount: Long = 10L
 
       override def byteSize: Long = -1L
     }
@@ -98,11 +100,13 @@ object DacpClientDemo{
   }
 
   val dataFrameProviderService = new DataFrameProviderService {
-    override def accepts(dataFrameUrl: String): Boolean = true
+    override def accepts(dataFrameUrl: String): Boolean = {
+      !dataFrameUrl.contains("/listDataSets") && !dataFrameUrl.contains("/listDataFrames")
+    }
 
     override def getDataFrame(dataFrameUrl: String, userPrincipal: UserPrincipal)(implicit ctx: ServerContext): DataFrame = {
       new DataStreamSource {
-        override def rowCount: Long = -1L
+        override def rowCount: Long = 10L
 
         override def schema: StructType = StructType.empty.add("col1", StringType)
 
@@ -201,5 +205,39 @@ class DacpClientDemo {
     )
     val dfs: ExecutionResult = dc.cook(transformerDAG)
     dfs.single().foreach(println)
+  }
+
+  @Test
+  def jobTest(): Unit = {
+    val udf = DataFrameCall11(new SerializableFunction[DataFrame, DataFrame] {
+      override def apply(v1: DataFrame): DataFrame = v1.limit(5)
+    })
+    val base64Str = java.util.Base64.getEncoder.encodeToString(FunctionSerializer.serialize(udf))
+
+    val flowJson =
+      """
+        |{"flow": {
+        |          "paths": [],
+        |          "stops": [{
+        |            "id": "nodes",
+        |            "type": "SourceNode",
+        |            "properties": {"path": "dacp://0.0.0.0:3102/abc"}
+        |          }]
+        |        }}
+        |""".stripMargin
+    val dc = DacpClient.connect("dacp://0.0.0.0:3102", UsernamePassword("admin", "admin"))
+    val jobId = dc.cook(flowJson)
+    println(jobId)
+    println(dc.getJobStatus(jobId))
+    var index = 0
+    dc.getJobExecuteResult(jobId).single().foreach(item => {
+      index += 1
+      println(item)
+      if(index == 5) {
+        println(dc.getJobExecuteProcess(jobId))
+      }
+    })
+    println(dc.getJobStatus(jobId))
+
   }
 }

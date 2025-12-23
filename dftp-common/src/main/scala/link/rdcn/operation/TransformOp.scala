@@ -29,6 +29,18 @@ trait TransformOp {
     this
   }
 
+  def executionProgress: Option[Double] = {
+    val hasProgressNode = inputs.flatMap(input => {
+      input match {
+        case sourceOp: SourceOp => Seq(sourceOp.executionProgress())
+        case other => other.inputs.map(_.executionProgress)
+      }
+    }).filter(_.nonEmpty).map(_.get)
+    if(hasProgressNode.nonEmpty){
+      Some(hasProgressNode.sum/hasProgressNode.size)
+    }else None
+  }
+
   def sourceUrlList: Set[String] = inputs.flatMap(_.sourceUrlList).toSet
 
   def operationType: String
@@ -61,7 +73,19 @@ object TransformOp {
 
 case class SourceOp(dataFrameUrl: String) extends TransformOp {
 
+  private var dataFrame: DataFrame = _
+
   override var inputs: Seq[TransformOp] = Seq.empty
+
+  override def executionProgress(): Option[Double] = {
+    if(dataFrame == null) Some(0.0)
+    else if(dataFrame.getDataFrameStatistic.rowCount == -1L) None
+    else {
+      val progress = dataFrame.mapIterator[Double](iter =>
+        iter.consumeItems/dataFrame.getDataFrameStatistic.rowCount)
+      Some(progress)
+    }
+  }
 
   override def operationType: String = "SourceOp"
 
@@ -69,8 +93,13 @@ case class SourceOp(dataFrameUrl: String) extends TransformOp {
 
   override def toJson: JSONObject = new JSONObject().put("type", operationType).put("dataFrameName", dataFrameUrl)
 
-  override def execute(ctx: ExecutionContext): DataFrame = ctx.loadSourceDataFrame(dataFrameUrl)
-    .getOrElse(throw new Exception(s"dataFrame $dataFrameUrl not found"))
+  override def execute(ctx: ExecutionContext): DataFrame = {
+    val df = ctx.loadSourceDataFrame(dataFrameUrl)
+      .getOrElse(throw new Exception(s"dataFrame $dataFrameUrl not found"))
+    dataFrame = df
+    dataFrame
+  }
+
 }
 
 case class MapOp(functionWrapper: FunctionWrapper, inputOperations: TransformOp*) extends TransformOp {

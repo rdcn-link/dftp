@@ -11,3 +11,14 @@ trait DataFrameStatistics extends Serializable {
 
   def byteSize: Long
 }
+
+object DataFrameStatistics {
+
+  def empty(): DataFrameStatistics =
+    new DataFrameStatistics {
+      override def rowCount: Long = -1L
+
+      override def byteSize: Long = -1L
+    }
+
+}

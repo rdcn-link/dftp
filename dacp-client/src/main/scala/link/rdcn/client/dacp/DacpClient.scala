@@ -1,11 +1,13 @@
 package link.rdcn.client
 
+import link.rdcn.dacp.cook.JobStatus
 import link.rdcn.dacp.optree._
 import link.rdcn.dacp.recipe._
-import link.rdcn.message.DftpTicket
+import link.rdcn.message.{DftpTicket, MapSerializer}
 import link.rdcn.operation._
 import link.rdcn.struct._
 import link.rdcn.user.{AnonymousCredentials, Credentials, UsernamePassword}
+import link.rdcn.util.CodecUtils
 import org.apache.arrow.flight.Ticket
 import org.apache.jena.rdf.model.{Model, ModelFactory}
 import org.json.{JSONArray, JSONObject}
@@ -140,18 +142,41 @@ class DacpClient(host: String, port: Int, useTLS: Boolean = false) extends DftpC
     }
   }
 
-  def cook(flowJson: String): ExecutionResult = {
-    val dfs: Seq[DataFrame] = TransformTree.fromFlowdJsonString(flowJson)
-      .map(RemoteDataFrameProxy(_, getCookRows))
-    new ExecutionResult() {
-      override def single(): DataFrame = dfs.head
+  def cook(flowJson: String): String = {
+    val resultBytes = doAction("submit", Map("flowJson" -> flowJson))
+    CodecUtils.decodeString(resultBytes)
+  }
 
-      override def get(name: String): DataFrame = dfs(name.toInt - 1)
+  def getJobStatus(jobId: String): JobStatus = {
+    val resultBytes = doAction("getJobStatus", Map("jobId" -> jobId))
+    JobStatus.fromString(CodecUtils.decodeString(resultBytes))
+  }
 
-      override def map(): Map[String, DataFrame] = dfs.zipWithIndex.map {
-        case (dataFrame, id) => (id.toString, dataFrame)
-      }.toMap
+  def getJobExecuteProcess(jobId: String): Double = {
+    val resultBytes = doAction("getJobExecuteProcess", Map("jobId" -> jobId))
+    CodecUtils.decodeString(resultBytes).toDouble
+  }
+
+  def getJobExecuteResult(jobId: String): ExecutionResult = {
+    val resultBytes = doAction("getJobExecuteResult", Map("jobId" -> jobId))
+    val dataFrames: Map[String, DataFrame] = MapSerializer.decodeMap(resultBytes)
+      .map(kv => (kv._1, getJobDataFrame(kv._2.toString, kv._1)))
+    new ExecutionResult {
+      override def single(): DataFrame = dataFrames.head._2
+
+      override def get(name: String): DataFrame =
+        dataFrames.get(name).getOrElse(throw new Exception(s"$name DataFrame Not Found"))
+
+      override def map(): Map[String, DataFrame] = dataFrames
     }
+  }
+
+  private def getJobDataFrame(jobId: String, dataFrameName: String): DataFrame = {
+    val jobParams = new JSONObject()
+    jobParams.put("jobId", jobId).put("dataFrameName", dataFrameName)
+    val schemaAndIter = getStream(new Ticket(JobTicket(jobParams.toString).encodeTicket()))
+    val stream = schemaAndIter._2.map(seq => Row.fromSeq(seq))
+    DefaultDataFrame(schemaAndIter._1, stream)
   }
 
   private def transformFlowToOperation(path: FlowPath): TransformOp = {
@@ -206,8 +231,13 @@ class DacpClient(host: String, port: Int, useTLS: Boolean = false) extends DftpC
     val stream = schemaAndIter._2.map(seq => Row.fromSeq(seq))
     (schemaAndIter._1, ClosableIterator(stream)())
   }
+
   private case class CookTicket(ticketContent: String) extends DftpTicket {
     override val typeId: Byte = 3
+  }
+
+  protected case class JobTicket(ticketContent: String) extends DftpTicket {
+    override val typeId: Byte = 4
   }
 }
 

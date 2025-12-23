@@ -382,6 +382,7 @@ object DftpServer {
   private def createDftpServer(configXmlFile: File): DftpServer = {
     val configDir = configXmlFile.getParentFile.getAbsolutePath
     System.setProperty("configDir", configDir)
+    System.setProperty("serverHome", configXmlFile.getParentFile.getParentFile.getAbsolutePath)
 
     val context = new GenericApplicationContext()
     val reader = new XmlBeanDefinitionReader(context)

@@ -36,12 +36,10 @@ class FileDirectoryDataSourceModule extends DftpModule {
     if (dfFile.isFile) {
       dfFile.getName match {
         case fileName if (fileName.endsWith(".csv")) =>
-          val ds = DataStreamSource.csv(dfFile)
-          DefaultDataFrame(ds.schema, ds.iterator)
+          DataStreamSource.csv(dfFile).dataFrame
         case fileName if (fileName.endsWith(".xlsx") ||
           fileName.endsWith(".xls")) =>
-          val ds = DataStreamSource.excel(dfFile.getAbsolutePath)
-          DefaultDataFrame(ds.schema, ds.iterator)
+          DataStreamSource.excel(dfFile.getAbsolutePath).dataFrame
         case _ => DataFrame.fromSeq(Seq(Blob.fromFile(dfFile)))
       }
     } else {
