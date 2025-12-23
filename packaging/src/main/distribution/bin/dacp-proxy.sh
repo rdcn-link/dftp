@@ -29,7 +29,11 @@ start() {
     fi
 
     echo "Starting dacp-proxy server..."
-    nohup java -jar "$PARENT_DIR/lib/$JAR_FILE" "$PARENT_DIR" > "$LOG_FILE" 2>&1 &
+    nohup java \
+      -Dlog4j.configurationFile="$PARENT_DIR/conf/log4j2.xml" \
+      -jar "$PARENT_DIR/lib/$JAR_FILE" \
+      "$PARENT_DIR" \
+      > "$LOG_FILE" 2>&1 &
 
     echo $! > "$PID_FILE"
 

@@ -28,6 +28,11 @@
                 </bean>
                 <bean class="link.rdcn.dacp.cook.DacpCookModule"/>
                 <bean class="link.rdcn.dacp.catalog.DacpCatalogModule"/>
+                <bean class="link.rdcn.server.DataFrameProviderModule">
+                    <constructor-arg>
+                        <bean class="link.rdcn.server.DataFrameProviderServiceIml"/>
+                    </constructor-arg>
+                </bean>
                 <bean class="link.rdcn.server.FileDirectoryDataSourceModule">
                     <property name="rootDirectory">
                         <value type="java.io.File">file:${configDir}/../data</value>

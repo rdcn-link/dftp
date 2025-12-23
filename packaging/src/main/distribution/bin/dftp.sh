@@ -55,7 +55,12 @@ start() {
     fi
 
     echo "Starting DFTP server..."
-    nohup java -cp "$PARENT_DIR/lib/$JAR_FILE$PLUGIN_JARS" link.rdcn.server.DftpServerStart "$PARENT_DIR" > "$LOG_FILE" 2>&1 &
+    nohup java \
+      -Dlog4j.configurationFile="$PARENT_DIR/conf/log4j2.xml" \
+      -cp "$PARENT_DIR/lib/$JAR_FILE$PLUGIN_JARS" \
+      link.rdcn.server.DftpServerStart \
+      "$PARENT_DIR" \
+      > "$LOG_FILE" 2>&1 &
 
     # Save the PID of the started process to the PID file
     echo $! > "$PID_FILE"

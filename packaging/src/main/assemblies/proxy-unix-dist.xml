@@ -25,6 +25,7 @@
             <includes>
                 <include>proxy.conf</include>
                 <include>proxy.xml</include>
+                <include>log4j2.xml</include>
             </includes>
         </fileSet>
         <fileSet>

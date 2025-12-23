@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+    <Appenders>
+        <Console name="STDOUT" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss} %-5p %c{1}:%L - %m%n"/>
+        </Console>
+
+        <Http name="FluentdHttp" url="http://10.0.82.143:8888/0.0.0.0:3101" method="POST">
+            <PatternLayout pattern='{"timestamp":"%d{yyyy-MM-dd HH:mm:ss}","level":"%p","logger":"%c{1}","line":%L,"message":"%m"}'/>
+        </Http>
+    </Appenders>
+
+    <Loggers>
+        <Root level="info">
+            <AppenderRef ref="STDOUT"/>
+            <AppenderRef ref="FluentdHttp"/>
+        </Root>
+    </Loggers>
+</Configuration>

@@ -60,6 +60,7 @@ start() {
     nohup java \
         -cp "$PARENT_DIR/lib/$JAR_FILE$PLUGIN_JARS" \
         -Ddacp.instance.id="$INSTANCE_ID" \
+        -Dlog4j.configurationFile="$PARENT_DIR/conf/log4j2.xml" \
         link.rdcn.server.ServerStart \
         "$PARENT_DIR" \
         > "$LOG_FILE" 2>&1 &
