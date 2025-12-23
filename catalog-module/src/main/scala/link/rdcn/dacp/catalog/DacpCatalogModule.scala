@@ -2,9 +2,12 @@ package link.rdcn.dacp.catalog
 
 import CatalogFormatter.{getDataFrameDocumentJsonString, getDataFrameStatisticsString, getHostInfoString, getHostResourceString}
 import link.rdcn.Logging
+import link.rdcn.client.UrlValidator
 import link.rdcn.server._
-import link.rdcn.server.module.{ActionMethod, CollectActionMethodEvent, CollectGetStreamMethodEvent, GetStreamFilter, GetStreamFilterChain, GetStreamMethod, TaskRunner, Workers}
-import link.rdcn.struct.StructType
+import link.rdcn.server.exception.DataFrameNotFoundException
+import link.rdcn.server.module.{ActionMethod, CollectActionMethodEvent, CollectDataFrameProviderEvent, CollectGetStreamMethodEvent, DataFrameProviderService, GetStreamFilter, GetStreamFilterChain, GetStreamMethod, TaskRunner, Workers}
+import link.rdcn.struct.{DataFrame, StructType}
+import link.rdcn.user.UserPrincipal
 import org.apache.jena.rdf.model.{Model, ModelFactory}
 import org.json.JSONObject
 
@@ -27,7 +30,7 @@ class DacpCatalogModule extends DftpModule with Logging {
       override def accepts(event: CrossModuleEvent): Boolean = {
         event match {
           case _: CollectActionMethodEvent => true
-          case _: CollectGetStreamMethodEvent => true
+          case _: CollectDataFrameProviderEvent => true
           case _ => false
         }
       }
@@ -36,7 +39,6 @@ class DacpCatalogModule extends DftpModule with Logging {
         event match {
           case r: CollectActionMethodEvent => r.collect(new ActionMethod {
 
-            //FIXME: match each request and returns true or false
             override def accepts(request: DftpActionRequest): Boolean =
               request.getActionName() match {
                 case "getDataSetMetaData" => true
@@ -103,51 +105,35 @@ class DacpCatalogModule extends DftpModule with Logging {
             }
           })
 
-          case r: CollectGetStreamMethodEvent =>
-            r.collect(new GetStreamMethod {
-              override def accepts(request: DftpGetStreamRequest): Boolean =
-                request match {
-                  case r: DftpGetPathStreamRequest =>
-                    r.getRequestPath() match {
-                      case "/listDataSets" => true
-                      case path if path.startsWith("/listDataFrames") => true
-                      case _ => false
-                    }
-                  case _ => false
-                }
-
-              override def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
-                request match {
-                  case r: DftpGetPathStreamRequest => r.getRequestPath() match {
-                    case "/listDataSets" =>
-                      catalogServiceHolder.work(new TaskRunner[CatalogService, Unit] {
-                        override def acceptedBy(worker: CatalogService): Boolean = true
-
-                        override def executeWith(worker: CatalogService): Unit =
-                          response.sendDataFrame(worker.doListDataSets(serverContext.baseUrl))
-
-                        override def handleFailure(): Unit =
-                          response.sendError(404, s"DataFrame ${r.getRequestPath()} not Found")
-                      })
-                    case path if path.startsWith("/listDataFrames") =>
-                      catalogServiceHolder.work(new TaskRunner[CatalogService, Unit] {
-                        override def acceptedBy(worker: CatalogService): Boolean = worker.accepts(
-                          new CatalogServiceRequest {
-                            override def getDataSetId: String = null
-
-                            override def getDataFrameUrl: String = serverContext.baseUrl + r.getRequestPath()
-                          })
-
-                        override def executeWith(worker: CatalogService): Unit =
-                          response.sendDataFrame(worker.doListDataFrames(path, serverContext.baseUrl))
-
-                        override def handleFailure(): Unit = response.sendError(404, s"DataFrame ${r.getRequestPath()} not Found")
-                      })
-                    case _ =>
+          case r: CollectDataFrameProviderEvent =>
+            r.holder.add(
+              new DataFrameProviderService {
+                override def accepts(dataFrameUrl: String): Boolean =
+                  UrlValidator.extractPath(dataFrameUrl) match {
+                    case "/listDataSets" => true
+                    case path if path.startsWith("/listDataFrames") => true
+                    case _ => false
                   }
+
+                override def getDataFrame(dataFrameUrl: String, userPrincipal: UserPrincipal)
+                                         (implicit ctx: ServerContext): DataFrame = {
+                  catalogServiceHolder.work(new TaskRunner[CatalogService, DataFrame] {
+
+                    override def acceptedBy(worker: CatalogService): Boolean = true
+
+                    override def executeWith(worker: CatalogService): DataFrame = {
+                      UrlValidator.extractPath(dataFrameUrl) match {
+                        case "/listDataSets" => worker.doListDataSets(serverContext.baseUrl)
+                        case path if path.startsWith("/listDataFrames") =>
+                           worker.doListDataFrames(path, serverContext.baseUrl)
+                      }
+                    }
+
+                    override def handleFailure(): DataFrame = throw new DataFrameNotFoundException(dataFrameUrl)
+                  })
                 }
               }
-            })
+            )
 
           case _ =>
         }
