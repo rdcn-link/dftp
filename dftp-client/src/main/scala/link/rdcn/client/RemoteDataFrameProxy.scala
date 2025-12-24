@@ -1,8 +1,9 @@
 package link.rdcn.client
 
 import link.rdcn.Logging
+import link.rdcn.message.{DftpTicket, GetStreamType}
 import link.rdcn.operation._
-import link.rdcn.struct.{ClosableIterator, DataFrame, Row, StructType}
+import link.rdcn.struct.{ClosableIterator, DataFrame, DataFrameShape, Row, StructType}
 
 /**
  * @Author renhao
@@ -12,9 +13,13 @@ import link.rdcn.struct.{ClosableIterator, DataFrame, Row, StructType}
  */
 
 case class RemoteDataFrameProxy(operation: TransformOp,
-                                getRows: String => (StructType, ClosableIterator[Row])) extends DataFrame with Logging {
+                                getStream: DftpTicket => Iterator[Row],
+                                getMetaData: (String, GetStreamType) => DataFrameMeta
+                               ) extends DataFrame with Logging {
 
-  override lazy val schema: StructType = schemaAndRows._1
+  override lazy val schema: StructType = metaData.getDataFrameSchema
+
+  override lazy val dataFrameShape: DataFrameShape = metaData.getDataFrameShape
 
   override def filter(f: Row => Boolean): DataFrame = {
     val genericFunctionCall = SingleRowCall(new SerializableFunction[Row, Boolean] {
@@ -42,11 +47,12 @@ case class RemoteDataFrameProxy(operation: TransformOp,
 
   override def collect(): List[Row] = records.toList
 
-  private def records(): Iterator[Row] = schemaAndRows._2
+  private def records(): Iterator[Row] = stream
 
-  private lazy val schemaAndRows = getRows(operation.toJsonString)
+  override def mapIterator[T](f: ClosableIterator[Row] => T): T = f(ClosableIterator(stream)())
 
-  override def mapIterator[T](f: ClosableIterator[Row] => T): T = f(schemaAndRows._2)
+  private lazy val stream = getStream(metaData.getStreamTicket)
+  private lazy val metaData = getMetaData(operation.toJsonString, GetStreamType.Get)
 }
 
 

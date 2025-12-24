@@ -52,6 +52,8 @@ case class DefaultDataFrame(
   override def mapIterator[T](f: ClosableIterator[Row] => T): T = f(stream)
 
   override def getDataFrameStatistic: DataFrameStatistics = dataFrameStatistics
+
+  override val dataFrameShape: DataFrameShape = DataFrameShape.Tabular
 }
 
 object DefaultDataFrame {

@@ -192,16 +192,14 @@ class DftpServer(config: DftpServerConfig) extends Logging {
           sendErrorWithFlightStatus(errorCode, message)
         }
 
-        override def sendData(data: Array[Byte]): Unit = {
-          listener.onNext(new Result(data))
+        override def sendJsonString(json: String): Unit = {
+          listener.onNext(new Result(CodecUtils.encodeString(json)))
           listener.onCompleted()
         }
       }
 
       val actionRequest = new DftpActionRequest {
-        override def getActionName(): String = action.getType
-
-        override def getParameter(): Array[Byte] = action.getBody
+        override def getJsonStringRequest(): String = action.getType
 
         override def getUserPrincipal(): UserPrincipal =
           authenticatedUserMap.get(callContext.peerIdentity())
@@ -282,15 +280,11 @@ class DftpServer(config: DftpServerConfig) extends Logging {
         }
       }
 
-      val authenticatedUser = authenticatedUserMap.get(callContext.peerIdentity())
-      val request: DftpGetStreamRequest = {
-        try{
-          kernelModule.parseGetStreamRequest(ticket.getBytes, authenticatedUser)
-        }catch {
-          case e:UnknownGetStreamRequestException =>
-            response.sendError(404, e.getMessage)
-            throw e
-        }
+      val userPrincipal = authenticatedUserMap.get(callContext.peerIdentity())
+      val request: DftpGetStreamRequest = new DftpGetStreamRequest {
+        override def getTicket: String = CodecUtils.decodeString(ticket.getBytes)
+
+        override def getUserPrincipal(): UserPrincipal = userPrincipal
       }
 
       kernelModule.getStream(request, response)

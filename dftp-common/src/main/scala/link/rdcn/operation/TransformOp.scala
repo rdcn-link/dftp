@@ -49,6 +49,8 @@ trait TransformOp {
 
   def toJsonString: String = toJson.toString
 
+  override def toString: String = toJsonString
+
   def execute(ctx: ExecutionContext): DataFrame
 }
 

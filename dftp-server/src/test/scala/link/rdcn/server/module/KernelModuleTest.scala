@@ -128,7 +128,9 @@ class KernelModuleTest {
       this.errorCode = errorCode
       this.message = message
     }
-    override def sendData(data: Array[Byte]): Unit = {}
+
+    override def sendJsonString(json: String): Unit = {
+    }
   }
   class MockDftpGetStreamResponse extends DftpGetStreamResponse {
     var errorSent = false
@@ -154,13 +156,15 @@ class KernelModuleTest {
   }
 
   class MockDftpActionRequest(action: String = "test") extends DftpActionRequest {
-    override def getActionName(): String = action
-    override def getParameter(): Array[Byte] = Array.empty
     override def getUserPrincipal(): UserPrincipal = null
+
+    override def getJsonStringRequest(): String = action
   }
 
   class MockDftpGetStreamRequest extends DftpGetStreamRequest {
     override def getUserPrincipal(): UserPrincipal = null
+
+    override def getTicket: String = ""
   }
 
   class MockDftpPutStreamRequest extends DftpPutStreamRequest {

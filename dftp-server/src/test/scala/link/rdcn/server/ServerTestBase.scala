@@ -281,16 +281,8 @@ class MockDftpGetStreamResponse extends DftpGetStreamResponse {
 // 模拟各种 DftpGetStreamRequest
 class MockDftpGetStreamRequest(name: String) extends DftpGetStreamRequest {
   override def getUserPrincipal(): UserPrincipal = MockUser
-}
-class MockDftpGetPathStreamRequest(op: TransformOp) extends DftpGetPathStreamRequest {
-  override def getRequestPath(): String = op.sourceUrlList.headOption.getOrElse("")
-  override def getRequestURL(): String = getRequestPath()
-  override def getTransformOp(): TransformOp = op
-  override def getUserPrincipal(): UserPrincipal = MockUser
-}
-class MockDacpGetBlobStreamRequest(id: String) extends DacpGetBlobStreamRequest {
-  override def getBlobId(): String = id
-  override def getUserPrincipal(): UserPrincipal = MockUser
+
+  override def getTicket: String = name
 }
 
 /**

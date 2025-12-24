@@ -4,6 +4,7 @@ import link.rdcn.message.MapSerializer
 import link.rdcn.operation.TransformOp
 import link.rdcn.struct.DataFrame
 import link.rdcn.user.UserPrincipal
+import org.json.JSONObject
 
 import scala.collection.mutable
 
@@ -20,24 +21,12 @@ trait DftpRequest {
 }
 
 trait DftpGetStreamRequest extends DftpRequest {
-}
-
-trait DftpGetPathStreamRequest extends DftpGetStreamRequest {
-  def getRequestPath(): String
-  def getRequestURL(): String
-  def getTransformOp(): TransformOp
-}
-
-trait DacpGetBlobStreamRequest extends DftpGetStreamRequest {
-  def getBlobId(): String
+  def getTicket(): String
 }
 
 trait DftpActionRequest extends DftpRequest {
-  def getActionName(): String
-
-  def getParameter(): Array[Byte]
-
-  def getParameterAsMap(): Map[String, Any] = MapSerializer.decodeMap(getParameter())
+  def getJsonStringRequest(): String
+  def getJonsObjectRequest(): JSONObject = new JSONObject(getJsonStringRequest)
 }
 
 trait DftpPutStreamRequest extends DftpRequest {
@@ -53,7 +42,10 @@ trait DftpPlainResponse extends DftpResponse {
   def sendData(map: Map[String, Any]): Unit = sendData(MapSerializer.encodeMap(map))
 }
 
-trait DftpActionResponse extends DftpPlainResponse
+trait DftpActionResponse extends DftpResponse {
+  def sendJsonString(json: String)
+  def sendJsonObject(json: JSONObject) = sendJsonString(json.toString)
+}
 
 trait DftpPutStreamResponse extends DftpPlainResponse
 
