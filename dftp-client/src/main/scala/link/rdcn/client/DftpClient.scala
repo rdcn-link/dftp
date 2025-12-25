@@ -2,7 +2,7 @@ package link.rdcn.client
 
 import link.rdcn.Logging
 import link.rdcn.client.ClientUtils.convertStructTypeToArrowSchema
-import link.rdcn.message.{DftpTicket, GetStreamType, MapSerializer}
+import link.rdcn.message.{ActionMethodType, DftpTicket}
 import link.rdcn.operation._
 import link.rdcn.struct._
 import link.rdcn.user.Credentials
@@ -10,12 +10,13 @@ import link.rdcn.util.CodecUtils
 import org.apache.arrow.flight.auth.ClientAuthHandler
 import org.apache.arrow.flight._
 import org.apache.arrow.memory.{BufferAllocator, RootAllocator}
-import org.apache.arrow.vector.{VectorLoader, VectorSchemaRoot}
+import org.apache.arrow.vector.ipc.message.ArrowRecordBatch
+import org.apache.arrow.vector.{BigIntVector, BitVector, Float4Vector, Float8Vector, IntVector, VarBinaryVector, VarCharVector, VectorLoader, VectorSchemaRoot, VectorUnloader}
 import org.json.JSONObject
 
 import java.io.{File, InputStream}
 import java.util.concurrent.locks.LockSupport
-import scala.collection.JavaConverters.{asScalaBufferConverter, collectionAsScalaIterableConverter}
+import scala.collection.JavaConverters.asScalaBufferConverter
 import scala.collection.mutable
 
 /**
@@ -30,57 +31,68 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) extends Loggi
     flightClient.authenticate(new FlightClientAuthHandler(credentials))
   }
 
-  def doAction(actionName: String, paramMap: Map[String, Any] = Map.empty): Array[Byte] = {
-    val body = MapSerializer.encodeMap(paramMap)
-    val actionResultIter = flightClient.doAction(new Action(actionName, body))
-    try {
-      actionResultIter.next().getBody
-    } catch {
-      case e: Exception => throw e
-    }
-  }
-
   /**
    * Sends an action request to the faird server and returns the result.
    *
-   * @param action JSON string representing the action to be executed on the server
-   * @return JSON string containing the action execution result returned by the server
+   * @param actionName the name of the action to be executed on the server
+   * @param parameters JSON-formatted string representing the parameters of the action
+   * @return a JSON-formatted string containing the execution result returned by the server
    */
-  def doAction(action: String): String = {
-    val actionResultIter = flightClient.doAction(new Action(action))
+  def doAction(actionName: String, parameters: String = new JSONObject().toString): String = {
+    val actionResultIter = flightClient.doAction(new Action(actionName, CodecUtils.encodeString(parameters)))
     CodecUtils.decodeString(actionResultIter.next().getBody)
   }
 
-  protected def getDataFrameMeta(streamPayLoad: String, getStreamType: GetStreamType): DataFrameMeta = {
-    val requestJson = new JSONObject()
-    requestJson.put("streamPayLoad", streamPayLoad)
-    requestJson.put("getStreamType", getStreamType.name)
-    requestJson.put("actionType", "getDataFrameMeta")
-    val responseJson = new JSONObject(doAction(requestJson.toString))
-    new DataFrameMeta {
+  protected def openDataFrame(transformOp: TransformOp): DataFrameDescriptor = {
+    val responseJson = new JSONObject(doAction(ActionMethodType.GetTabularMeta.name, transformOp.toJsonString))
+    val dataFrameMeta = new DataFrameMeta {
       override def getDataFrameShape: DataFrameShape =
         DataFrameShape.fromName(responseJson.getString("shapeName"))
 
       override def getDataFrameSchema: StructType =
         StructType.fromString(responseJson.getString("schema"))
+    }
+    new DataFrameDescriptor {
+      override def getDataFrameMeta: DataFrameMeta = dataFrameMeta
 
-      override def getStreamTicket: DftpTicket =
-        DftpTicket(responseJson.getString("dftpTicket"))
+      override def getDataFrameTicket: Ticket = DftpTicket.createTicket(responseJson.getString("ticket"))
     }
   }
 
-  def getDataFrameMeta(url: String): DataFrameMeta =
-    getDataFrameMeta(SourceOp(url).toJsonString, GetStreamType.Get)
+  def openDataFrame(url: String): DataFrameDescriptor = openDataFrame(SourceOp(url))
 
-  def get(url: String): DataFrame = {
-    if (UrlValidator.isPath(url)) {
-      RemoteDataFrameProxy(SourceOp(url), getStream, getDataFrameMeta)
-    } else {
+  def getBlob(url: String): Blob = {
+    val df = RemoteDataFrameProxy(SourceOp(validateUrl(url)), getStream, openDataFrame)
+    new Blob {
+      override def offerStream[T](consume: InputStream => T): T = {
+        val inputStream = df.mapIterator[InputStream](iter => {
+          val chunkIterator = iter.map(value => {
+            assert(value.values.length == 1)
+            value._1 match {
+              case v: Array[Byte] => v
+              case other => throw new Exception(s"Blob parsing failed: expected Array[Byte], but got ${other}")
+            }
+          })
+          new IteratorInputStream(chunkIterator)
+        })
+        consume(inputStream)
+      }
+    }
+  }
+
+  def getTabular(url: String): DataFrame = get(url)
+
+  def get(url: String): DataFrame =
+    RemoteDataFrameProxy(SourceOp(validateUrl(url)), getStream, openDataFrame)
+
+  private def validateUrl(url: String): String = {
+    if (UrlValidator.isPath(url)) url
+    else {
       UrlValidator.validate(url) match {
         case Right((prefixSchema, host, port, path)) => {
-          if (host == this.host && port.getOrElse(3101) == this.port)
-            RemoteDataFrameProxy(SourceOp(url), getStream, getDataFrameMeta)
-          else throw new IllegalArgumentException(s"Invalid request URL: $url  Expected format: $prefixSchema://${this.host}[:${this.port}]")
+          if (host == this.host && port.getOrElse(3101) == this.port) url
+          else
+            throw new IllegalArgumentException(s"Invalid request URL: $url  Expected format: $prefixSchema://${this.host}[:${this.port}]")
         }
         case Left(message) => throw new IllegalArgumentException(message)
       }
@@ -125,10 +137,9 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) extends Loggi
     flightClient.close()
   }
 
-  def getStream(dftpTicket: DftpTicket): Iterator[Row] = {
-    val flightStream = flightClient.getStream(dftpTicket.ticket)
+  def getStream(ticket: Ticket): Iterator[Row] = {
+    val flightStream = flightClient.getStream(ticket)
     val vectorSchemaRootReceived = flightStream.getRoot
-//    val schema = ClientUtils.arrowSchemaToStructType(vectorSchemaRootReceived.getSchema)
     val iter: Iterator[Seq[Any]] = new Iterator[Seq[Seq[Any]]] {
       override def hasNext: Boolean = flightStream.next()
 
@@ -151,11 +162,10 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) extends Loggi
                 if (v.getField.getMetadata.isEmpty) (vec.getName, v.get(index))
                 else {
                   val blobId = CodecUtils.decodeString(v.get(index))
-                  val blobTicket = getDataFrameMeta(blobId, GetStreamType.Blob).getStreamTicket
                   val blob = new Blob {
                     override def offerStream[T](consume: InputStream => T): T = {
-                      val iter = getStream(blobTicket)
-                      val chunkIterator = iter.map(value => {
+                      val iter = getStream(DftpTicket.createTicket(blobId))
+                      val chunkIterator: Iterator[Array[Byte]] = iter.map(value => {
                         assert(value.values.length == 1)
                         value._1 match {
                           case v: Array[Byte] => v
@@ -248,6 +258,51 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) extends Loggi
         totalRead += bytesToCopy
       }
       totalRead
+    }
+  }
+
+  private case class ArrowFlightStreamWriter(stream: Iterator[Row]) {
+
+    def process(root: VectorSchemaRoot, batchSize: Int): Iterator[ArrowRecordBatch] = {
+      stream.grouped(batchSize).map(rows => createDummyBatch(root, rows))
+    }
+
+    private def createDummyBatch(arrowRoot: VectorSchemaRoot, rows: Seq[Row]): ArrowRecordBatch = {
+      arrowRoot.allocateNew()
+      val fieldVectors = arrowRoot.getFieldVectors.asScala
+      var i = 0
+      rows.foreach(row => {
+        var j = 0
+        fieldVectors.foreach(vec => {
+          val value = row.get(j)
+          value match {
+            case v: Int => vec.asInstanceOf[IntVector].setSafe(i, v)
+            case v: Long => vec.asInstanceOf[BigIntVector].setSafe(i, v)
+            case v: Double => vec.asInstanceOf[Float8Vector].setSafe(i, v)
+            case v: Float => vec.asInstanceOf[Float4Vector].setSafe(i, v)
+            case v: java.math.BigDecimal => vec.asInstanceOf[VarCharVector].setSafe(i, v.toString.getBytes("UTF-8"))
+            case v: String =>
+              val bytes = v.getBytes("UTF-8")
+              vec.asInstanceOf[VarCharVector].setSafe(i, bytes)
+            case v: Boolean => vec.asInstanceOf[BitVector].setSafe(i, if (v) 1 else 0)
+            case v: Array[Byte] => vec.asInstanceOf[VarBinaryVector].setSafe(i, v)
+            case null => vec.setNull(i)
+            case v: DFRef =>
+              val bytes = v.url.getBytes("UTF-8")
+              vec.asInstanceOf[VarCharVector].setSafe(i, bytes)
+            case v: Blob =>
+              //TODO Blob chunk transfer default max size 100MB
+              val bytes = v.offerStream[Array[Byte]](_.readNBytes(100 * 1024 * 1024))
+              vec.asInstanceOf[VarBinaryVector].setSafe(i, bytes)
+            case _ => throw new UnsupportedOperationException("Type not supported")
+          }
+          j += 1
+        })
+        i += 1
+      })
+      arrowRoot.setRowCount(rows.length)
+      val unloader = new VectorUnloader(arrowRoot)
+      unloader.getRecordBatch
     }
   }
 }

@@ -25,8 +25,8 @@ trait DftpGetStreamRequest extends DftpRequest {
 }
 
 trait DftpActionRequest extends DftpRequest {
-  def getJsonStringRequest(): String
-  def getJonsObjectRequest(): JSONObject = new JSONObject(getJsonStringRequest)
+  def getActionName(): String
+  def getRequestParameters(): JSONObject
 }
 
 trait DftpPutStreamRequest extends DftpRequest {

@@ -1,27 +1,20 @@
 package link.rdcn.server.module
 
-import link.rdcn.client.UrlValidator
-import link.rdcn.message.GetStreamType
+import link.rdcn.Logging
+import link.rdcn.message.{ActionMethodType}
 import link.rdcn.operation.{ExecutionContext, TransformOp}
 import link.rdcn.server._
-import link.rdcn.server.exception.{DataFrameAccessDeniedException, DataFrameNotFoundException}
-import link.rdcn.struct.{BlobRegistry, DataFrame, DataFrameShape, DefaultDataFrame, Row, StructType}
+import link.rdcn.server.exception.{DataFrameNotFoundException, TicketExpiryException, TicketNotFoundException}
+import link.rdcn.struct.{DataFrame, DataFrameShape}
 import link.rdcn.user.UserPrincipal
-import link.rdcn.util.DataUtils
 import org.json.JSONObject
 
-import java.util.UUID
-import scala.collection.concurrent.TrieMap
-
-class BaseDftpModule extends DftpModule {
+class BaseDftpModule extends DftpModule with Logging{
 
   //TODO: should all data frame providers be registered?
   private val dataFrameHolder = new Workers[DataFrameProviderService]
   private implicit var serverContext: ServerContext = _
   private val dftpBaseEventHandler = new EventHandler {
-
-    val streamCache = TrieMap[String, DataFrame]()
-    val streamExpiryDateCache = TrieMap[String, Long]()
 
     override def accepts(event: CrossModuleEvent): Boolean = {
       event match {
@@ -31,10 +24,8 @@ class BaseDftpModule extends DftpModule {
       }
     }
 
-    def cacheDataFrame(dataFrame: DataFrame): JSONObject = {
-      val ticketId: String = UUID.randomUUID().toString
-      streamCache.put(ticketId, dataFrame)
-      streamExpiryDateCache.put(ticketId, System.currentTimeMillis() + 60 * 1000) //default 1 minute
+    def createDataFrameDescriber(dataFrame: DataFrame): JSONObject = {
+      val ticketId: String = OpenedDataFrameRegistry.registry(dataFrame)
       val responseJsonObject = new JSONObject()
       responseJsonObject.put("shapeName", DataFrameShape.Tabular.name)
         .put("schema", dataFrame.schema.toString)
@@ -46,52 +37,24 @@ class BaseDftpModule extends DftpModule {
         case require: CollectActionMethodEvent =>
           require.collect(new ActionMethod {
             override def accepts(request: DftpActionRequest): Boolean =
-              request.getJonsObjectRequest().getString("actionType") == "getDataFrameMeta"
+              request.getActionName() == ActionMethodType.GetTabularMeta.name
 
             override def doAction(request: DftpActionRequest, response: DftpActionResponse): Unit = {
-              val requestJsonObject = request.getJonsObjectRequest()
-              val streamType = GetStreamType.fromString(requestJsonObject.getString("getStreamType"))
-              streamType match {
-                case GetStreamType.Get =>
-                  try{
-                    val transformOp = TransformOp.fromJsonString(requestJsonObject.getString("streamPayLoad"))
-                    val dataFrame = transformOp.execute(new ExecutionContext {
-                      override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
-                        Some(dataFrameHolder.work(new TaskRunner[DataFrameProviderService, DataFrame] {
+              val requestJsonObject = request.getRequestParameters()
+              val transformOp: TransformOp = TransformOp.fromJsonObject(requestJsonObject)
+              val dataFrame = transformOp.execute(new ExecutionContext {
+                override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
+                  Some(dataFrameHolder.work(new TaskRunner[DataFrameProviderService, DataFrame] {
 
-                          override def acceptedBy(worker: DataFrameProviderService): Boolean = worker.accepts(dataFrameNameUrl)
+                    override def acceptedBy(worker: DataFrameProviderService): Boolean = worker.accepts(dataFrameNameUrl)
 
-                          override def executeWith(worker: DataFrameProviderService): DataFrame = worker.getDataFrame(dataFrameNameUrl, request.getUserPrincipal())
+                    override def executeWith(worker: DataFrameProviderService): DataFrame = worker.getDataFrame(dataFrameNameUrl, request.getUserPrincipal())
 
-                          override def handleFailure(): DataFrame = throw new DataFrameNotFoundException(dataFrameNameUrl)
-                        }))
-                      }
-                    })
-                    response.sendJsonObject(cacheDataFrame(dataFrame))
-                  }catch {
-                    case e: DataFrameAccessDeniedException => response.sendError(403, e.getMessage)
-                      throw e
-                    case e: DataFrameNotFoundException =>
-                      response.sendError(404, e.getMessage)
-                      throw e
-                    case e: Exception => response.sendError(500, e.getMessage)
-                      throw e
-                  }
-                case GetStreamType.Blob =>
-                  val blobId = requestJsonObject.getString("streamPayLoad")
-                  val blob = BlobRegistry.getBlob(blobId)
-                  if (blob.isEmpty) {
-                    response.sendError(404, s"blob ${blobId} resource closed")
-                  } else {
-                    blob.get.offerStream(inputStream => {
-                      val stream: Iterator[Row] = DataUtils.chunkedIterator(inputStream)
-                        .map(bytes => Row.fromSeq(Seq(bytes)))
-                      val schema = StructType.blobStreamStructType
-                      response.sendJsonObject(cacheDataFrame(DefaultDataFrame(schema, stream)))
-                    })
-                  }
-
-              }
+                    override def handleFailure(): DataFrame = throw new DataFrameNotFoundException(dataFrameNameUrl)
+                  }))
+                }
+              })
+              response.sendJsonObject(createDataFrameDescriber(dataFrame))
             }
           })
 
@@ -99,20 +62,27 @@ class BaseDftpModule extends DftpModule {
           require.collect(
             new GetStreamMethod {
               override def accepts(request: DftpGetStreamRequest): Boolean = {
-                streamCache.keys.toList.contains(request.getTicket)
+                OpenedDataFrameRegistry.isTicketExists(request.getTicket)
               }
 
               override def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
-                val ticketId = request.getTicket
-                val expiryTime = streamExpiryDateCache.get(ticketId)
-                if(expiryTime.isEmpty){
-                  response.sendError(500, "ticket without invalid expiration time")
-                }else if(expiryTime.get > System.currentTimeMillis()) {
-                  response.sendError(403, s"ticket $ticketId has expired")
-                }else {
-                  val dataFrame = streamCache.get(ticketId).get
-                  response.sendDataFrame(dataFrame)
+                try {
+                  val ticketId = request.getTicket
+                  val dataFrame = OpenedDataFrameRegistry.getDataFrame(ticketId)
+                  if(dataFrame.isEmpty) response.sendError(404, s"not found dataframe by ticket ${ticketId}")
+                  else response.sendDataFrame(dataFrame.get)
+                }catch {
+                  case e: TicketNotFoundException =>
+                    logger.error(e)
+                    response.sendError(404, e.getMessage)
+                  case e: TicketExpiryException =>
+                    logger.error(e)
+                    response.sendError(403, e.getMessage)
+                  case e: Exception =>
+                    logger.error(e)
+                    response.sendError(500, e.getMessage)
                 }
+
               }
             })
         case _ =>

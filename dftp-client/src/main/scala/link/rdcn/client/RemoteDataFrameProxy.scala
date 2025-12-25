@@ -1,9 +1,9 @@
 package link.rdcn.client
 
 import link.rdcn.Logging
-import link.rdcn.message.{DftpTicket, GetStreamType}
 import link.rdcn.operation._
-import link.rdcn.struct.{ClosableIterator, DataFrame, DataFrameShape, Row, StructType}
+import link.rdcn.struct.{ClosableIterator, DataFrame, DataFrameMeta, DataFrameShape, Row, StructType}
+import org.apache.arrow.flight.Ticket
 
 /**
  * @Author renhao
@@ -13,13 +13,11 @@ import link.rdcn.struct.{ClosableIterator, DataFrame, DataFrameShape, Row, Struc
  */
 
 case class RemoteDataFrameProxy(operation: TransformOp,
-                                getStream: DftpTicket => Iterator[Row],
-                                getMetaData: (String, GetStreamType) => DataFrameMeta
+                                getStream: Ticket => Iterator[Row],
+                                openDataFrame: TransformOp => DataFrameDescriptor
                                ) extends DataFrame with Logging {
 
-  override lazy val schema: StructType = metaData.getDataFrameSchema
-
-  override lazy val dataFrameShape: DataFrameShape = metaData.getDataFrameShape
+  override lazy val schema: StructType = dataFrameDescriptor.getDataFrameMeta.getDataFrameSchema
 
   override def filter(f: Row => Boolean): DataFrame = {
     val genericFunctionCall = SingleRowCall(new SerializableFunction[Row, Boolean] {
@@ -51,8 +49,8 @@ case class RemoteDataFrameProxy(operation: TransformOp,
 
   override def mapIterator[T](f: ClosableIterator[Row] => T): T = f(ClosableIterator(stream)())
 
-  private lazy val stream = getStream(metaData.getStreamTicket)
-  private lazy val metaData = getMetaData(operation.toJsonString, GetStreamType.Get)
+  private lazy val stream = getStream(dataFrameDescriptor.getDataFrameTicket)
+  private lazy val dataFrameDescriptor = openDataFrame(operation)
 }
 
 

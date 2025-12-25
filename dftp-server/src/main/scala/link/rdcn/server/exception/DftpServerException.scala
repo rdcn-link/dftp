@@ -40,6 +40,21 @@ class UnknownGetStreamRequestException(
   cause
 )
 
+class TicketNotFoundException(
+                               val ticketId: String,
+                               cause: Throwable = null
+                             )extends DftpServerException(
+  s"not found ticket $ticketId", cause
+)
+
+class TicketExpiryException(
+                             val ticketId: String,
+                             val expiryTime: Long,
+                             cause: Throwable = null
+                           )extends DftpServerException(
+  s"Ticket [$ticketId] has expired at ${new java.util.Date(expiryTime)}", cause
+)
+
 
 
 

@@ -1,8 +1,8 @@
 package link.rdcn.server
 
 import link.rdcn.Logging
+import link.rdcn.message.DftpTicket
 import link.rdcn.server.ServerUtils.convertStructTypeToArrowSchema
-import link.rdcn.server.exception.UnknownGetStreamRequestException
 import link.rdcn.server.module.KernelModule
 import link.rdcn.struct._
 import link.rdcn.user.UserPrincipal
@@ -10,8 +10,10 @@ import link.rdcn.util.{CodecUtils, DataUtils}
 import org.apache.arrow.flight._
 import org.apache.arrow.flight.auth.ServerAuthHandler
 import org.apache.arrow.memory.{ArrowBuf, BufferAllocator, RootAllocator}
+import org.apache.arrow.vector.ipc.message.ArrowRecordBatch
 import org.apache.arrow.vector.types.pojo.Schema
-import org.apache.arrow.vector.{VectorLoader, VectorSchemaRoot}
+import org.apache.arrow.vector.{BigIntVector, BitVector, Float4Vector, Float8Vector, IntVector, VarBinaryVector, VarCharVector, VectorLoader, VectorSchemaRoot, VectorUnloader}
+import org.json.JSONObject
 import org.springframework.beans.factory.xml.XmlBeanDefinitionReader
 import org.springframework.context.support.GenericApplicationContext
 import org.springframework.core.io.FileUrlResource
@@ -199,7 +201,12 @@ class DftpServer(config: DftpServerConfig) extends Logging {
       }
 
       val actionRequest = new DftpActionRequest {
-        override def getJsonStringRequest(): String = action.getType
+
+        override def getActionName(): String = action.getType
+
+        override def getRequestParameters(): JSONObject = {
+          new JSONObject(CodecUtils.decodeString(action.getBody))
+        }
 
         override def getUserPrincipal(): UserPrincipal =
           authenticatedUserMap.get(callContext.peerIdentity())
@@ -282,7 +289,7 @@ class DftpServer(config: DftpServerConfig) extends Logging {
 
       val userPrincipal = authenticatedUserMap.get(callContext.peerIdentity())
       val request: DftpGetStreamRequest = new DftpGetStreamRequest {
-        override def getTicket: String = CodecUtils.decodeString(ticket.getBytes)
+        override def getTicket: String = DftpTicket.getTicketId(ticket)
 
         override def getUserPrincipal(): UserPrincipal = userPrincipal
       }
@@ -349,6 +356,51 @@ class DftpServer(config: DftpServerConfig) extends Logging {
                              criteria: Criteria,
                              listener: FlightProducer.StreamListener[FlightInfo]): Unit = {
       listener.onCompleted()
+    }
+  }
+
+  private case class ArrowFlightStreamWriter(stream: Iterator[Row]) {
+
+    def process(root: VectorSchemaRoot, batchSize: Int): Iterator[ArrowRecordBatch] = {
+      stream.grouped(batchSize).map(rows => createDummyBatch(root, rows))
+    }
+
+    private def createDummyBatch(arrowRoot: VectorSchemaRoot, rows: Seq[Row]): ArrowRecordBatch = {
+      arrowRoot.allocateNew()
+      val fieldVectors = arrowRoot.getFieldVectors.asScala
+      var i = 0
+      rows.foreach(row => {
+        var j = 0
+        fieldVectors.foreach(vec => {
+          val value = row.get(j)
+          value match {
+            case v: Int => vec.asInstanceOf[IntVector].setSafe(i, v)
+            case v: Long => vec.asInstanceOf[BigIntVector].setSafe(i, v)
+            case v: Double => vec.asInstanceOf[Float8Vector].setSafe(i, v)
+            case v: Float => vec.asInstanceOf[Float4Vector].setSafe(i, v)
+            case v: java.math.BigDecimal => vec.asInstanceOf[VarCharVector].setSafe(i, v.toString.getBytes("UTF-8"))
+            case v: String =>
+              val bytes = v.getBytes("UTF-8")
+              vec.asInstanceOf[VarCharVector].setSafe(i, bytes)
+            case v: Boolean => vec.asInstanceOf[BitVector].setSafe(i, if (v) 1 else 0)
+            case v: Array[Byte] => vec.asInstanceOf[VarBinaryVector].setSafe(i, v)
+            case null => vec.setNull(i)
+            case v: DFRef =>
+              val bytes = v.url.getBytes("UTF-8")
+              vec.asInstanceOf[VarCharVector].setSafe(i, bytes)
+            case v: Blob =>
+              val ticketId = BlobRegistry.register(v)
+              val bytes = DftpTicket.createTicket(ticketId).getBytes
+              vec.asInstanceOf[VarBinaryVector].setSafe(i, bytes)
+            case _ => throw new UnsupportedOperationException("Type not supported")
+          }
+          j += 1
+        })
+        i += 1
+      })
+      arrowRoot.setRowCount(rows.length)
+      val unloader = new VectorUnloader(arrowRoot)
+      unloader.getRecordBatch
     }
   }
 }

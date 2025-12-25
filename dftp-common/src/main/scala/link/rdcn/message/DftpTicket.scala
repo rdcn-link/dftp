@@ -39,44 +39,40 @@ import java.nio.charset.StandardCharsets
 //  override val ticketContent: String = url
 //}
 
-/**
- * DftpTicket wraps an Arrow Flight Ticket with a JSON string payload.
- *
- * @param jsonStr JSON string representing the ticket content
- */
-final case class DftpTicket(ticketId: String) {
-  val ticket: Ticket = new Ticket(CodecUtils.encodeString(ticketId))
+object DftpTicket{
+
+  def createTicket(ticketId: String): Ticket =
+    new Ticket(CodecUtils.encodeString(ticketId))
+
+  def getTicketId(ticket: Ticket): String =
+    CodecUtils.decodeString(ticket.getBytes)
+
 }
 
-trait GetStreamType {
+trait ActionMethodType{
   def name: String
 }
 
-object GetStreamType {
+object ActionMethodType {
 
-  case object Blob extends GetStreamType {
-    override val name: String = "blob"
+  case object GetTabularMeta extends ActionMethodType {
+    override def name: String = "GET_TABULAR_META"
   }
 
-  case object Get extends GetStreamType {
-    override val name: String = "get"
+  private var extraTypes: Map[String, ActionMethodType] = Map.empty
+
+  def registerExtraType(t: ActionMethodType): Unit = {
+    extraTypes += t.name -> t
   }
 
-  /** Optional: for future extensibility, modules can register new types */
-  private var extraTypes: Map[String, GetStreamType] = Map.empty
-
-  def registerExtraType(t: GetStreamType): Unit = {
-    extraTypes += t.name.toLowerCase -> t
-  }
-
-  def fromString(name: String): GetStreamType = {
-    name.toLowerCase match {
-      case Blob.name => Blob
-      case Get.name  => Get
-      case other     => extraTypes.getOrElse(name.toLowerCase,
-        throw new IllegalArgumentException(s"Unknown GetStreamType: $other"))
+  def fromString(name: String): ActionMethodType = {
+    name match {
+      case GetTabularMeta.name => GetTabularMeta
+      case other     => extraTypes.getOrElse(name,
+        throw new IllegalArgumentException(s"Unknown ActionMethodType: $other"))
     }
   }
+
 }
 
 

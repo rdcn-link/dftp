@@ -1,7 +1,4 @@
-package link.rdcn.client
-
-import link.rdcn.message.DftpTicket
-import link.rdcn.struct.{DataFrameShape, StructType}
+package link.rdcn.struct
 
 /**
  * @Author renhao
@@ -15,6 +12,8 @@ trait DataFrameMeta {
 
   def getDataFrameSchema: StructType
 
-  def getStreamTicket: DftpTicket
+  def getDataFrameDocument: DataFrameDocument = DataFrameDocument.empty()
+
+  def getDataFrameStatistic: DataFrameStatistics = DataFrameStatistics.empty()
 
 }

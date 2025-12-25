@@ -13,8 +13,6 @@ import scala.annotation.varargs
 trait DataFrame {
   val schema: StructType
 
-  val dataFrameShape: DataFrameShape
-
   def mapIterator[T](f: ClosableIterator[Row] => T): T
 
   def map(f: Row => Row): DataFrame
