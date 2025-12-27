@@ -49,26 +49,30 @@ trait TransformOp {
 
   def toJsonString: String = toJson.toString
 
+  override def toString: String = toJsonString
+
   def execute(ctx: ExecutionContext): DataFrame
 }
 
 object TransformOp {
-  def fromJsonString(json: String): TransformOp = {
-    val parsed: JSONObject = new JSONObject(json)
-    val opType = parsed.getString("type")
+
+  def fromJsonObject(jsonObject: JSONObject): TransformOp = {
+    val opType = jsonObject.getString("type")
     if (opType == "SourceOp") {
-      SourceOp(parsed.getString("dataFrameName"))
+      SourceOp(jsonObject.getString("dataFrameName"))
     } else {
-      val ja: JSONArray = parsed.getJSONArray("input")
-      val inputs = (0 until ja.length).map(ja.getJSONObject(_).toString()).map(fromJsonString(_))
+      val ja: JSONArray = jsonObject.getJSONArray("input")
+      val inputs = (0 until ja.length).map(ja.getJSONObject(_)).map(fromJsonObject(_))
       opType match {
-        case "Map" => MapOp(FunctionWrapper(parsed.getJSONObject("function")), inputs: _*)
-        case "Filter" => FilterOp(FunctionWrapper(parsed.getJSONObject("function")), inputs: _*)
-        case "Limit" => LimitOp(parsed.getJSONArray("args").getInt(0), inputs: _*)
-        case "Select" => SelectOp(inputs.head, parsed.getJSONArray("args").toList.asScala.map(_.toString): _*)
+        case "Map" => MapOp(FunctionWrapper(jsonObject.getJSONObject("function")), inputs: _*)
+        case "Filter" => FilterOp(FunctionWrapper(jsonObject.getJSONObject("function")), inputs: _*)
+        case "Limit" => LimitOp(jsonObject.getJSONArray("args").getInt(0), inputs: _*)
+        case "Select" => SelectOp(inputs.head, jsonObject.getJSONArray("args").toList.asScala.map(_.toString): _*)
       }
     }
   }
+
+  def fromJsonString(json: String): TransformOp = fromJsonObject(new JSONObject(json))
 }
 
 case class SourceOp(dataFrameUrl: String) extends TransformOp {

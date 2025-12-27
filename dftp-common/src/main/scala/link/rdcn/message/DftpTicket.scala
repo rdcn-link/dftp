@@ -1,5 +1,8 @@
 package link.rdcn.message
 
+import link.rdcn.util.CodecUtils
+import org.apache.arrow.flight.Ticket
+
 import java.nio.charset.StandardCharsets
 
 /**
@@ -8,32 +11,43 @@ import java.nio.charset.StandardCharsets
  * @Data 2025/9/19 16:54
  * @Modified By:
  */
-trait DftpTicket
-{
-  val typeId: Byte
-  val ticketContent: String
+case class DftpTicket(ticketId: String) {
+  val ticket: Ticket = new Ticket(CodecUtils.encodeString(ticketId))
+}
 
-  def encodeTicket(): Array[Byte] =
-  {
-    val b = ticketContent.getBytes(StandardCharsets.UTF_8)
-    val buffer = java.nio.ByteBuffer.allocate(1 + 4 + b.length)
-    buffer.put(typeId)
-    buffer.putInt(b.length)
-    buffer.put(b)
-    buffer.array()
+object DftpTicket{
+  def getDftpTicket(ticket: Ticket): DftpTicket =
+    DftpTicket(CodecUtils.decodeString(ticket.getBytes))
+}
+
+trait ActionMethodType{
+  def name: String
+}
+
+object ActionMethodType {
+
+  case object GetTabular extends ActionMethodType {
+    override def name: String = "GET_TABULAR"
   }
-}
 
-case class BlobTicket(blobId: String) extends DftpTicket
-{
-  override val typeId: Byte = 1
-  override val ticketContent: String = blobId
-}
+  case object GetBlob extends ActionMethodType {
+    override def name: String = "GET_BLOB"
+  }
 
-case class GetTicket(url: String) extends DftpTicket
-{
-  override val typeId: Byte = 2
-  override val ticketContent: String = url
+  private var extraTypes: Map[String, ActionMethodType] = Map.empty
+
+  def registerExtraType(t: ActionMethodType): Unit = {
+    extraTypes += t.name -> t
+  }
+
+  def fromString(name: String): ActionMethodType = {
+    name match {
+      case GetTabular.name => GetTabular
+      case other     => extraTypes.getOrElse(name,
+        throw new IllegalArgumentException(s"Unknown ActionMethodType: $other"))
+    }
+  }
+
 }
 
 

@@ -1,6 +1,7 @@
 package link.rdcn.struct
 
 import link.rdcn.struct.ValueType._
+import org.json.{JSONArray, JSONObject}
 
 /**
  * @Author renhao
@@ -61,8 +62,20 @@ case class StructType(val columns: Seq[Column]) {
 
   def append(column: Column): StructType = new StructType(columns :+ column)
 
-  override def toString: String =
-    columns.map(c => s"${c.name}: ${c.colType}").mkString("schema(", ", ", ")")
+//  override def toString: String =
+//    columns.map(c => s"${c.name}: ${c.colType}").mkString("schema(", ", ", ")")
+
+  override def toString: String = {
+    val jsonArray = new JSONArray()
+    columns.foreach { col =>
+      val jo = new JSONObject()
+      jo.put("name", col.name)
+      jo.put("colType", col.colType.name)
+      jo.put("nullable", col.nullable)
+      jsonArray.put(jo)
+    }
+    jsonArray.toString
+  }
 }
 
 object StructType {
@@ -78,43 +91,20 @@ object StructType {
   def fromNamesAsAny(names: Seq[String]): StructType =
     new StructType(names.map(n => Column(n, ValueType.StringType)))
 
-  /**
-   * 从字符串解析 StructType。
-   * 期望的格式: "schema(col1: Type1, col2: Type2, ...)"
-   * 例如: "schema(id: IntType, name: StringType)"
-   */
-  def fromString(schemaString: String): StructType = {
-    if (schemaString == "schema()" || schemaString == "") {
+  def fromString(jsonString: String): StructType = {
+    if (jsonString == null || jsonString.trim.isEmpty) {
       return StructType.empty
     }
 
-    // 检查并移除前缀和后缀
-    val prefix = "schema("
-    val suffix = ")"
-    if (!schemaString.startsWith(prefix) || !schemaString.endsWith(suffix)) {
-      throw new IllegalArgumentException(s"无效的 StructType 字符串格式: '$schemaString'。期望格式: 'schema(col1: Type1, ...)'")
+    val jsonArray = new JSONArray(jsonString)
+    val columns = (0 until jsonArray.length()).map { i =>
+      val jo = jsonArray.getJSONObject(i)
+      val name = jo.getString("name")
+      val colType = ValueTypeHelper.fromName(jo.getString("colType"))
+      val nullable = if (jo.has("nullable")) jo.getBoolean("nullable") else true
+      Column(name, colType, nullable)
     }
-
-    val content = schemaString.substring(prefix.length, schemaString.length - suffix.length).trim
-    val columnPattern = "(.+):\\s*([a-zA-Z]+)".r // 匹配列名和类型，例如 "id: IntType"
-
-    if (content.isEmpty) { // 处理 "schema()" 的情况
-      StructType.empty
-    } else {
-      // 按逗号和空格 ", " 分割每个列定义
-      val columnDefs = content.split(",\\s*").map(_.trim)
-
-      val parsedColumns = columnDefs.map { colDef =>
-        colDef match {
-          case columnPattern(name, typeName) =>
-            val colType = ValueTypeHelper.fromName(typeName) // 使用 ValueType 的 fromString 方法
-            Column(name, colType) // 默认 nullable 为 true
-          case _ =>
-            throw new IllegalArgumentException(s"无效的列定义格式: '$colDef'。期望格式: 'name: Type'")
-        }
-      }
-      StructType.fromSeq(parsedColumns.toSeq)
-    }
+    StructType.fromSeq(columns)
   }
 
   val empty: StructType = new StructType(Seq.empty)

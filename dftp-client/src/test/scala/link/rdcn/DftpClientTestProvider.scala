@@ -135,7 +135,7 @@ class ActionModule extends DftpModule {
 
     override def accepts(request: DftpActionRequest): Boolean = true
 
-    override def doAction(request: DftpActionRequest, response: DftpActionResponse): Unit = response.sendData("success".getBytes)
+    override def doAction(request: DftpActionRequest, response: DftpActionResponse): Unit = response.sendJsonString("")
   }
   private val eventHandler = new EventHandler {
 

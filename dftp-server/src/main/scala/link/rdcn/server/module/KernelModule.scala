@@ -49,7 +49,7 @@ class KernelModule extends DftpModule {
       override def executeWith(worker: ActionMethod): Unit = worker.doAction(request, response)
 
       override def handleFailure(): Unit = {
-        response.sendError(404, s"unknown action: ${request.getActionName()}")
+        response.sendError(404, s"unknown action: ${request.getJsonStringRequest()}")
       }
     })
   }

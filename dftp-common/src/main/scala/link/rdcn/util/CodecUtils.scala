@@ -1,7 +1,5 @@
 package link.rdcn.util
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import link.rdcn.dacp.user.KeyPairCredentials
 import link.rdcn.user.{Credentials, TokenAuth, UsernamePassword}
 import org.json.JSONObject
