@@ -44,12 +44,12 @@ object ServerUtils {
           new FieldType(column.nullable, new ArrowType.Binary(), null)
         case RefType =>
           val metadata = new java.util.HashMap[String, String]()
-          metadata.put("logicalType", "Url")
+          metadata.put("logicalType", RefType.name)
           new FieldType(column.nullable, ArrowType.Utf8.INSTANCE, null, metadata)
         case BlobType =>
           val metadata = new java.util.HashMap[String, String]()
-          metadata.put("logicalType", "blob")
-          new FieldType(column.nullable, new ArrowType.Binary(), null, metadata)
+          metadata.put("logicalType", BlobType.name)
+          new FieldType(column.nullable, ArrowType.Utf8.INSTANCE, null, metadata)
         case _ =>
           throw new UnsupportedOperationException(s"Unsupported type: ${column.colType}")
       }

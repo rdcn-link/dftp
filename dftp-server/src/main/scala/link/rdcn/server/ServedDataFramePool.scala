@@ -13,7 +13,7 @@ import scala.collection.concurrent.TrieMap
  * @Data 2025/12/25 17:48
  * @Modified By:
  */
-object OpenedDataFrameRegistry {
+object ServedDataFramePool {
 
   private val dataFrameCache = TrieMap[String, DataFrame]()
   private val ticketExpiryDateCache = TrieMap[String, Long]()
@@ -25,7 +25,7 @@ object OpenedDataFrameRegistry {
     dataFrameId
   }
 
-  def registry(blob: Blob): String = {
+  def registry(blob: Blob, expiryDate: Long = -1L): String = {
     val dataFrameId = UUID.randomUUID().toString
     val dataFrame = blob.offerStream[DataFrame](inputStream => {
       val stream: Iterator[Row] = DataUtils.chunkedIterator(inputStream)
@@ -34,11 +34,11 @@ object OpenedDataFrameRegistry {
       DefaultDataFrame(schema, stream)
     })
     dataFrameCache.put(dataFrameId, dataFrame)
-    ticketExpiryDateCache.put(dataFrameId, -1L)
+    ticketExpiryDateCache.put(dataFrameId, expiryDate)
     dataFrameId
   }
 
-  def isTicketExists(ticketId: String): Boolean = {
+  def exists(ticketId: String): Boolean = {
     dataFrameCache.keys.toList.contains(ticketId)
   }
 

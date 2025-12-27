@@ -1,9 +1,9 @@
 package link.rdcn.client
 
 import link.rdcn.Logging
+import link.rdcn.message.DftpTicket
 import link.rdcn.operation._
-import link.rdcn.struct.{ClosableIterator, DataFrame, DataFrameMeta, DataFrameShape, Row, StructType}
-import org.apache.arrow.flight.Ticket
+import link.rdcn.struct.{ClosableIterator, DataFrame, DataFrameInfo, Row, StructType}
 
 /**
  * @Author renhao
@@ -13,8 +13,8 @@ import org.apache.arrow.flight.Ticket
  */
 
 case class RemoteDataFrameProxy(operation: TransformOp,
-                                getStream: Ticket => Iterator[Row],
-                                openDataFrame: TransformOp => DataFrameDescriptor
+                                getStream: DftpTicket => Iterator[Row],
+                                openDataFrame: TransformOp => DataFrameInfo
                                ) extends DataFrame with Logging {
 
   override lazy val schema: StructType = dataFrameDescriptor.getDataFrameMeta.getDataFrameSchema

@@ -1,11 +1,12 @@
 package link.rdcn.server.module
 
 import link.rdcn.Logging
-import link.rdcn.message.{ActionMethodType}
+import link.rdcn.client.UrlValidator
+import link.rdcn.message.ActionMethodType
 import link.rdcn.operation.{ExecutionContext, TransformOp}
 import link.rdcn.server._
 import link.rdcn.server.exception.{DataFrameNotFoundException, TicketExpiryException, TicketNotFoundException}
-import link.rdcn.struct.{DataFrame, DataFrameShape}
+import link.rdcn.struct.{Blob, DataFrame, DataFrameMetaData, DataFrameShape, StructType}
 import link.rdcn.user.UserPrincipal
 import org.json.JSONObject
 
@@ -18,73 +19,68 @@ class BaseDftpModule extends DftpModule with Logging{
 
     override def accepts(event: CrossModuleEvent): Boolean = {
       event match {
-        case _: CollectGetStreamMethodEvent => true
         case _: CollectActionMethodEvent => true
         case _ => false
       }
     }
 
     def createDataFrameDescriber(dataFrame: DataFrame): JSONObject = {
-      val ticketId: String = OpenedDataFrameRegistry.registry(dataFrame)
+      val ticketId: String = ServedDataFramePool.registry(dataFrame)
       val responseJsonObject = new JSONObject()
       responseJsonObject.put("shapeName", DataFrameShape.Tabular.name)
         .put("schema", dataFrame.schema.toString)
-        .put("dftpTicket", ticketId)
+        .put("ticket", ticketId)
     }
 
     override def doHandleEvent(event: CrossModuleEvent): Unit = {
       event match {
         case require: CollectActionMethodEvent =>
           require.collect(new ActionMethod {
-            override def accepts(request: DftpActionRequest): Boolean =
-              request.getActionName() == ActionMethodType.GetTabularMeta.name
+            override def accepts(request: DftpActionRequest): Boolean = {
+              request.getActionName() match {
+                case ActionMethodType.GetTabular.name => true
+                case ActionMethodType.GetBlob.name => true
+                case _ => false
+              }
+            }
 
             override def doAction(request: DftpActionRequest, response: DftpActionResponse): Unit = {
-              val requestJsonObject = request.getRequestParameters()
-              val transformOp: TransformOp = TransformOp.fromJsonObject(requestJsonObject)
-              val dataFrame = transformOp.execute(new ExecutionContext {
-                override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
-                  Some(dataFrameHolder.work(new TaskRunner[DataFrameProviderService, DataFrame] {
+              request.getActionName() match {
+                case ActionMethodType.GetTabular.name =>
+                  val requestJsonObject = request.getRequestParameters()
+                  val transformOp: TransformOp = TransformOp.fromJsonObject(requestJsonObject)
+                  val dataFrame = transformOp.execute(new ExecutionContext {
+                    override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
+                      Some(dataFrameHolder.work(new TaskRunner[DataFrameProviderService, DataFrame] {
 
-                    override def acceptedBy(worker: DataFrameProviderService): Boolean = worker.accepts(dataFrameNameUrl)
+                        override def acceptedBy(worker: DataFrameProviderService): Boolean = worker.accepts(dataFrameNameUrl)
 
-                    override def executeWith(worker: DataFrameProviderService): DataFrame = worker.getDataFrame(dataFrameNameUrl, request.getUserPrincipal())
+                        override def executeWith(worker: DataFrameProviderService): DataFrame = worker.getDataFrame(dataFrameNameUrl, request.getUserPrincipal())
 
-                    override def handleFailure(): DataFrame = throw new DataFrameNotFoundException(dataFrameNameUrl)
-                  }))
-                }
-              })
-              response.sendJsonObject(createDataFrameDescriber(dataFrame))
+                        override def handleFailure(): DataFrame = throw new DataFrameNotFoundException(dataFrameNameUrl)
+                      }))
+                    }
+                  })
+                  val dataFrameContext = new DataFrameContext {
+                    override def getDataFrameMeta: DataFrameMetaData = new DataFrameMetaData {
+                      override def getDataFrameShape: DataFrameShape = DataFrameShape.Tabular
+
+                      override def getDataFrameSchema: StructType = dataFrame.schema
+                    }
+
+                    override def getDataFrame: DataFrame = dataFrame
+                  }
+                  response.sendRedirect(dataFrameContext)
+                case ActionMethodType.GetBlob.name =>
+                  val requestJsonObject = request.getRequestParameters()
+                  val url = requestJsonObject.getString("url")
+                  //TODO BlobProvider?
+                  val ticketId = UrlValidator.extractPath(url).stripPrefix("/blob/")
+                  response.sendJsonObject(new JSONObject().put("ticket", ticketId))
+              }
             }
+
           })
-
-        case require: CollectGetStreamMethodEvent =>
-          require.collect(
-            new GetStreamMethod {
-              override def accepts(request: DftpGetStreamRequest): Boolean = {
-                OpenedDataFrameRegistry.isTicketExists(request.getTicket)
-              }
-
-              override def doGetStream(request: DftpGetStreamRequest, response: DftpGetStreamResponse): Unit = {
-                try {
-                  val ticketId = request.getTicket
-                  val dataFrame = OpenedDataFrameRegistry.getDataFrame(ticketId)
-                  if(dataFrame.isEmpty) response.sendError(404, s"not found dataframe by ticket ${ticketId}")
-                  else response.sendDataFrame(dataFrame.get)
-                }catch {
-                  case e: TicketNotFoundException =>
-                    logger.error(e)
-                    response.sendError(404, e.getMessage)
-                  case e: TicketExpiryException =>
-                    logger.error(e)
-                    response.sendError(403, e.getMessage)
-                  case e: Exception =>
-                    logger.error(e)
-                    response.sendError(500, e.getMessage)
-                }
-
-              }
-            })
         case _ =>
       }
     }

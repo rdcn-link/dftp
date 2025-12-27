@@ -6,7 +6,7 @@ package link.rdcn.struct
  * @Data 2025/12/24 15:43
  * @Modified By:
  */
-trait DataFrameMeta {
+trait DataFrameMetaData {
 
   def getDataFrameShape: DataFrameShape
 

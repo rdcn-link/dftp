@@ -190,6 +190,19 @@ class DftpServer(config: DftpServerConfig) extends Logging {
                           listener: FlightProducer.StreamListener[Result]): Unit = {
 
       val actionResponse = new DftpActionResponse {
+
+        override def sendRedirect(dataFrameContext: DataFrameContext): Unit = {
+          val responseJsonObject = new JSONObject()
+          responseJsonObject.put("shapeName", DataFrameShape.Tabular.name)
+            .put("schema", dataFrameContext.getDataFrameMeta.getDataFrameSchema.toString)
+            .put("ticket", dataFrameContext.getDftpTicket.ticketId)
+          sendJsonObject(responseJsonObject)
+        }
+
+        override def sendRedirect(blobContext: BlobContext): Unit = {
+          sendJsonObject(new JSONObject().put("ticket", blobContext.getDftpTicket.ticketId))
+        }
+
         override def sendError(errorCode: Int, message: String): Unit = {
           sendErrorWithFlightStatus(errorCode, message)
         }
@@ -248,53 +261,54 @@ class DftpServer(config: DftpServerConfig) extends Logging {
                            listener: FlightProducer.ServerStreamListener): Unit = {
 
       val dataBatchLen = 1000
-      val response = new DftpGetStreamResponse {
-        override def sendError(code: Int, message: String): Unit = {
-          sendErrorWithFlightStatus(code, message)
+      val ticketId = DftpTicket.getDftpTicket(ticket).ticketId
+      if(ServedDataFramePool.exists(ticketId)){
+        val dataFrame = ServedDataFramePool.getDataFrame(ticketId)
+        if(dataFrame.isEmpty) sendErrorWithFlightStatus(400, s"No DataFrame associated with ticket: $ticketId")
+        else {
+          try{
+            sendDataFrame(dataFrame.get)
+          }catch {
+            case e: Exception =>
+              logger.error(e)
+              sendErrorWithFlightStatus(500, e.getMessage)
+          }
         }
-
-        override def sendDataFrame(dataFrame: DataFrame): Unit = {
-          val schema = convertStructTypeToArrowSchema(dataFrame.schema)
-          val childAllocator = allocator.newChildAllocator("flight-session", 0, Long.MaxValue)
-          val root = VectorSchemaRoot.create(schema, childAllocator)
-          val loader = new VectorLoader(root)
-          listener.start(root)
-          dataFrame.mapIterator(iter => {
-            val arrowFlightStreamWriter = ArrowFlightStreamWriter(iter)
-            try {
-              arrowFlightStreamWriter.process(root, dataBatchLen).foreach(batch => {
-                try {
-                  loader.load(batch)
-                  while (!listener.isReady()) {
-                    LockSupport.parkNanos(1)
-                  }
-                  listener.putNext()
-                } finally {
-                  batch.close()
+      }else {
+        sendErrorWithFlightStatus(400, s"not found ticket $ticketId")
+      }
+      def sendDataFrame(dataFrame: DataFrame): Unit = {
+        val schema = convertStructTypeToArrowSchema(dataFrame.schema)
+        val childAllocator = allocator.newChildAllocator("flight-session", 0, Long.MaxValue)
+        val root = VectorSchemaRoot.create(schema, childAllocator)
+        val loader = new VectorLoader(root)
+        listener.start(root)
+        dataFrame.mapIterator(iter => {
+          val arrowFlightStreamWriter = ArrowFlightStreamWriter(iter)
+          try {
+            arrowFlightStreamWriter.process(root, dataBatchLen).foreach(batch => {
+              try {
+                loader.load(batch)
+                while (!listener.isReady()) {
+                  LockSupport.parkNanos(1)
                 }
-              })
-              listener.completed()
-            } catch {
-              case e: Throwable => listener.error(e)
-                e.printStackTrace()
-                throw e
-            } finally {
-              iter.close()
-              if (root != null) root.close()
-              if (childAllocator != null) childAllocator.close()
-            }
-          })
-        }
+                listener.putNext()
+              } finally {
+                batch.close()
+              }
+            })
+            listener.completed()
+          } catch {
+            case e: Throwable => listener.error(e)
+              e.printStackTrace()
+              throw e
+          } finally {
+            iter.close()
+            if (root != null) root.close()
+            if (childAllocator != null) childAllocator.close()
+          }
+        })
       }
-
-      val userPrincipal = authenticatedUserMap.get(callContext.peerIdentity())
-      val request: DftpGetStreamRequest = new DftpGetStreamRequest {
-        override def getTicket: String = DftpTicket.getTicketId(ticket)
-
-        override def getUserPrincipal(): UserPrincipal = userPrincipal
-      }
-
-      kernelModule.getStream(request, response)
     }
 
     override def acceptPut(
@@ -389,9 +403,10 @@ class DftpServer(config: DftpServerConfig) extends Logging {
               val bytes = v.url.getBytes("UTF-8")
               vec.asInstanceOf[VarCharVector].setSafe(i, bytes)
             case v: Blob =>
-              val ticketId = BlobRegistry.register(v)
-              val bytes = DftpTicket.createTicket(ticketId).getBytes
-              vec.asInstanceOf[VarBinaryVector].setSafe(i, bytes)
+              val baseUrl = s"${config.protocolScheme}://${config.host}:${config.port}/blob/"
+              val ticketId = ServedDataFramePool.registry(v)
+              val bytes =  CodecUtils.encodeString(baseUrl + ticketId)
+              vec.asInstanceOf[VarCharVector].setSafe(i, bytes)
             case _ => throw new UnsupportedOperationException("Type not supported")
           }
           j += 1

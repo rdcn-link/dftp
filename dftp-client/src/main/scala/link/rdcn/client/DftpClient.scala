@@ -4,6 +4,7 @@ import link.rdcn.Logging
 import link.rdcn.client.ClientUtils.convertStructTypeToArrowSchema
 import link.rdcn.message.{ActionMethodType, DftpTicket}
 import link.rdcn.operation._
+import link.rdcn.struct.ValueType.{BlobType, RefType}
 import link.rdcn.struct._
 import link.rdcn.user.Credentials
 import link.rdcn.util.CodecUtils
@@ -43,44 +44,48 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) extends Loggi
     CodecUtils.decodeString(actionResultIter.next().getBody)
   }
 
-  protected def openDataFrame(transformOp: TransformOp): DataFrameDescriptor = {
-    val responseJson = new JSONObject(doAction(ActionMethodType.GetTabularMeta.name, transformOp.toJsonString))
-    val dataFrameMeta = new DataFrameMeta {
+  protected def openDataFrame(transformOp: TransformOp): DataFrameInfo = {
+    val responseJson = new JSONObject(doAction(ActionMethodType.GetTabular.name, transformOp.toJsonString))
+    val dataFrameMeta = new DataFrameMetaData {
       override def getDataFrameShape: DataFrameShape =
         DataFrameShape.fromName(responseJson.getString("shapeName"))
 
       override def getDataFrameSchema: StructType =
         StructType.fromString(responseJson.getString("schema"))
     }
-    new DataFrameDescriptor {
-      override def getDataFrameMeta: DataFrameMeta = dataFrameMeta
+    new DataFrameInfo {
+      override def getDataFrameMeta: DataFrameMetaData = dataFrameMeta
 
-      override def getDataFrameTicket: Ticket = DftpTicket.createTicket(responseJson.getString("ticket"))
+      override def getDataFrameTicket: DftpTicket = DftpTicket(responseJson.getString("ticket"))
     }
   }
 
-  def openDataFrame(url: String): DataFrameDescriptor = openDataFrame(SourceOp(url))
-
-  def getBlob(url: String): Blob = {
-    val df = RemoteDataFrameProxy(SourceOp(validateUrl(url)), getStream, openDataFrame)
-    new Blob {
-      override def offerStream[T](consume: InputStream => T): T = {
-        val inputStream = df.mapIterator[InputStream](iter => {
-          val chunkIterator = iter.map(value => {
-            assert(value.values.length == 1)
-            value._1 match {
-              case v: Array[Byte] => v
-              case other => throw new Exception(s"Blob parsing failed: expected Array[Byte], but got ${other}")
-            }
-          })
-          new IteratorInputStream(chunkIterator)
-        })
-        consume(inputStream)
-      }
-    }
-  }
+  def openDataFrame(url: String): DataFrameInfo = openDataFrame(SourceOp(url))
 
   def getTabular(url: String): DataFrame = get(url)
+
+  def openBlob(url: String): DftpTicket = {
+    val requestJson = new JSONObject().put("url", url)
+    val responseJson = new JSONObject(doAction(ActionMethodType.GetBlob.name, requestJson.toString))
+    DftpTicket(responseJson.getString("ticket"))
+  }
+
+  def getBlob(url: String): Blob = {
+    val stream: Iterator[Array[Byte]] = getStream(openBlob(url)).map(v => {
+      assert(v.values.length == 1)
+      v._1 match {
+        case value: Array[Byte] => value
+        case other => throw new Exception(s"Blob parsing failed: expected Array[Byte], but got ${other}")
+      }
+    })
+    new Blob {
+      override def offerStream[T](consume: InputStream => T): T = {
+        val inputStream = new IteratorInputStream(stream)
+        consume(inputStream)
+      }
+      override def toString: String = url
+    }
+  }
 
   def get(url: String): DataFrame =
     RemoteDataFrameProxy(SourceOp(validateUrl(url)), getStream, openDataFrame)
@@ -92,7 +97,7 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) extends Loggi
         case Right((prefixSchema, host, port, path)) => {
           if (host == this.host && port.getOrElse(3101) == this.port) url
           else
-            throw new IllegalArgumentException(s"Invalid request URL: $url  Expected format: $prefixSchema://${this.host}[:${this.port}]")
+            throw new IllegalArgumentException(s"Invalid request URL: $url Expected format: $prefixSchema://${this.host}[:${this.port}]")
         }
         case Left(message) => throw new IllegalArgumentException(message)
       }
@@ -137,8 +142,8 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) extends Loggi
     flightClient.close()
   }
 
-  def getStream(ticket: Ticket): Iterator[Row] = {
-    val flightStream = flightClient.getStream(ticket)
+  def getStream(ticket: DftpTicket): Iterator[Row] = {
+    val flightStream = flightClient.getStream(ticket.ticket)
     val vectorSchemaRootReceived = flightStream.getRoot
     val iter: Iterator[Seq[Any]] = new Iterator[Seq[Seq[Any]]] {
       override def hasNext: Boolean = flightStream.next()
@@ -155,30 +160,16 @@ class DftpClient(host: String, port: Int, useTLS: Boolean = false) extends Loggi
               case v: org.apache.arrow.vector.VarCharVector =>
                 if (v.getField.getMetadata.isEmpty)
                   (vec.getName, new String(v.get(index)))
-                else (vec.getName, DFRef(new String(v.get(index))))
+                else {
+                  v.getField.getMetadata.get("logicalType") match {
+                    case RefType.name => (vec.getName, DFRef(new String(v.get(index))))
+                    case BlobType.name => (vec.getName, getBlob(new String(v.get(index))))
+                    case other => throw new Exception(s"Unsupported vector type: ${other}")
+                  }
+                }
               case v: org.apache.arrow.vector.Float8Vector => (vec.getName, v.get(index))
               case v: org.apache.arrow.vector.BitVector => (vec.getName, v.get(index) == 1)
-              case v: org.apache.arrow.vector.VarBinaryVector =>
-                if (v.getField.getMetadata.isEmpty) (vec.getName, v.get(index))
-                else {
-                  val blobId = CodecUtils.decodeString(v.get(index))
-                  val blob = new Blob {
-                    override def offerStream[T](consume: InputStream => T): T = {
-                      val iter = getStream(DftpTicket.createTicket(blobId))
-                      val chunkIterator: Iterator[Array[Byte]] = iter.map(value => {
-                        assert(value.values.length == 1)
-                        value._1 match {
-                          case v: Array[Byte] => v
-                          case other => throw new Exception(s"Blob parsing failed: expected Array[Byte], but got ${other}")
-                        }
-                      })
-                      val stream = new IteratorInputStream(chunkIterator)
-                      try consume(stream)
-                      finally stream.close()
-                    }
-                  }
-                  (vec.getName, blob)
-                }
+              case v: org.apache.arrow.vector.VarBinaryVector => (vec.getName, v.get(index))
               case _ => throw new UnsupportedOperationException(s"Unsupported vector type: ${vec.getClass}")
             }
           }): _*)
